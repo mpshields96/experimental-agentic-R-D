@@ -468,6 +468,72 @@ def nhl_kill_switch(
     return False, ""
 
 
+def tennis_kill_switch(
+    surface: str,
+    favourite_implied_prob: float,
+    is_favourite_bet: bool,
+    market_type: str = "h2h",
+) -> tuple[bool, str]:
+    """
+    Tennis kill switch — zero external API cost, static surface inference only.
+
+    Surface data is derived from tournament name (Odds API sport key).
+    Player-specific surface win rates require api-tennis.com ($40/mo) and are
+    NOT implemented here. This switch uses structural surface risk only.
+
+    Kill logic:
+    - Clay + heavy favourite (>72% implied) + h2h → FLAG: surface upsets frequent
+    - Grass + heavy favourite (>75% implied) + h2h → FLAG: serve variance high
+    - Unknown surface → FLAG: require 8%+ edge
+    - Hard court → no flag (most predictable surface)
+    - Totals are not flagged for surface (not applicable in tennis context)
+
+    Note: We do NOT kill outright — without per-player surface records we cannot
+    confirm the specific surface handicap. The FLAG reduces confidence and prompts
+    higher edge requirement, consistent with the incomplete-information doctrine.
+
+    Args:
+        surface: "clay", "grass", "hard", or "unknown" from tennis_data.surface_from_sport_key().
+        favourite_implied_prob: Market-implied win probability for the favourite.
+            Use implied_probability(price) to compute from American odds.
+        is_favourite_bet: True if this candidate is betting ON the favourite.
+        market_type: "h2h", "spreads", or "totals".
+
+    Returns:
+        (killed, reason) — killed is always False (FLAG only, no KILL).
+
+    >>> tennis_kill_switch("clay", 0.75, True, "h2h")
+    (False, 'FLAG: Clay court + heavy favourite (75.0%) — upsets common, require 8%+ edge')
+    >>> tennis_kill_switch("hard", 0.75, True, "h2h")
+    (False, '')
+    >>> tennis_kill_switch("unknown", 0.60, True, "h2h")
+    (False, 'FLAG: Surface unknown — require 8%+ edge')
+    >>> tennis_kill_switch("clay", 0.65, False, "h2h")
+    (False, '')
+    >>> tennis_kill_switch("clay", 0.75, True, "totals")
+    (False, '')
+    """
+    # Totals are not surface-sensitive in tennis (not typically offered or relevant)
+    if market_type == "totals":
+        return False, ""
+
+    # Unknown surface — incomplete information, apply blanket edge requirement
+    if surface == "unknown":
+        return False, "FLAG: Surface unknown — require 8%+ edge"
+
+    # Clay: highest upset frequency for heavy favourites
+    if surface == "clay" and is_favourite_bet and favourite_implied_prob > 0.72:
+        pct = favourite_implied_prob * 100
+        return False, f"FLAG: Clay court + heavy favourite ({pct:.1f}%) — upsets common, require 8%+ edge"
+
+    # Grass: high variance due to serving dominance
+    if surface == "grass" and is_favourite_bet and favourite_implied_prob > 0.75:
+        pct = favourite_implied_prob * 100
+        return False, f"FLAG: Grass court + heavy favourite ({pct:.1f}%) — serve variance high, require 7%+ edge"
+
+    return False, ""
+
+
 # ---------------------------------------------------------------------------
 # Multi-book consensus fair probability
 # ---------------------------------------------------------------------------
@@ -878,6 +944,7 @@ def parse_game_markets(
     sport: str = "NCAAB",
     nhl_goalie_status: Optional[dict] = None,
     efficiency_gap: float = 0.0,
+    tennis_sport_key: str = "",
 ) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
@@ -887,7 +954,7 @@ def parse_game_markets(
 
     Args:
         game:  Raw game dict from fetch_game_lines() / fetch_batch_odds().
-        sport: Sport key for BetCandidate (e.g. "NCAAB", "NHL").
+        sport: Sport key for BetCandidate (e.g. "NCAAB", "NHL", "TENNIS_ATP").
         nhl_goalie_status: Optional goalie starter dict from nhl_data module.
             If provided and sport=="NHL", nhl_kill_switch() is evaluated.
             Format: {"away": {"starter_confirmed": bool, "starter_name": str|None},
@@ -897,6 +964,10 @@ def parse_game_markets(
             10.0 = evenly matched. >10 = home structural edge.
             Defaults to 0.0 (no efficiency component) — callers should supply
             this from efficiency_feed rather than leaving at default.
+        tennis_sport_key: Odds API sport key string for tennis markets, e.g.
+            "tennis_atp_french_open". Used to infer court surface via
+            tennis_data.surface_from_sport_key(). Empty string = not a tennis game.
+            When non-empty and sport starts with "TENNIS", tennis_kill_switch() fires.
 
     Returns:
         List of BetCandidates passing collar AND minimum edge.
@@ -1074,5 +1145,27 @@ def parse_game_markets(
                 )
                 if reason:
                     c.kill_reason = reason
+
+    # --- Tennis Kill Switch ---
+    # Applies when sport starts with "TENNIS" and a sport key is provided.
+    # Surface derived from Odds API sport key (zero external API cost).
+    if sport.upper().startswith("TENNIS") and tennis_sport_key and candidates:
+        from core.tennis_data import surface_from_sport_key
+        surface = surface_from_sport_key(tennis_sport_key)
+
+        for c in candidates:
+            if c.kill_reason:
+                continue  # don't overwrite an existing kill reason
+            # Favourite is the player whose price is < -105 (< even money)
+            is_favourite = c.market_implied > 0.5
+            is_favourite_bet = is_favourite
+            _, reason = tennis_kill_switch(
+                surface=surface,
+                favourite_implied_prob=c.market_implied if is_favourite else (1.0 - c.market_implied),
+                is_favourite_bet=is_favourite_bet,
+                market_type=c.market_type,
+            )
+            if reason:
+                c.kill_reason = reason
 
     return candidates

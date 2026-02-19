@@ -165,7 +165,7 @@ SORT:          By Sharp Score descending (NOT edge%).
 | NHL | ✅ Goalie starter kill | nhl_data.py + nhl_kill_switch() + scheduler wired (Session 13) |
 | MLB | ⚠️ Collar-only | Kill switch deferred to Apr 1 (season gate) |
 | NCAAF | ⚠️ Collar-only | Kill switch deferred (no validated threshold) |
-| Tennis | ⚠️ API confirmed, not configured | tennis_atp/wta on current tier. Kill switch needs api-tennis.com $40/mo (user decision) |
+| Tennis | ✅ Kill switch built (S15) | tennis_data.py surface inference — ZERO cost. Wire into SPORT_KEYS next. |
 | College Baseball | ❌ Rejected | probablePitcher absent, thin action, low ROI |
 
 ---
@@ -253,7 +253,7 @@ AVOID: rainbow palettes, excessive expanders, st.metric for everything,
 | CLV verdict | 0/30 graded bets | Check clv_summary() verdict |
 | NHL kill switch | ✅ COMPLETE (Session 13) | nhl_data.py + nhl_kill_switch() + scheduler wired |
 | MLB kill switch | Season gate (Apr 1) | See MASTER_ROADMAP 3B |
-| Tennis | Needs user approval | See MASTER_ROADMAP 3C |
+| Tennis kill switch | ✅ COMPLETE (Session 15) | tennis_data.py — ZERO cost. Wire tennis_atp/wta into SPORT_KEYS next. |
 
 ---
 
@@ -329,7 +329,8 @@ EFFICIENCY COMPONENT: LIVE
 
 TENNIS API: CONFIRMED ON CURRENT TIER
   /v4/sports/ returns tennis_atp + tennis_wta both active.
-  Next gate: user decision on api-tennis.com $40/mo for surface data.
+  Kill switch built (S15): tennis_data.py surface inference — ZERO cost.
+  Next step: wire tennis_atp/tennis_wta into SPORT_KEYS in odds_fetcher.py.
 
 KILL SWITCHES ACTIVE:
   NBA: B2B rest + star absence + pace variance
@@ -337,13 +338,14 @@ KILL SWITCHES ACTIVE:
   NCAAB: 3PT reliance >40% on road + tempo diff
   Soccer (all 6): Market drift >10% + dead rubber
   NHL: Backup goalie confirmed (free NHL API, zero quota cost)
+  Tennis: Clay >72% / Grass >75% favourite → FLAG (static surface, zero cost, S15)
   MLB: DEFERRED to Apr 1 (season starts Mar 27)
   NCAAF: DEFERRED (no validated threshold)
 
-NEXT SESSION (Session 15):
-  1. System gates check: RLM fire count, graded bet count
-  2. Tennis kill switch — user must approve api-tennis.com $40/mo first
-  3. NBA B2B home/road diff — gate: 10+ B2B instances in DB
+NEXT SESSION (Session 16):
+  1. Wire tennis_atp/tennis_wta into SPORT_KEYS (kill switch is ready)
+  2. NBA B2B home/road diff — gate: 10+ B2B instances in DB
+  3. System gates check: RLM fire count, graded bet count
   See MASTER_ROADMAP.md Section 9 for full checklist
 ```
 

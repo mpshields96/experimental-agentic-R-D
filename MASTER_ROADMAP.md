@@ -59,8 +59,8 @@ It is maintained by the agent and read at the start of each session.
 ### Deferred Sports (not yet in SPORT_KEYS)
 | Sport | API Key | Blocker | Priority |
 |---|---|---|---|
-| Tennis (ATP) | tennis_atp | Kill switch needs surface + H2H data | Medium |
-| Tennis (WTA) | tennis_wta | Same as ATP | Low |
+| Tennis (ATP) | tennis_atp | Kill switch ✅ built (S15) — wire into SPORT_KEYS next | **NEXT** |
+| Tennis (WTA) | tennis_wta | Same — wire into SPORT_KEYS next | **NEXT** |
 | College Baseball | baseball_ncaa | Thin line posting, sparse sharp action | Low |
 
 ---
@@ -176,7 +176,7 @@ This is the main friction point — both directions needed (MLB→Odds, Odds→M
 
 ---
 
-### 3C. Tennis Kill Switch — ⏳ DEFERRED (surface data = $40/mo, decision needed)
+### 3C. Tennis Kill Switch — ✅ COMPLETE (Session 15, zero API cost)
 
 **Trigger**: Surface mismatch (player favoured on hard courts playing on clay) → KILL/FLAG
 

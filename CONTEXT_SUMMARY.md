@@ -1,6 +1,6 @@
 # CONTEXT_SUMMARY.md — Titanium-Agentic
 **Ground truth document. Update when architecture changes.**
-**Last updated: Session 14, 2026-02-19**
+**Last updated: Session 15, 2026-02-19**
 
 ---
 
@@ -24,13 +24,13 @@ Read-only reference of those folders is permitted. NO writes, NO modifications.
 | Python | 3.13 | datetime.now(timezone.utc) — not utcnow() |
 | Hosting target | Local-first | PythonAnywhere eventually |
 
-### File Structure (current — Session 14)
+### File Structure (current — Session 15)
 ```
 agentic-rd-sandbox/
-├── CLAUDE.md                    Master init prompt + rules (updated S14)
+├── CLAUDE.md                    Master init prompt + rules (updated S15)
 ├── CONTEXT_SUMMARY.md           This file
-├── SESSION_LOG.md               Build diary (Session 1-14)
-├── MASTER_ROADMAP.md            Task backlog + kill switch specs (updated S14)
+├── SESSION_LOG.md               Build diary (Session 1-15)
+├── MASTER_ROADMAP.md            Task backlog + kill switch specs (updated S15)
 ├── PROJECT_INDEX.md             Codebase map — read this at session start (created S12)
 ├── requirements.txt
 ├── app.py                       Entry point + sidebar health dashboard
@@ -41,7 +41,7 @@ agentic-rd-sandbox/
 │   ├── 04_bet_tracker.py        Log/grade bets, P&L, CLV wire-in
 │   └── 05_rd_output.py          7 panels: math validation + Pinnacle probe + CLV tracker
 ├── core/
-│   ├── math_engine.py           All math (S1, S11, S14 — efficiency_gap param added)
+│   ├── math_engine.py           All math (S1, S11, S14, S15 — tennis_kill_switch added)
 │   ├── odds_fetcher.py          Odds API (S1, S7 — Pinnacle probe added)
 │   ├── line_logger.py           SQLite persistence (S1)
 │   ├── scheduler.py             APScheduler orchestrator (S2, S8-S11, S13 — NHL poll)
@@ -49,8 +49,9 @@ agentic-rd-sandbox/
 │   ├── clv_tracker.py           CLV CSV persistence (S7)
 │   ├── probe_logger.py          Pinnacle probe JSON log (S9)
 │   ├── nhl_data.py              NHL goalie starter detection — free NHL API (S13)
-│   └── efficiency_feed.py       Team efficiency data — 250+ teams, 10 leagues (S14)
-├── tests/ (9 test files, 418 tests, all passing)
+│   ├── efficiency_feed.py       Team efficiency data — 250+ teams, 10 leagues (S14)
+│   └── tennis_data.py           Tennis surface lookup + player normalization — zero cost (S15)
+├── tests/ (11 test files, 491 tests, all passing)
 └── data/
     ├── line_history.db           Lines + bets (1,149 rows as of S14)
     ├── price_history.db          RLM open prices (INSERT OR IGNORE)
@@ -114,7 +115,7 @@ agentic-rd-sandbox/
 | NHL | b2b | FLAG — Kelly -50% |
 | NHL | goalie not confirmed within 90min | FLAG — require 8%+ edge |
 | MLB | (not built yet) | Apr 1 gate — MASTER_ROADMAP 3B |
-| Tennis | (not built yet) | api-tennis.com $40/mo gate — MASTER_ROADMAP 3C |
+| Tennis | clay >72% + grass >75% → FLAG | tennis_kill_switch() + tennis_data.py — ZERO cost (S15) |
 
 ---
 
@@ -128,6 +129,7 @@ clv_tracker       ← math_engine ONLY
 probe_logger      ← nothing from core
 nhl_data          ← nothing from core (data-only)
 efficiency_feed   ← nothing from core (data-only)
+tennis_data       ← nothing from core (data-only)
 scheduler         ← all of the above (orchestrator — only exception)
 pages/*           ← from core.* only
 ```
@@ -150,6 +152,7 @@ pages/*           ← from core.* only
 | R&D Output | ✅ | 7 panels, math validation + live probe + CLV |
 | NHL kill switch | ✅ | nhl_data.py + nhl_kill_switch() + scheduler wired (S13) |
 | Efficiency component (Sharp Score) | ✅ | efficiency_feed.py, 250+ teams, 10 leagues (S14) |
+| Tennis kill switch | ✅ | tennis_data.py + tennis_kill_switch() — zero API cost (S15) |
 | MLB kill switch | ⏳ | Apr 1 gate — endpoint verified (MASTER_ROADMAP 3B) |
 | Tennis | ⏳ | api-tennis.com $40/mo gate (MASTER_ROADMAP 3C) |
 
@@ -194,3 +197,4 @@ pages/*           ← from core.* only
 | S12 | Sports audit, API research, MASTER_ROADMAP, PROJECT_INDEX, CLAUDE.md | 314 | 472c4a3 |
 | S13 | NHL kill switch: nhl_data.py + nhl_kill_switch() + scheduler NHL poll | 363 | 2c5fe4c |
 | S14 | efficiency_feed.py (Sharp Score efficiency live) + W6 tennis confirmed | 418 | 15b261d |
+| S15 | tennis_data.py + tennis_kill_switch() — zero cost surface inference | 491 | TBD |

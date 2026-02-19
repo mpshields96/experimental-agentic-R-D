@@ -28,6 +28,7 @@ from core.math_engine import (
     ncaab_kill_switch,
     soccer_kill_switch,
     nhl_kill_switch,
+    tennis_kill_switch,
     consensus_fair_prob,
     compute_rlm,
     cache_open_prices,
@@ -984,6 +985,88 @@ class TestNhlKillSwitch:
         """Kill message should reference the edge override threshold."""
         _, reason = nhl_kill_switch(backup_goalie=True)
         assert "12%" in reason
+
+
+# ---------------------------------------------------------------------------
+# Tennis Kill Switch
+# ---------------------------------------------------------------------------
+
+class TestTennisKillSwitch:
+
+    def test_clay_heavy_favourite_flagged(self):
+        """Heavy favourite on clay must be flagged."""
+        killed, reason = tennis_kill_switch("clay", 0.78, True, "h2h")
+        assert killed is False
+        assert "FLAG" in reason
+        assert "Clay" in reason or "clay" in reason
+
+    def test_clay_moderate_favourite_not_flagged(self):
+        """Moderate favourite (< 72%) on clay — no flag."""
+        killed, reason = tennis_kill_switch("clay", 0.65, True, "h2h")
+        assert killed is False
+        assert reason == ""
+
+    def test_clay_betting_underdog_not_flagged(self):
+        """Betting the underdog on clay — no flag (they are not the favourite)."""
+        killed, reason = tennis_kill_switch("clay", 0.78, False, "h2h")
+        assert killed is False
+        assert reason == ""
+
+    def test_grass_heavy_favourite_flagged(self):
+        """Heavy favourite (> 75%) on grass — flag for serve variance."""
+        killed, reason = tennis_kill_switch("grass", 0.80, True, "h2h")
+        assert killed is False
+        assert "FLAG" in reason
+        assert "Grass" in reason or "grass" in reason
+
+    def test_grass_moderate_favourite_not_flagged(self):
+        killed, reason = tennis_kill_switch("grass", 0.70, True, "h2h")
+        assert killed is False
+        assert reason == ""
+
+    def test_hard_heavy_favourite_no_flag(self):
+        """Hard court: even heavy favourites are not flagged."""
+        killed, reason = tennis_kill_switch("hard", 0.85, True, "h2h")
+        assert killed is False
+        assert reason == ""
+
+    def test_unknown_surface_flagged(self):
+        killed, reason = tennis_kill_switch("unknown", 0.60, True, "h2h")
+        assert killed is False
+        assert "FLAG" in reason
+        assert "Surface unknown" in reason or "unknown" in reason.lower()
+
+    def test_totals_never_flagged(self):
+        """Totals market is not affected by surface flags."""
+        killed, reason = tennis_kill_switch("clay", 0.80, True, "totals")
+        assert killed is False
+        assert reason == ""
+
+    def test_never_kills_outright(self):
+        """Tennis kill switch never returns killed=True (FLAG only)."""
+        for surface in ("clay", "grass", "hard", "unknown"):
+            for prob in (0.55, 0.72, 0.80, 0.90):
+                killed, _ = tennis_kill_switch(surface, prob, True, "h2h")
+                assert killed is False, f"Should not kill: surface={surface}, prob={prob}"
+
+    def test_return_type_is_tuple(self):
+        result = tennis_kill_switch("clay", 0.75, True, "h2h")
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert isinstance(result[0], bool)
+        assert isinstance(result[1], str)
+
+    def test_clay_threshold_exactly_at_boundary(self):
+        """0.72 is the kill threshold for clay — exactly at boundary = no flag."""
+        killed, reason = tennis_kill_switch("clay", 0.72, True, "h2h")
+        assert killed is False
+        assert reason == ""
+
+    def test_clay_just_above_threshold_flagged(self):
+        """0.721 > 0.72 threshold — flag fires."""
+        killed, reason = tennis_kill_switch("clay", 0.721, True, "h2h")
+        assert killed is False
+        assert "FLAG" in reason
 
 
 # ---------------------------------------------------------------------------
