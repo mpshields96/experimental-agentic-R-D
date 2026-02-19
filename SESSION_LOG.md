@@ -79,35 +79,36 @@ verification of that proxy. Structurally sound, no false confidence.
 
 Research conducted on available free APIs for deferred kill switches:
 
-#### NHL Goalie API — ✅ VIABLE (FREE)
-- `api-web.nhle.com/v1/schedule/now` — public, no key, returns game schedule
-- `api.nhle.com/stats/rest/en/goalie/summary` — GAA, save %, game stats
-- Starting goalies announced ~60-90min pregame; field: `startingGoalies` in schedule endpoint
+#### NHL Goalie API — ✅ VIABLE (FREE) — ENDPOINT STRUCTURE CONFIRMED
+- `api-web.nhle.com/v1/gamecenter/{gameId}/boxscore` — confirmed working, public, no key
+- Field: `playerByGameStats.awayTeam.goalies[n].starter` (bool) — CONFIRMED
+- **CORRECTION**: Schedule endpoint does NOT have `startingGoalies` for future games.
+  Starter only populates in boxscore when game moves from FUT → loading state (T-60min).
+- Strategy: poll boxscore at T-60min intervals in scheduler until starter appears
 - **Zero quota cost** — completely independent of Odds API
-- 🌐 NEEDS WIFI VERIFICATION: Confirm `startingGoalies` field exists in response structure
-  before building parser. Hospital wifi may block nhle.com.
+- **Status: READY TO BUILD** — no more verification needed
 
-#### MLB Starting Pitcher API — ✅ VIABLE (FREE, season-gated)
-- `statsapi.mlb.com/api/v1/schedule?sportId=1&date=YYYY-MM-DD` — public, no key
-- Field: `games[].gameData.teams.home.pitchers` → probable pitcher
-- Also supports days rest derivation via pitching log endpoint
-- **Deferred to Apr 1 2026** — season starts Mar 27, no live data to validate until then
-- 🌐 NEEDS WIFI VERIFICATION: Confirm `probablePitcher` field name in live schedule response
+#### MLB Starting Pitcher API — ✅ VERIFIED (FREE, season-gated)
+- `statsapi.mlb.com/api/v1/schedule?sportId=1&date=YYYY-MM-DD&hydrate=probablePitcher,team`
+- **CONFIRMED field**: `games[].teams.home.probablePitcher.fullName` and `.id`
+- Days rest: `people/{id}?hydrate=stats(group=pitching,type=gameLog)` →
+  `stats[0].splits[].stat.numberOfPitches` + `date` (confirmed live for multiple pitchers)
+- TBD pitcher = null probablePitcher field = FLAG condition
+- **Deferred to Apr 1 2026** — season starts Mar 27, thresholds need live validation
+- Friction point: MLB full team names vs Odds API abbreviated names — need lookup table
 
-#### Tennis ATP/WTA — ✅ ON ODDS API, ⚠️ SURFACE DATA MISSING
-- The Odds API supports `tennis_atp` and `tennis_wta` on ALL tiers
-- Covers Grand Slams, ATP 1000, WTA 1000
-- **Gap**: No surface type (clay/hard/grass) in Odds API payload
-- Surface data options: Tennis Abstract (manual scrape), RapidAPI ($10-50/mo)
-- Decision: HOLD tennis until surface data source confirmed + kill switch built
-- 🌐 NEEDS WIFI VERIFICATION: Confirm tennis_atp in our current API tier's sport list
+#### Tennis ATP/WTA — ✅ ON ODDS API (tier TBD), ⚠️ SURFACE DATA = $40/mo
+- The Odds API: tennis_atp / tennis_wta likely require paid "All Sports" tier (unconfirmed)
+- Surface + H2H data: **api-tennis.com confirmed** — has clay/hard/grass W/L splits per player
+  per season, H2H records, fixture data. Starter plan $40/mo (14-day free trial available)
+- Decision: HOLD tennis until user approves api-tennis.com cost + Odds API tier confirmed
+- Surface type is inferred from tournament name (not a direct field) — needs lookup table
 
-#### College Baseball — ⚠️ ON ODDS API, LOW VALUE
-- The Odds API supports `baseball_ncaa`
-- Coverage confirmed on free tier; historical from May 2023 on paid
-- Markets: moneyline, spreads, totals
-- Decision: STILL DEFERRED — line posting is sparse (1-2 days before game),
-  sharp action thin, no pitcher/weather data pipeline. Low ROI vs quota cost.
+#### College Baseball — ❌ REJECTED (confirmed dead end)
+- MLB Stats API covers college baseball at sportId=22 — confirmed
+- **BUT**: `probablePitcher` is NOT populated for college games (field absent, not null)
+- Thin bookmaker coverage (2-3 books max), no sharp action, line posting sparse
+- **Verdict: Do not add to system at all. No viable path to a meaningful kill switch.**
 
 ### What Was Built This Session
 - MASTER_ROADMAP.md — created: canonical task backlog with all deferred items,

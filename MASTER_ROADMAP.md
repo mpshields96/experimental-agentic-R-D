@@ -1,5 +1,5 @@
 # MASTER_ROADMAP.md — Titanium-Agentic Sandbox
-## Last updated: Session 12, 2026-02-19
+## Last updated: Session 12 (research complete), 2026-02-19
 
 This is the canonical task backlog for the agentic-rd-sandbox build.
 It is maintained by the agent and read at the start of each session.
@@ -67,13 +67,23 @@ It is maintained by the agent and read at the start of each session.
 ## SECTION 3: Kill Switch Backlog
 
 ### 3A. NHL Goalie Kill Switch — 📋 NEXT (high value)
-**Trigger**: Confirmed starting goalie scratch (backup starting) → KILL or FLAG
+**Trigger**: Backup goalie starting (confirmed starter scratched) → KILL or FLAG
 
-**Data source found**: NHL Stats API (FREE, public, no key required)
-- Base: `https://api.nhle.com/stats/rest/en/`
-- Schedule: `https://api-web.nhle.com/v1/schedule/now` → returns today's games with starting goalies
-- Goalie stats: `https://api.nhle.com/stats/rest/en/goalie/summary`
-- The schedule endpoint returns `startingGoalies` per game when available (announced ~1-2h pregame)
+**Data source verified**: NHL Stats API (FREE, public, no key required)
+- `api-web.nhle.com/v1/gamecenter/{gameId}/boxscore` — returns `"starter": true/false`
+  per goalie once game state moves from FUT to live/in-progress
+- `api.nhle.com/stats/rest/en/goalie/summary` — season aggregate stats (GAA, SV%)
+
+**CRITICAL FINDING from research**: The NHL schedule endpoint does NOT have a
+`startingGoalies` field for future games (gameState="FUT"). The `"starter": true`
+field only populates in the **boxscore** endpoint once the game begins loading
+(typically T-60 to T-30 minutes before puck drop when rosters finalize).
+Pre-game strategy: poll boxscore at T-60min intervals until starter appears.
+
+**No pre-game free API for goalie starters exists** (confirmed, community-validated):
+- DailyFaceoff.com: scrapeable HTML, posts ~2-3h before puck drop (fragile)
+- MySportsFeeds: ~$24/mo, cleanest pre-game starter data (paid option)
+- NHL API boxscore polling: free but only available T-60min before puck drop
 
 **Kill logic (proposed)**:
 ```python
@@ -86,85 +96,137 @@ def nhl_kill_switch(backup_goalie: bool, b2b: bool = False) -> tuple[bool, str]:
 ```
 
 **Implementation plan**:
-1. Add `core/nhl_data.py` — thin wrapper for NHL API schedule fetch
+1. Add `core/nhl_data.py` — polls `api-web.nhle.com/v1/gamecenter/{id}/boxscore`
+   - Map Odds API team names → NHL game IDs via schedule endpoint + team name match
+   - Return starter name + confirmed bool; return `None` if not yet populated (FUT state)
+   - Poll strategy: scheduler calls this function only when game_start - now < 90 min
 2. Add `nhl_kill_switch()` to math_engine.py
-3. Wire into scheduler._poll_all_sports() for NHL sport — call before log_snapshot
-4. Add tests: test_nhl_kill_switch + test_nhl_data.py (mock requests)
-
-**🌐 NEEDS WIFI**: Verify `api-web.nhle.com/v1/schedule/now` returns `startingGoalies`
-field structure before writing the parser. Hospital wifi may block nhle.com.
-- Verify endpoint: `https://api-web.nhle.com/v1/schedule/now`
-- Confirm field path to starting goalie name
-- Note: Schedule announces goalies ~60-90min pregame, not always available
+3. Wire into scheduler._poll_all_sports() NHL branch — check starter 90min before game
+4. Tests: test_nhl_kill_switch + test_nhl_data.py (mock requests, both FUT and LIVE states)
 
 **Quota cost**: ZERO — NHL API is completely free, no key, no quota
+
+**Confirmed working boxscore response structure**:
+```json
+"goalies": [
+  {"playerId": 8481519, "name": {"default": "S. Knight"}, "starter": true, "toi": "59:04"},
+  {"playerId": 8482821, "name": {"default": "A. Soderblom"}, "starter": false, "toi": "00:00"}
+]
+```
+Path: `response["playerByGameStats"]["awayTeam"]["goalies"]` and `["homeTeam"]["goalies"]`
 
 ---
 
 ### 3B. MLB Starting Pitcher Kill/Flag — ⏳ DEFERRED until Apr 1 2026
 
-**Trigger**: Starting pitcher on short rest (< 4 days) → FLAG or KILL on run line
+**Trigger**: Starting pitcher on short rest (< 4 days) or high recent pitch count → FLAG/KILL on run line
 
-**Data source found**: MLB Stats API (FREE, public, no key required)
-- Endpoint: `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=YYYY-MM-DD`
-- Returns: `games[].gameData.teams.home.pitchers` / `.away.pitchers` (probable pitcher)
-- Also: `https://statsapi.mlb.com/api/v1/people/{id}/stats?stats=pitching` for days rest
+**Data source VERIFIED**: MLB Stats API (FREE, public, no key, no rate limits)
+
+**CONFIRMED WORKING endpoints** (directly tested by research agent):
+
+Probable pitcher per game (available days in advance):
+```
+GET https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=YYYY-MM-DD&hydrate=probablePitcher,team
+```
+Response field: `games[].teams.home.probablePitcher.fullName` and `.id`
+Also: `games[].teams.home.probablePitcher` is null when TBD — treat TBD as FLAG condition.
+
+Pitch count + days rest from game log:
+```
+GET https://statsapi.mlb.com/api/v1/people/{playerId}?hydrate=stats(group=pitching,type=gameLog,season=YYYY)
+```
+Response: `people[0].stats[0].splits[]` — each start has `stat.numberOfPitches` and `date`
+Days rest = today - max(date of starts where gamesStarted==1)
+
+**CONFIRMED field names** (live data verified for multiple pitchers):
+- `numberOfPitches` — pitch count per start (range: 62-107 observed)
+- `gamesStarted` — 1 for starts, 0 for relief appearances
+- `date` — "YYYY-MM-DD" format
 
 **Kill logic (proposed)**:
 ```python
 def mlb_kill_switch(
-    pitcher_days_rest: int,       # 0-1 = short rest; 4+ = normal
-    wind_mph: float = 0.0,        # Wind out = favours over
-    wind_direction: str = "",     # "out" / "in" / "crosswind"
+    pitcher_days_rest: Optional[int],  # None = TBD pitcher
+    last_pitch_count: int = 0,
+    wind_mph: float = 0.0,
+    wind_direction: str = "",          # "out" / "in" / "crosswind"
     market_type: str = "runline"
 ) -> tuple[bool, str]:
+    if pitcher_days_rest is None:
+        return False, "FLAG: TBD pitcher — reduce size, require 8%+ edge"
     if pitcher_days_rest <= 1 and market_type == "runline":
         return True, f"KILL: SP on short rest ({pitcher_days_rest}d) — skip run line"
+    if last_pitch_count >= 100 and pitcher_days_rest <= 4 and market_type == "runline":
+        return False, f"FLAG: High pitch count ({last_pitch_count}) on {pitcher_days_rest}d rest"
     if wind_mph > 15 and wind_direction == "out" and market_type == "total":
         return False, f"FLAG: Wind {wind_mph}mph out — lean over"
     return False, ""
 ```
 
-**Deferred reason**: Season doesn't start until Mar 27 2026. No live pitcher data to
-validate thresholds against. Revisit April 1 with 1 week of real games.
+**Deferred reason**: Season starts Mar 27 2026. Thresholds need live validation — short
+rest and pitch count flags are well-documented (< 3 days rest = significantly worse ERA)
+but the 100-pitch threshold should be verified against 2+ weeks of real 2026 game data
+before going live. Revisit Apr 1 2026.
 
-**🌐 NEEDS WIFI**: Verify MLB API endpoint is accessible and pitcher field structure.
+**TEAM NAME MATCHING NOTE**: MLB Stats API uses full team names ("Boston Red Sox").
+The Odds API uses shortened names ("Red Sox"). Must build a normalization lookup table.
+This is the main friction point — both directions needed (MLB→Odds, Odds→MLB).
 
 ---
 
-### 3C. Tennis Kill Switch — ⏳ DEFERRED (needs surface data source)
+### 3C. Tennis Kill Switch — ⏳ DEFERRED (surface data = $40/mo, decision needed)
 
-**Trigger**: Surface mismatch (player with poor clay record playing on clay) → FLAG
+**Trigger**: Surface mismatch (player favoured on hard courts playing on clay) → KILL/FLAG
 
-**The Odds API coverage**: tennis_atp and tennis_wta are supported on ALL tiers.
-Grand Slams + ATP/WTA 1000 events covered.
+**The Odds API coverage**: tennis_atp and tennis_wta — likely require paid "All Sports" tier.
+Covers Grand Slams, ATP 1000, WTA 1000. No surface type in payload (confirmed gap).
 
-**Gap**: The Odds API does NOT provide surface type per match.
-Options found:
-1. Tennis Abstract (public data, no API): tennisabstract.com — surface stats per player
-2. RapidAPI tennis endpoints: some provide surface + H2H but paid ($10-50/mo)
-3. ATP/WTA official sites: surface listed in tournament schedule but no structured API
+**Surface + H2H data source VERIFIED**: api-tennis.com
+- `GET /get_players` → per-player seasonal surface stats: `clay_won`, `clay_lost`,
+  `hard_won`, `hard_lost`, `grass_won`, `grass_lost` (confirmed from their API schema)
+- `GET /get_H2H` → full head-to-head record between any two players
+- `GET /get_fixtures` → upcoming matches with player keys + tournament
 
-**Kill logic (proposed when data available)**:
+**Pricing (confirmed from their site)**:
+| Plan | Price | Requests/Day |
+|---|---|---|
+| Trial | FREE | 14 days, all features |
+| Starter | $40/month | 8,000 req/day |
+| Premium | $60/month | 80,000 req/day |
+
+No permanently free tier. Starter at $40/mo is the minimum for production use.
+
+**Surface inference**: api-tennis.com does not have a "surface" field on fixtures.
+You derive it from tournament name: Roland Garros = clay, Wimbledon = grass,
+US Open / Australian Open / most Masters = hard. Build a `TOURNAMENT_SURFACE` lookup
+dict at deploy time. Maintain manually when new tournaments added.
+
+**Player name matching friction**: The Odds API returns e.g. "N. Djokovic" (abbreviated).
+api-tennis.com uses full names. Need a normalization function: last name exact match +
+first initial check. Edge case: same last name (e.g. two players named "Williams").
+
+**Kill logic (proposed when funded)**:
 ```python
 def tennis_kill_switch(
-    player_surface_winrate: float,  # career win% on current surface
-    career_winrate: float,          # overall career win%
+    player_surface_winrate: float,  # e.g. 0.42 (clay win%)
+    career_winrate: float,          # e.g. 0.65 (overall win%)
     is_favourite: bool,
 ) -> tuple[bool, str]:
     surface_gap = career_winrate - player_surface_winrate
-    if surface_gap > 0.15 and is_favourite:  # 15% worse on surface = fade favourite
+    if surface_gap > 0.15 and is_favourite:  # favourite is 15%+ worse on this surface
         return True, f"KILL: Surface handicap {surface_gap:.0%} — fade favourite"
+    if surface_gap > 0.08 and is_favourite:
+        return False, f"FLAG: Surface concern {surface_gap:.0%} — reduce size"
     return False, ""
 ```
 
-**Action needed**:
-- Confirm tennis_atp is in our API tier (add to SPORT_KEYS + MARKETS when ready)
-- Find a free/cheap surface data source — Tennis Abstract scrape or RapidAPI
-- Add 2 sports to ACTIVE_SPORTS only after kill switch is built
+**Decision gate**: Tennis is viable IF:
+1. User confirms they want tennis on their API plan (Odds API tier upgrade if needed)
+2. User approves api-tennis.com $40/mo Starter OR 14-day trial for evaluation
+3. Kill switch + player matching code built before adding to ACTIVE_SPORTS
 
-**🌐 NEEDS WIFI**: Check The Odds API sports list for tennis tier requirement.
-Check RapidAPI tennis endpoints for pricing.
+**DO NOT add tennis_atp/tennis_wta to SPORT_KEYS until both gates are cleared.**
 
 ---
 
@@ -232,7 +294,7 @@ High-3PT team on the road in a conference game vs non-con blowout are very diffe
 
 | Item | Decision | Reason |
 |---|---|---|
-| College Baseball | ⏳ DEFERRED | Thin line posting, sparse sharp action, low ROI |
+| College Baseball | ❌ REJECTED | Confirmed: `probablePitcher` not populated for sportId=22. Thin bookmaker coverage (2-3 max). No sharp action. Do not add. |
 | Tennis WTA | ⏳ DEFERRED | Surface data gap, lower sharp action than ATP |
 | Auto-raise SHARP_THRESHOLD | ❌ REJECTED | Math > automation — must be human decision |
 | Pinnacle origination | ⏳ DEFERRED | Pinnacle not present on current API tier |
@@ -245,13 +307,17 @@ High-3PT team on the road in a conference game vs non-con blowout are very diffe
 These tasks require unblocked network access. Hospital/restricted wifi may block
 sports APIs or Reddit. Complete these on next unrestricted session.
 
-| # | Task | What to do |
-|---|---|---|
-| W1 | NHL API goalie endpoint | GET `https://api-web.nhle.com/v1/schedule/now` — confirm `startingGoalies` field structure |
-| W2 | MLB Stats API pitcher | GET `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2026-04-01` — confirm `probablePitcher` field |
-| W3 | Tennis API tier | GET `https://the-odds-api.com/liveapi/fixes/v4/sports/` with API key — confirm tennis_atp is in response |
-| W4 | Reddit r/algobetting | Search for "NHL goalie API", "MLB pitcher feed", "Odds API tennis" discussions for community validation |
-| W5 | Build core/nhl_data.py | After W1 confirms endpoint — write NHL schedule fetcher + nhl_kill_switch() in math_engine.py |
+**Research status (completed 2026-02-19)**: Background agent directly tested all
+major endpoints. Key corrections to prior assumptions documented below.
+
+| # | Task | Status | What to do |
+|---|---|---|---|
+| W1 | NHL API goalie field | ✅ RESOLVED | `startingGoalies` does NOT exist in schedule endpoint for future games. Use boxscore polling at T-60min. Field confirmed: `playerByGameStats.awayTeam.goalies[n].starter` |
+| W2 | MLB Stats API pitcher | ✅ RESOLVED | `probablePitcher` confirmed. Endpoint: `schedule?sportId=1&date=YYYY-MM-DD&hydrate=probablePitcher,team`. Field path: `games[].teams.home.probablePitcher.fullName`. Days rest via `people/{id}?hydrate=stats(group=pitching,type=gameLog)` → `stat.numberOfPitches` + `date` |
+| W3 | Tennis API tier | 🌐 STILL OPEN | Need to call Odds API `/v4/sports` with actual API key to verify tennis_atp appears in response. Cannot confirm without live key. |
+| W4 | Reddit r/algobetting | ✅ PARTIAL | CAPTCHA-blocked for full browse. Community consensus confirmed via search previews: no free pre-game goalie API exists, DailyFaceoff scraping is the common workaround |
+| W5 | Build core/nhl_data.py | 📋 READY TO BUILD | Endpoint structure confirmed. Implement: boxscore polling, team name normalization, starter detection. See Section 3A for full spec. |
+| W6 | Tennis tier confirmation | 🌐 STILL OPEN | Run: `requests.get("https://api.the-odds-api.com/v4/sports/", params={"apiKey": KEY})` and grep output for "tennis" |
 
 ---
 
@@ -276,13 +342,21 @@ sports APIs or Reddit. Complete these on next unrestricted session.
 
 ## SECTION 9: Next Session Checklist (Session 13)
 
-Priority order when on good wifi:
-1. **W1**: Verify NHL API `startingGoalies` field structure
-2. **W2**: Verify MLB Stats API `probablePitcher` field
-3. **W3**: Confirm tennis_atp in Odds API tier
-4. **W5**: Build core/nhl_data.py + nhl_kill_switch() if W1 confirmed
-5. Check bet tracker — if ≥10 graded bets, build CLV vs edge% scatter (4A)
+**API research is complete. W1 and W2 are resolved. Ready to build.**
+
+Priority order:
+1. **BUILD core/nhl_data.py** — NHL boxscore poller, team name normalizer, starter detection
+   - Endpoint confirmed: `api-web.nhle.com/v1/gamecenter/{gameId}/boxscore`
+   - Poll when: game_start - now < 90 minutes in scheduler
+   - Return None when FUT state (no starter yet) — caller must handle gracefully
+2. **BUILD nhl_kill_switch()** in math_engine.py + tests
+3. **Wire NHL kill** into scheduler._poll_all_sports() NHL branch
+4. **W6**: Confirm tennis_atp in current Odds API tier (need good wifi + API key)
+5. Check bet tracker graded count — if ≥10, build CLV vs edge% scatter (4A)
 6. Check RLM gate sidebar — if RAISE READY, manually raise SHARP_THRESHOLD to 50
+7. MLB kill implementation: HOLD until Apr 1. No live data to validate thresholds yet.
+
+**Do NOT start MLB or Tennis until NHL kill switch is complete and tested.**
 
 ---
 *Generated by agent. Update this file at the end of each session.*
