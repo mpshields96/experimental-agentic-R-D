@@ -1,0 +1,172 @@
+{
+  "project": "Titanium-Agentic",
+  "generated": "2026-02-19",
+  "generator": "sc:index-repo",
+  "test_status": {
+    "total": 534,
+    "passing": 534,
+    "failing": 0
+  },
+  "entry_points": {
+    "app": "app.py",
+    "tests": "tests/",
+    "run_cmd": "streamlit run app.py --server.port 8503",
+    "test_cmd": "pytest tests/ -q"
+  },
+  "directories": {
+    "core": "Business logic — math, fetching, storage, scheduling",
+    "pages": "Streamlit page modules (5 pages)",
+    "tests": "pytest unit tests (10 files)",
+    "data": "Runtime data (probe_log.json)",
+    "logs": "CLV CSV log output"
+  },
+  "core_modules": [
+    {
+      "name": "math_engine",
+      "path": "core/math_engine.py",
+      "purpose": "All betting math — collar, edge, Kelly, sharp score, RLM, CLV, nemesis pipeline",
+      "key_constants": {
+        "MIN_EDGE": 0.035,
+        "KELLY_FRACTION": 0.25,
+        "SHARP_THRESHOLD": 45.0,
+        "COLLAR_MIN": -180,
+        "COLLAR_MAX": 150,
+        "COLLAR_MIN_SOCCER": -250,
+        "COLLAR_MAX_SOCCER": 400
+      },
+      "key_exports": [
+        "passes_collar", "passes_collar_soccer", "implied_probability",
+        "no_vig_probability", "no_vig_probability_3way", "calculate_edge",
+        "fractional_kelly", "calculate_sharp_score", "sharp_to_size",
+        "run_nemesis", "parse_game_markets", "compute_rlm",
+        "cache_open_prices", "seed_open_prices_from_db", "rlm_gate_status",
+        "calculate_clv", "clv_grade",
+        "nba_kill_switch", "nfl_kill_switch", "ncaab_kill_switch",
+        "soccer_kill_switch", "nhl_kill_switch", "tennis_kill_switch"
+      ]
+    },
+    {
+      "name": "odds_fetcher",
+      "path": "core/odds_fetcher.py",
+      "purpose": "The Odds API HTTP layer with quota tracking and backoff",
+      "key_exports": [
+        "fetch_game_lines", "fetch_batch_odds", "fetch_active_tennis_keys",
+        "compute_rest_days_from_schedule", "probe_bookmakers",
+        "available_sports", "QuotaTracker"
+      ]
+    },
+    {
+      "name": "line_logger",
+      "path": "core/line_logger.py",
+      "purpose": "SQLite WAL store for line snapshots, movements, and bet log",
+      "db": "line_history.db",
+      "key_exports": [
+        "init_db", "upsert_line", "log_snapshot", "get_movements",
+        "get_upcoming_movements", "get_line_history", "get_open_prices_for_rlm",
+        "log_bet", "update_bet_result", "get_bets", "get_pnl_summary",
+        "count_snapshots"
+      ]
+    },
+    {
+      "name": "scheduler",
+      "path": "core/scheduler.py",
+      "purpose": "APScheduler wrapper: polls odds, hooks NHL goalies, purges old data",
+      "key_exports": [
+        "start_scheduler", "stop_scheduler", "trigger_poll_now",
+        "get_status", "is_running", "reset_state"
+      ]
+    },
+    {
+      "name": "nhl_data",
+      "path": "core/nhl_data.py",
+      "purpose": "Free NHL Stats API — goalie starter detection, zero quota cost",
+      "key_exports": [
+        "get_starters_for_odds_game", "get_nhl_starters_for_game",
+        "get_nhl_game_ids_for_date", "normalize_team_name",
+        "cache_goalie_status", "get_cached_goalie_status"
+      ]
+    },
+    {
+      "name": "tennis_data",
+      "path": "core/tennis_data.py",
+      "purpose": "Surface classification and player name normalization for tennis",
+      "key_exports": [
+        "surface_from_sport_key", "is_tennis_sport_key", "normalize_player_name",
+        "extract_last_name", "surface_label", "is_upset_surface"
+      ]
+    },
+    {
+      "name": "clv_tracker",
+      "path": "core/clv_tracker.py",
+      "purpose": "CLV snapshot CSV log and summary",
+      "storage": "logs/clv_log.csv",
+      "key_exports": ["log_clv_snapshot", "read_clv_log", "clv_summary", "print_clv_report"]
+    },
+    {
+      "name": "efficiency_feed",
+      "path": "core/efficiency_feed.py",
+      "purpose": "Static embedded team efficiency data, no external dependency",
+      "key_exports": ["get_team_data", "get_efficiency_gap", "list_teams"]
+    },
+    {
+      "name": "price_history_store",
+      "path": "core/price_history_store.py",
+      "purpose": "Persistent open-price store for multi-session RLM, 14-day auto-purge",
+      "db": "price_history.db",
+      "key_exports": [
+        "init_price_history_db", "record_open_prices",
+        "integrate_with_session_cache", "get_historical_open_price",
+        "inject_historical_prices_into_cache", "purge_old_events", "get_all_open_prices"
+      ]
+    },
+    {
+      "name": "probe_logger",
+      "path": "core/probe_logger.py",
+      "purpose": "Bookmaker availability probe log",
+      "storage": "data/probe_log.json",
+      "key_exports": ["log_probe_result", "read_probe_log", "probe_summary", "probe_log_status"]
+    }
+  ],
+  "pages": [
+    {"file": "pages/01_live_lines.py", "purpose": "Live bet pipeline, math breakdown, Log Bet button"},
+    {"file": "pages/02_analysis.py", "purpose": "KPIs, P&L over time, edge/CLV histograms, line pressure scatter"},
+    {"file": "pages/03_line_history.py", "purpose": "Movement cards, sparklines, RLM seed table"},
+    {"file": "pages/04_bet_tracker.py", "purpose": "Bet log, result grading, P&L, CLV display"},
+    {"file": "pages/05_rd_output.py", "purpose": "Math validation dashboard — pure math_engine, no live data"}
+  ],
+  "test_files": [
+    {"file": "tests/test_math_engine.py", "approx_tests": 180},
+    {"file": "tests/test_odds_fetcher.py", "approx_tests": 55},
+    {"file": "tests/test_tennis_data.py", "approx_tests": 55},
+    {"file": "tests/test_clv_tracker.py", "approx_tests": 45},
+    {"file": "tests/test_line_logger.py", "approx_tests": 45},
+    {"file": "tests/test_efficiency_feed.py", "approx_tests": 51},
+    {"file": "tests/test_probe_logger.py", "approx_tests": 38},
+    {"file": "tests/test_scheduler.py", "approx_tests": 35},
+    {"file": "tests/test_nhl_data.py", "approx_tests": 35},
+    {"file": "tests/test_price_history_store.py", "approx_tests": 35}
+  ],
+  "dependencies": {
+    "streamlit": ">=1.36",
+    "APScheduler": "background scheduler",
+    "requests": "HTTP / Odds API",
+    "pandas": "dataframes in analysis tab",
+    "plotly": "charts",
+    "sqlite3": "built-in, WAL mode"
+  },
+  "design_tokens": {
+    "brand": "#f59e0b",
+    "positive": "#22c55e",
+    "nuclear": "#ef4444",
+    "background": "#0e1117",
+    "card_surface": "#1a1d23",
+    "border": "#2d3139"
+  },
+  "architecture_rules": [
+    "from core.math_engine import ... (never root-level imports)",
+    "NEVER import math_engine from odds_fetcher (circular import)",
+    "SQLite WAL mode active for concurrent scheduler+UI reads",
+    "Scheduler guarded by st.session_state to prevent restart on rerun",
+    "datetime.now(timezone.utc) not datetime.utcnow() (Python 3.13)"
+  ]
+}
