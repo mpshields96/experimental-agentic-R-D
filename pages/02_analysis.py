@@ -30,7 +30,7 @@ ROOT = Path(__file__).parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.line_logger import get_bets, get_movements, get_pnl_summary, count_snapshots
+from core.line_logger import get_bets, get_movements, get_upcoming_movements, get_pnl_summary, count_snapshots
 from core.math_engine import implied_probability
 
 # ---------------------------------------------------------------------------
@@ -413,7 +413,7 @@ st.markdown("---")
 def _load_data(sport_arg):
     bets = get_bets(sport_filter=sport_arg, limit=500, db_path=DB_PATH)
     pnl = get_pnl_summary(db_path=DB_PATH)
-    movements = get_movements(db_path=DB_PATH, sport=sport_arg, min_delta=0.5, limit=500)
+    movements = get_upcoming_movements(db_path=DB_PATH, sport=sport_arg, min_delta=0.5, limit=500)
     snap_stats = count_snapshots(DB_PATH)
     return bets, pnl, movements, snap_stats
 

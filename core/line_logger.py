@@ -432,6 +432,55 @@ def get_movements(
         conn.close()
 
 
+def get_upcoming_movements(
+    db_path: Optional[str] = None,
+    sport: Optional[str] = None,
+    min_delta: float = MOVEMENT_THRESHOLD,
+    limit: int = 100,
+) -> list[dict]:
+    """
+    Query significant line movements for UPCOMING games only.
+
+    Filters out games whose commence_time has already passed, which removes
+    the extreme locked-line prices (e.g. -20000) that appear post-game and
+    would pollute RLM analysis with false signals.
+
+    Args:
+        db_path:   Optional DB path override.
+        sport:     Filter by sport. None = all sports.
+        min_delta: Minimum absolute movement to include. Default = 3.0.
+        limit:     Maximum rows returned.
+
+    Returns:
+        List of dicts sorted by abs(movement_delta) descending.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_connection(db_path)
+    try:
+        conditions = ["ABS(movement_delta) >= ?", "(commence_time = '' OR commence_time > ?)"]
+        params: list = [min_delta, now]
+
+        if sport:
+            conditions.append("sport = ?")
+            params.append(sport)
+
+        params.append(limit)
+        where = " AND ".join(conditions)
+
+        rows = conn.execute(
+            f"""
+            SELECT * FROM line_history
+            WHERE {where}
+            ORDER BY ABS(movement_delta) DESC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def get_line_history(
     event_id: str,
     market_type: Optional[str] = None,

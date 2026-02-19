@@ -610,6 +610,29 @@ def compute_rlm(
     return False, drift
 
 
+def seed_open_prices_from_db(open_prices_dict: dict) -> int:
+    """
+    Pre-seed the RLM cache from persisted line_history open prices.
+
+    Called once at app startup after init_db(). Fills _OPEN_PRICE_CACHE with
+    historical open prices so RLM detection works from the first fetch of
+    a new session, rather than requiring two fetches in the same process.
+
+    Args:
+        open_prices_dict: Dict from line_logger.get_open_prices_for_rlm().
+                          Format: { event_id: { team_name: open_price } }
+
+    Returns:
+        Number of events seeded (new entries only — never overwrites existing).
+    """
+    seeded = 0
+    for event_id, prices in open_prices_dict.items():
+        if event_id not in _OPEN_PRICE_CACHE:
+            _OPEN_PRICE_CACHE[event_id] = dict(prices)
+            seeded += 1
+    return seeded
+
+
 def clear_open_price_cache() -> None:
     """Clear the open price cache. Use in tests to prevent state bleed."""
     _OPEN_PRICE_CACHE.clear()
@@ -816,7 +839,9 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
         edge = cp - implied_probability(best_price)
         if edge >= MIN_EDGE:
             kelly = fractional_kelly(cp, best_price)
-            score, breakdown = calculate_sharp_score(edge, False, 0.0)
+            public_on_side = best_price < -105
+            rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
+            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, 0.0)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
@@ -848,7 +873,9 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
         edge = cp - implied_probability(best_price)
         if edge >= MIN_EDGE:
             kelly = fractional_kelly(cp, best_price)
-            score, breakdown = calculate_sharp_score(edge, False, 0.0)
+            public_on_side = best_price < -105
+            rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
+            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, 0.0)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
@@ -880,7 +907,10 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
         edge = cp - implied_probability(best_price)
         if edge >= MIN_EDGE:
             kelly = fractional_kelly(cp, best_price)
-            score, breakdown = calculate_sharp_score(edge, False, 0.0)
+            # Totals: "Over" tends to be the public side (fans like scoring)
+            public_on_side = (side == "Over" and best_price < -105)
+            rlm_confirmed, _rlm_drift = compute_rlm(event_id, side, best_price, public_on_side)
+            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, 0.0)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,

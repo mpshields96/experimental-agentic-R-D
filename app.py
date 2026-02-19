@@ -81,7 +81,31 @@ def _init_scheduler() -> None:
         st.session_state["scheduler_error"] = str(exc)
 
 
+def _seed_rlm_cache() -> None:
+    """
+    Pre-seed the math_engine RLM open price cache from line_history.db.
+
+    Called once at app startup. Loads 30+ polls of historical open prices
+    so RLM detection is active from the first fetch of a new session,
+    rather than requiring two live fetches to initialize.
+    """
+    if st.session_state.get("rlm_cache_seeded"):
+        return
+    try:
+        from core.line_logger import get_open_prices_for_rlm
+        from core.math_engine import seed_open_prices_from_db
+        db_path = str(ROOT / "data" / "line_history.db")
+        open_prices = get_open_prices_for_rlm(db_path=db_path)
+        n_seeded = seed_open_prices_from_db(open_prices)
+        st.session_state["rlm_cache_seeded"] = True
+        logger.info("RLM cache seeded: %d events from line_history.db", n_seeded)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("RLM cache seed failed (non-fatal): %s", exc)
+        st.session_state["rlm_cache_seeded"] = False
+
+
 _init_scheduler()
+_seed_rlm_cache()
 
 # ---------------------------------------------------------------------------
 # Global CSS injection — minimal, purposeful
