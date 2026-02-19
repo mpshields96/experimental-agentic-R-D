@@ -1,6 +1,6 @@
 # CONTEXT_SUMMARY.md — Titanium-Agentic
 **Ground truth document. Update when architecture changes.**
-**Last updated: Session 15, 2026-02-19**
+**Last updated: Session 17, 2026-02-19**
 
 ---
 
@@ -51,6 +51,8 @@ agentic-rd-sandbox/
 │   ├── nhl_data.py              NHL goalie starter detection — free NHL API (S13)
 │   ├── efficiency_feed.py       Team efficiency data — 250+ teams, 10 leagues (S14)
 │   └── tennis_data.py           Tennis surface lookup + player normalization — zero cost (S15)
+│   (math_engine.py S17)          Soccer 3-way h2h: passes_collar_soccer, no_vig_probability_3way,
+│                                  consensus_fair_prob_3way, SOCCER_SPORTS routing in parse_game_markets
 ├── tests/ (11 test files, 491 tests, all passing)
 └── data/
     ├── line_history.db           Lines + bets (1,149 rows as of S14)
@@ -153,8 +155,9 @@ pages/*           ← from core.* only
 | NHL kill switch | ✅ | nhl_data.py + nhl_kill_switch() + scheduler wired (S13) |
 | Efficiency component (Sharp Score) | ✅ | efficiency_feed.py, 250+ teams, 10 leagues (S14) |
 | Tennis kill switch | ✅ | tennis_data.py + tennis_kill_switch() — zero API cost (S15) |
+| Tennis fully wired | ✅ | fetch_active_tennis_keys() dynamic discovery — NOT in SPORT_KEYS (S16) |
+| Soccer 3-way h2h | ✅ | passes_collar_soccer(-250/+400), no_vig_probability_3way, consensus_fair_prob_3way (S17) |
 | MLB kill switch | ⏳ | Apr 1 gate — endpoint verified (MASTER_ROADMAP 3B) |
-| Tennis | ⏳ | api-tennis.com $40/mo gate (MASTER_ROADMAP 3C) |
 
 ---
 
@@ -199,3 +202,4 @@ pages/*           ← from core.* only
 | S14 | efficiency_feed.py (Sharp Score efficiency live) + W6 tennis confirmed | 418 | 15b261d |
 | S15 | tennis_data.py + tennis_kill_switch() — zero cost surface inference | 491 | 051c7f4 |
 | S16 | Tennis fully wired: fetch_active_tennis_keys() + live lines routing | 506 | 6df802c |
+| S17 | Soccer 3-way h2h fix + tennis live smoke test + CLAUDE.md/index refresh | 534 | 3ae1caa |
