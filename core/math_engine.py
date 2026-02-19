@@ -816,10 +816,11 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
         edge = cp - implied_probability(best_price)
         if edge >= MIN_EDGE:
             kelly = fractional_kelly(cp, best_price)
+            score, breakdown = calculate_sharp_score(edge, False, 0.0)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
-                market_type="spread",
+                market_type="spreads",
                 target=f"{team_name} {best_line:+.1f}",
                 line=best_line or 0.0,
                 price=best_price,
@@ -832,6 +833,8 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
                 commence_time=commence_time,
                 book=f"Best: {best_book_name} ({n_books} books)",
                 std_dev=std,
+                sharp_score=score,
+                sharp_breakdown=breakdown,
             ))
 
     # --- Moneylines ---
@@ -845,10 +848,11 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
         edge = cp - implied_probability(best_price)
         if edge >= MIN_EDGE:
             kelly = fractional_kelly(cp, best_price)
+            score, breakdown = calculate_sharp_score(edge, False, 0.0)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
-                market_type="moneyline",
+                market_type="h2h",
                 target=f"{team_name} ML",
                 line=0.0,
                 price=best_price,
@@ -861,6 +865,8 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
                 commence_time=commence_time,
                 book=f"Best: {best_book_name} ({n_books} books)",
                 std_dev=std,
+                sharp_score=score,
+                sharp_breakdown=breakdown,
             ))
 
     # --- Totals ---
@@ -874,10 +880,11 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
         edge = cp - implied_probability(best_price)
         if edge >= MIN_EDGE:
             kelly = fractional_kelly(cp, best_price)
+            score, breakdown = calculate_sharp_score(edge, False, 0.0)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
-                market_type="total",
+                market_type="totals",
                 target=f"{side} {best_line}",
                 line=best_line or 0.0,
                 price=best_price,
@@ -890,6 +897,8 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
                 commence_time=commence_time,
                 book=f"Best: {best_book_name} ({n_books} books)",
                 std_dev=std,
+                sharp_score=score,
+                sharp_breakdown=breakdown,
             ))
 
     return candidates

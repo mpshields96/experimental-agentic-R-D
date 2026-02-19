@@ -703,7 +703,7 @@ class TestParseGameMarkets:
         """Verify candidate fields are properly set when a clear edge exists."""
         game = self._make_game_with_clear_edge()
         candidates = parse_game_markets(game, sport="NCAAB")
-        duke_bets = [c for c in candidates if "Duke" in c.target and c.market_type == "moneyline"]
+        duke_bets = [c for c in candidates if "Duke" in c.target and c.market_type == "h2h"]
         assert len(duke_bets) == 1, f"Expected 1 Duke ML bet, got {len(duke_bets)}: {[c.target for c in candidates]}"
         c = duke_bets[0]
         assert c.sport == "NCAAB"
@@ -718,7 +718,7 @@ class TestParseGameMarkets:
         """Should not output both Duke and Virginia on the same spread when only one has edge."""
         game = self._make_game()
         candidates = parse_game_markets(game, sport="NCAAB")
-        spread_targets = [c.target for c in candidates if c.market_type == "spread"]
+        spread_targets = [c.target for c in candidates if c.market_type == "spreads"]
         # Duke and Virginia are opposite sides — shouldn't both appear unless both have edge
         duke_spreads = [t for t in spread_targets if "Duke" in t]
         virginia_spreads = [t for t in spread_targets if "Virginia" in t]

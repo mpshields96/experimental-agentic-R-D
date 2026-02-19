@@ -118,10 +118,10 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
     mkt_display = MARKET_DISPLAY.get(bet.market_type, bet.market_type.upper())
     price_str = f"{bet.price:+d}" if bet.price > 0 else str(bet.price)
 
-    # Line display (spread/total show value; ML shows nothing meaningful)
-    line_str = ""
+    # Line display (spread/total show value; ML shows nothing)
+    line_html = ""
     if bet.market_type in ("spreads", "totals") and bet.line != 0:
-        line_str = f"{bet.line:+.1f} "
+        line_html = f'<div style="font-size:0.75rem; color:#9ca3af; margin-bottom:1px;">{bet.line:+.1f}</div>'
 
     # Kill reason warning
     kill_html = ""
@@ -172,9 +172,10 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
                 <div style="font-size:0.75rem; color:#9ca3af;">{bet.matchup}</div>
             </div>
             <div style="text-align:right;">
+                {line_html}
                 <div style="
                     font-size:1.3rem; font-weight:800; color:{size_color};
-                ">{line_str}{price_str}</div>
+                ">{price_str}</div>
                 <div style="
                     font-size:0.65rem; font-weight:600; color:{size_color};
                     letter-spacing:0.08em; margin-top:1px;
