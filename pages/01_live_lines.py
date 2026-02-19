@@ -31,9 +31,11 @@ from pathlib import Path
 import streamlit as st
 
 ROOT = Path(__file__).parent.parent
+DB_PATH = str(ROOT / "data" / "line_history.db")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.line_logger import log_bet as _log_bet
 from core.math_engine import (
     BetCandidate,
     MIN_EDGE,
@@ -322,6 +324,29 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         # Render cards
         for rank, bet in enumerate(candidates, start=1):
             st.html(_bet_card(bet, rank))
+
+            btn_col, info_col = st.columns([1, 4])
+            with btn_col:
+                if st.button("📋 Log Bet", key=f"log_{rank}_{bet.event_id}", use_container_width=True):
+                    try:
+                        size_key = sharp_to_size(bet.sharp_score)
+                        # Default stake from size tier
+                        default_stake = {"NUCLEAR_2.0U": 200.0, "STANDARD_1.0U": 100.0, "LEAN_0.5U": 50.0}.get(size_key, 50.0)
+                        bet_id = _log_bet(
+                            sport=bet.sport,
+                            matchup=bet.matchup,
+                            market_type=bet.market_type,
+                            target=bet.target,
+                            price=bet.price,
+                            edge_pct=bet.edge_pct,
+                            kelly_size=bet.kelly_size,
+                            stake=default_stake,
+                            notes=f"sharp={bet.sharp_score:.0f}",
+                            db_path=DB_PATH,
+                        )
+                        st.success(f"Logged as bet #{bet_id} → go to Bet Tracker to grade")
+                    except Exception as exc:
+                        st.error(f"Log failed: {exc}")
 
             # Full math expander — no narrative, numbers only
             with st.expander(f"Math breakdown — {bet.target} {bet.matchup[:30]}", expanded=False):
