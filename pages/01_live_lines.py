@@ -64,7 +64,7 @@ MARKET_DISPLAY = {
     "totals": "TOTAL",
     "h2h": "ML",
 }
-SPORT_OPTIONS = ["All", "NBA", "NFL", "NCAAB", "MLB", "NHL", "Soccer"]
+SPORT_OPTIONS = ["All", "NBA", "NFL", "NCAAB", "MLB", "NHL", "Soccer", "Tennis"]
 
 
 # ---------------------------------------------------------------------------
@@ -75,24 +75,49 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
     """
     Fetch odds, parse all games, return ranked bet candidates.
 
+    Tennis sport keys are dynamic (tournament-specific). fetch_batch_odds()
+    returns them keyed by raw Odds API sport key (e.g. "tennis_atp_qatar_open"),
+    and we pass that key to parse_game_markets() as tennis_sport_key so the
+    tennis kill switch can derive the court surface.
+
     Returns:
         (candidates, error_message, quota_remaining)
         candidates is empty list on error or no data.
     """
     try:
-        sports = None if sports_filter == "All" else [sports_filter]
-        raw = fetch_batch_odds(sports=sports)
+        # Tennis filter: fetch only tennis keys when sport_filter == "Tennis"
+        if sports_filter == "Tennis":
+            sports = None  # fetch_batch_odds handles tennis dynamically
+            raw = fetch_batch_odds(sports=[], include_tennis=True)
+        elif sports_filter == "All":
+            raw = fetch_batch_odds(sports=None, include_tennis=True)
+        else:
+            raw = fetch_batch_odds(sports=[sports_filter], include_tennis=False)
     except Exception as exc:
         return [], f"API error: {exc}", 0
 
     candidates: list[BetCandidate] = []
-    for sport, games in raw.items():
+    for sport_key, games in raw.items():
+        # Determine sport label and tennis_sport_key for kill switch routing
+        is_tennis = sport_key.startswith("tennis_atp") or sport_key.startswith("tennis_wta")
+        if is_tennis:
+            sport_label = "TENNIS_ATP" if "atp" in sport_key else "TENNIS_WTA"
+            t_sport_key = sport_key
+        else:
+            sport_label = sport_key
+            t_sport_key = ""
+
         for game in games:
             try:
                 home = game.get("home_team", "")
                 away = game.get("away_team", "")
                 eff_gap = get_efficiency_gap(home, away)
-                bets = parse_game_markets(game, sport, efficiency_gap=eff_gap)
+                bets = parse_game_markets(
+                    game,
+                    sport_label,
+                    efficiency_gap=eff_gap,
+                    tennis_sport_key=t_sport_key,
+                )
                 candidates.extend(bets)
             except Exception:
                 continue  # individual game parse failure doesn't crash the page

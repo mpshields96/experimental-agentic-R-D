@@ -20,12 +20,14 @@ from core.odds_fetcher import (
     get_api_key,
     fetch_game_lines,
     fetch_batch_odds,
+    fetch_active_tennis_keys,
     compute_rest_days_from_schedule,
     all_books,
     available_sports,
     sport_key_for,
     SPORT_KEYS,
     MARKETS,
+    TENNIS_MARKETS,
     PREFERRED_BOOKS,
 )
 
@@ -322,6 +324,171 @@ class TestUtilityFunctions:
     def test_preferred_books_order(self):
         """DraftKings must be first — it's our primary book"""
         assert PREFERRED_BOOKS[0] == "draftkings"
+
+
+# ---------------------------------------------------------------------------
+# Tennis support
+# ---------------------------------------------------------------------------
+
+class TestTennisMarkets:
+
+    def test_tennis_markets_constant_is_h2h(self):
+        """Tennis only supports h2h — no spreads or totals."""
+        assert "h2h" in TENNIS_MARKETS
+        assert "spreads" not in TENNIS_MARKETS
+
+    def test_fetch_game_lines_accepts_atp_key(self):
+        """Tennis ATP sport keys must pass through to fetch without unknown_key error."""
+        fake_games = [{"id": "tennis_1", "home_team": "N. Djokovic", "away_team": "C. Alcaraz",
+                        "commence_time": "2026-02-20T10:00:00Z", "bookmakers": []}]
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = fake_games
+        mock_resp.headers = {"x-requests-remaining": "490", "x-requests-used": "10", "x-requests-last": "1"}
+
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("core.odds_fetcher._fetch_with_backoff", return_value=mock_resp):
+                result = fetch_game_lines("tennis_atp_qatar_open")
+        assert result == fake_games
+
+    def test_fetch_game_lines_accepts_wta_key(self):
+        """Tennis WTA sport keys must also pass through."""
+        fake_games = [{"id": "wta_1"}]
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = fake_games
+        mock_resp.headers = {"x-requests-remaining": "490", "x-requests-used": "10", "x-requests-last": "1"}
+
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("core.odds_fetcher._fetch_with_backoff", return_value=mock_resp):
+                result = fetch_game_lines("tennis_wta_dubai")
+        assert result == fake_games
+
+    def test_unknown_non_tennis_key_still_returns_empty(self):
+        """Non-tennis unknown keys still return empty (not in MARKETS, not tennis prefix)."""
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_game_lines("unknown_sport_xyz")
+        assert result == []
+
+
+class TestFetchActiveTennisKeys:
+
+    def _make_sports_response(self, keys: list[str]) -> MagicMock:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = [
+            {"key": k, "active": True, "title": k.replace("_", " ")}
+            for k in keys
+        ]
+        mock_resp.headers = {"x-requests-remaining": "490", "x-requests-used": "10", "x-requests-last": "1"}
+        return mock_resp
+
+    def test_returns_active_atp_keys(self):
+        mock_resp = self._make_sports_response([
+            "tennis_atp_qatar_open",
+            "tennis_atp_dubai",
+            "basketball_nba",          # should be excluded
+        ])
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("requests.get", return_value=mock_resp):
+                result = fetch_active_tennis_keys()
+        assert "tennis_atp_qatar_open" in result
+        assert "tennis_atp_dubai" in result
+        assert "basketball_nba" not in result
+
+    def test_returns_active_wta_keys(self):
+        mock_resp = self._make_sports_response(["tennis_wta_dubai", "tennis_wta_abu_dhabi"])
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("requests.get", return_value=mock_resp):
+                result = fetch_active_tennis_keys()
+        assert "tennis_wta_dubai" in result
+
+    def test_excludes_inactive_tournaments(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = [
+            {"key": "tennis_atp_wimbledon", "active": False},   # not active
+            {"key": "tennis_atp_qatar_open", "active": True},
+        ]
+        mock_resp.headers = {"x-requests-remaining": "490", "x-requests-used": "10", "x-requests-last": "1"}
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("requests.get", return_value=mock_resp):
+                result = fetch_active_tennis_keys()
+        assert "tennis_atp_wimbledon" not in result
+        assert "tennis_atp_qatar_open" in result
+
+    def test_exclude_wta_when_flag_false(self):
+        mock_resp = self._make_sports_response(["tennis_atp_qatar_open", "tennis_wta_dubai"])
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("requests.get", return_value=mock_resp):
+                result = fetch_active_tennis_keys(include_wta=False)
+        assert "tennis_atp_qatar_open" in result
+        assert "tennis_wta_dubai" not in result
+
+    def test_exclude_atp_when_flag_false(self):
+        mock_resp = self._make_sports_response(["tennis_atp_qatar_open", "tennis_wta_dubai"])
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("requests.get", return_value=mock_resp):
+                result = fetch_active_tennis_keys(include_atp=False)
+        assert "tennis_wta_dubai" in result
+        assert "tennis_atp_qatar_open" not in result
+
+    def test_returns_empty_on_no_api_key(self):
+        with patch("core.odds_fetcher.get_api_key", return_value=None):
+            result = fetch_active_tennis_keys()
+        assert result == []
+
+    def test_returns_empty_on_api_error(self):
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("requests.get", side_effect=Exception("network error")):
+                result = fetch_active_tennis_keys()
+        assert result == []
+
+    def test_returns_empty_list_when_no_active_tennis(self):
+        mock_resp = self._make_sports_response(["basketball_nba", "americanfootball_nfl"])
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            with patch("requests.get", return_value=mock_resp):
+                result = fetch_active_tennis_keys()
+        assert result == []
+
+
+class TestFetchBatchOddsTennis:
+
+    def test_tennis_keys_included_in_batch_result(self):
+        """When include_tennis=True, tennis sport keys appear in results dict."""
+        tennis_keys = ["tennis_atp_qatar_open", "tennis_wta_dubai"]
+        fake_tennis_games = [{"id": "t1"}]
+
+        with patch("core.odds_fetcher.fetch_active_tennis_keys", return_value=tennis_keys):
+            with patch("core.odds_fetcher.fetch_game_lines", return_value=fake_tennis_games):
+                result = fetch_batch_odds(sports=[], include_tennis=True)
+
+        assert "tennis_atp_qatar_open" in result
+        assert "tennis_wta_dubai" in result
+        assert result["tennis_atp_qatar_open"] == fake_tennis_games
+
+    def test_tennis_excluded_when_flag_false(self):
+        """When include_tennis=False, fetch_active_tennis_keys is not called."""
+        with patch("core.odds_fetcher.fetch_active_tennis_keys") as mock_tennis:
+            with patch("core.odds_fetcher.fetch_game_lines", return_value=[]):
+                result = fetch_batch_odds(sports=["NBA"], include_tennis=False)
+        mock_tennis.assert_not_called()
+        assert not any(k.startswith("tennis") for k in result.keys())
+
+    def test_static_sports_still_work_with_tennis_enabled(self):
+        """NBA fetch still works normally when include_tennis=True."""
+        fake_nba = [{"id": "nba_1"}]
+
+        def mock_lines(sport_key: str) -> list:
+            if "nba" in sport_key:
+                return fake_nba
+            return []
+
+        with patch("core.odds_fetcher.fetch_active_tennis_keys", return_value=[]):
+            with patch("core.odds_fetcher.fetch_game_lines", side_effect=mock_lines):
+                result = fetch_batch_odds(sports=["NBA"], include_tennis=True)
+
+        assert result["NBA"] == fake_nba
 
 
 if __name__ == "__main__":

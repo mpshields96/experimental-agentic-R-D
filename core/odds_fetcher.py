@@ -37,6 +37,7 @@ PREFERRED_BOOKS = ["draftkings", "fanduel", "betmgm", "betrivers", "caesars"]
 # Market strings per sport key.
 # NOTE: player props NOT supported on bulk endpoint — confirmed 422 Feb 2026.
 # Soccer: spreads cause 422 on bulk endpoint — h2h,totals only.
+# Tennis: h2h only — spreads not offered; totals rarely posted and highly variable.
 # baseball_mlb: added for MLB season starting Mar 27, 2026.
 MARKETS: dict[str, str] = {
     "basketball_nba":               "h2h,spreads,totals",
@@ -53,7 +54,11 @@ MARKETS: dict[str, str] = {
     "soccer_usa_mls":               "h2h,totals",
 }
 
-# Friendly sport name → API sport key
+# Tennis market string — applied to ALL tennis_atp_* and tennis_wta_* sport keys.
+# h2h only: spreads not available, totals (game lines) are rarely posted pre-match.
+TENNIS_MARKETS = "h2h"
+
+# Friendly sport name → API sport key (static sports only)
 SPORT_KEYS: dict[str, str] = {
     "NBA":          "basketball_nba",
     "NFL":          "americanfootball_nfl",
@@ -70,7 +75,7 @@ SPORT_KEYS: dict[str, str] = {
 }
 
 # Active sports — built from SPORT_KEYS keys. Update when sports go in/out of season.
-# The scheduler and batch fetch use this list.
+# Tennis NOT in ACTIVE_SPORTS — dynamically discovered via fetch_active_tennis_keys().
 ACTIVE_SPORTS = list(SPORT_KEYS.keys())
 
 
@@ -205,6 +210,74 @@ def _fetch_with_backoff(
 
 
 # ---------------------------------------------------------------------------
+# Tennis dynamic sport key discovery
+# ---------------------------------------------------------------------------
+
+def fetch_active_tennis_keys(
+    include_atp: bool = True,
+    include_wta: bool = True,
+    session: Optional[requests.Session] = None,
+) -> list[str]:
+    """
+    Fetch currently active tennis sport keys from the Odds API /v4/sports/ endpoint.
+
+    Tennis sport keys change weekly (e.g. "tennis_atp_qatar_open",
+    "tennis_atp_dubai", "tennis_wta_dubai"). This function discovers them
+    dynamically so no manual MARKETS update is needed each week.
+
+    Filters:
+    - active == True (in-season, odds available now)
+    - key starts with "tennis_atp" (if include_atp) or "tennis_wta" (if include_wta)
+
+    Args:
+        include_atp: Include ATP tour events (default True).
+        include_wta: Include WTA tour events (default True).
+        session: Optional requests.Session for test injection.
+
+    Returns:
+        List of active tennis sport key strings.
+        Empty list on API error or no active tennis events.
+
+    Example:
+        ["tennis_atp_qatar_open", "tennis_wta_dubai"]
+    """
+    api_key = get_api_key()
+    if not api_key:
+        logger.error("No ODDS_API_KEY found. Cannot fetch tennis sport keys.")
+        return []
+
+    url = f"{BASE_URL}/"
+    params = {"apiKey": api_key}
+    requester = session or requests
+
+    try:
+        resp = requester.get(url, params=params, timeout=15)
+        if resp.status_code == 200:
+            quota.update(resp.headers)
+        else:
+            logger.warning("fetch_active_tennis_keys: HTTP %d", resp.status_code)
+            return []
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("fetch_active_tennis_keys error: %s", exc)
+        return []
+
+    active_keys: list[str] = []
+    for sport in data:
+        key = sport.get("key", "")
+        active = sport.get("active", False)
+        if not active:
+            continue
+        if include_atp and key.startswith("tennis_atp"):
+            active_keys.append(key)
+        elif include_wta and key.startswith("tennis_wta"):
+            active_keys.append(key)
+
+    logger.info("Active tennis keys: %s", active_keys)
+    return active_keys
+
+
+# ---------------------------------------------------------------------------
 # Core fetch functions
 # ---------------------------------------------------------------------------
 
@@ -228,7 +301,11 @@ def fetch_game_lines(sport_key: str) -> list[dict]:
         logger.error("No ODDS_API_KEY found. Cannot fetch lines.")
         return []
 
-    markets = MARKETS.get(sport_key)
+    # Tennis keys are dynamic — not in MARKETS dict, use TENNIS_MARKETS fallback
+    if sport_key.startswith("tennis_atp") or sport_key.startswith("tennis_wta"):
+        markets = TENNIS_MARKETS
+    else:
+        markets = MARKETS.get(sport_key)
     if not markets:
         logger.warning("Unknown sport_key: %s — no MARKETS entry", sport_key)
         return []
@@ -260,31 +337,46 @@ def fetch_game_lines(sport_key: str) -> list[dict]:
         return []
 
 
-def fetch_batch_odds(sports: Optional[list[str]] = None) -> dict[str, list[dict]]:
+def fetch_batch_odds(
+    sports: Optional[list[str]] = None,
+    include_tennis: bool = True,
+) -> dict[str, list[dict]]:
     """
     Fetch odds for multiple sports in sequence. Returns a dict keyed by sport name.
 
     Used by the APScheduler every 5 minutes and by the Live Lines tab.
     Stops early if quota is critically low (< 20 remaining).
 
+    Tennis handling: tennis sport keys change weekly (tournament-specific).
+    When include_tennis=True, calls fetch_active_tennis_keys() to discover
+    current tournaments, then fetches each as "TENNIS_ATP:<sport_key>" or
+    "TENNIS_WTA:<sport_key>" in the results dict.
+
     Args:
         sports: List of friendly sport names (e.g. ["NBA", "NCAAB"]).
                 Defaults to ACTIVE_SPORTS if None.
+                Pass ["Tennis"] to fetch only tennis.
+        include_tennis: Discover and fetch active tennis events (default True).
 
     Returns:
         Dict mapping sport_name → list of raw game dicts.
+        Tennis entries are keyed as the raw Odds API sport key string
+        (e.g. "tennis_atp_qatar_open") for downstream kill switch use.
         Empty list for sports that failed or had no games.
 
     Example:
         results = fetch_batch_odds(["NBA", "NCAAB"])
         nba_games = results["NBA"]    # list[dict]
         ncaab_games = results["NCAAB"]
+        # Tennis (when include_tennis=True):
+        tennis_games = results.get("tennis_atp_qatar_open", [])
     """
     if sports is None:
         sports = ACTIVE_SPORTS
 
     results: dict[str, list[dict]] = {}
 
+    # Fetch static sports
     for sport_name in sports:
         sport_key = SPORT_KEYS.get(sport_name.upper())
         if not sport_key:
@@ -302,6 +394,17 @@ def fetch_batch_odds(sports: Optional[list[str]] = None) -> dict[str, list[dict]
 
         games = fetch_game_lines(sport_key)
         results[sport_name] = games
+
+    # Fetch tennis dynamically (active tournament keys change weekly)
+    if include_tennis and not quota.is_low(threshold=20):
+        tennis_keys = fetch_active_tennis_keys()
+        for tennis_key in tennis_keys:
+            if quota.is_low(threshold=20):
+                logger.warning("Quota critically low — skipping remaining tennis keys")
+                break
+            games = fetch_game_lines(tennis_key)
+            # Keyed by the raw sport key so callers can pass it to tennis_kill_switch
+            results[tennis_key] = games
 
     return results
 
