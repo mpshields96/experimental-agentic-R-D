@@ -19,13 +19,14 @@ from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
-from core.odds_fetcher import fetch_batch_odds, quota
+from core.odds_fetcher import fetch_batch_odds, quota, probe_bookmakers
 from core.line_logger import init_db, log_snapshot
 from core.price_history_store import (
     init_price_history_db,
     integrate_with_session_cache,
     inject_historical_prices_into_cache,
 )
+from core.probe_logger import log_probe_result
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,9 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
                 inject_historical_prices_into_cache(games, effective_db)
                 snapshots = log_snapshot(games, sport, effective_db)
                 results_summary[sport] = len(snapshots)
+                # Probe: log bookmaker coverage for this sport's fetch
+                probe_result = probe_bookmakers(games)
+                log_probe_result(probe_result, sport=sport)
             else:
                 results_summary[sport] = 0
 

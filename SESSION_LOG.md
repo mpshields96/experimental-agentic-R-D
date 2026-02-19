@@ -2,6 +2,77 @@
 
 ---
 
+## Session 9 — 2026-02-19
+
+### Objective
+Probe log integration — scheduler logs bookmaker coverage on every poll,
+surfaces automatically in R&D Output page (no manual CLI required).
+
+### What Was Built
+
+#### 1. `core/probe_logger.py` — Probe Log (new file)
+Persistent JSON log of bookmaker probe results from scheduler polls.
+
+Public API:
+- `log_probe_result(probe_result, sport)` → appends entry to probe_log.json
+  - Stores: timestamp, sport, n_games_sampled, pinnacle_present, all_keys,
+    preferred_found, n_books
+  - Rolling trim at 200 entries — prevents unbounded file growth
+- `read_probe_log(last_n, sport)` → list[dict], sport filter, missing=[]
+- `probe_summary(entries)` → {n_probes, pinnacle_rate, pinnacle_present,
+  all_books_seen, preferred_coverage, sports_probed, last_seen}
+- `probe_log_status()` → one-line status string for logging/sidebar
+
+Design: JSON (not SQLite) — probe data is tiny + sequential, readable in repo.
+
+#### 2. `core/scheduler.py` — Probe wire-in
+- Imports: `probe_bookmakers` from odds_fetcher, `log_probe_result` from probe_logger
+- In `_poll_all_sports()`: after `log_snapshot()`, calls:
+  `probe_result = probe_bookmakers(games)`
+  `log_probe_result(probe_result, sport=sport)`
+- Zero extra API calls — probe_bookmakers() works on the already-fetched raw_games
+
+#### 3. `pages/05_rd_output.py` — Pinnacle Probe panel (⑦)
+Live panel reading from `data/probe_log.json`:
+- KPI strip: Probes, Pinnacle YES/NO, Pinnacle Rate, Books Seen
+- Empty state: explains what fires the log, what Pinnacle means
+- "Book Coverage" tab:
+  - Bar chart: preferred books × times seen across probes
+  - All-books-ever-seen tag line
+  - Verdict card: PINNACLE AVAILABLE or ABSENT with action guidance
+- "Probe History" tab:
+  - Scatter/line: n_books per probe (green=pinnacle present, red=absent)
+  - Last probe timestamp + sports probed footer
+
+#### 4. `tests/test_probe_logger.py` — 36 new tests
+- TestLogProbeResult (12): file creation, fields, pinnacle, rolling trim, parent dirs
+- TestReadProbeLog (8): read-back, last_n, sport filter, corrupt file
+- TestProbeSummary (11): empty, counts, pinnacle rate, book union, preferred coverage
+- TestProbeLogStatus (5): status string format, truncation
+
+**Total: 298/298 tests passing (was 262/262)**
+
+### Architecture Notes
+- JSON format chosen over SQLite: probe results are small, sequential writes
+  and human-readable for repo debugging. No concurrent write risk (scheduler only).
+- probe_logger has NO imports from odds_fetcher — clean separation of concerns.
+  Scheduler is the only caller that bridges the two.
+- Probe runs per-sport per-poll: accumulates data across all active sports,
+  allowing sport-level Pinnacle presence analysis over time.
+
+### Next Session Recommendation
+Session 10 options:
+A. SHARP_THRESHOLD raise gate UI: sidebar counter showing live RLM fires,
+   auto-increment when compute_rlm() returns True on a real fetch
+B. app.py sidebar: expose probe_log_status() + price_history_status() + clv_summary()
+   in the existing sidebar status section (currently only shows scheduler + quota)
+C. Price history purge: add weekly purge_old_events() call to scheduler
+   (currently purge exists but is never called automatically)
+Priority: B — highest user value with lowest risk. Sidebar already exists in app.py,
+          adding 3 status lines is safe and provides real-time health visibility.
+
+---
+
 ## Session 8 — 2026-02-19
 
 ### Objective
