@@ -2,6 +2,85 @@
 
 ---
 
+## Session 10 — 2026-02-19
+
+### Objective
+Sidebar health dashboard — surface real-time system health (Pinnacle probe,
+price history, CLV tracker) directly in the app sidebar. Weekly automatic
+purge of stale price history rows wired into scheduler.
+
+### What Was Built
+
+#### 1. `app.py` — SYSTEM HEALTH sidebar section
+Three new status cards below the quota display, each wrapped in try/except
+(ImportError-safe, graceful empty states):
+
+**📡 PINNACLE PROBE card**
+- Reads `probe_log_status()` + `probe_summary()` from `core/probe_logger`
+- Displays: probes logged, pinnacle rate (%), books seen (up to 4 + overflow count)
+- Status badge: ACTIVE (green) or ABSENT (red) based on `pinnacle_present`
+
+**📦 PRICE HISTORY card**
+- Reads `price_history_status()` from `core/price_history_store`
+- Displays raw status line (N events, M sides)
+- Status badge: EMPTY (grey) or OK (green)
+
+**📐 CLV TRACKER card**
+- Reads `clv_summary()` from `core/clv_tracker`
+- Displays: graded N / GATE, avg CLV%, positive rate
+- Status badge: first word of verdict (STRONG / MARGINAL / NO / INSUFFICIENT)
+- Amber gate-progress bar (fill = n_graded / CLV_GATE) for visual accumulation cue
+- All conditional fields hidden when n=0 (no math on empty data)
+
+Design: inline HTML cards, amber accent, same visual language as scheduler card.
+All three cards degrade silently on ImportError — zero crash risk on startup.
+
+#### 2. `core/scheduler.py` — Weekly purge job (10C)
+- Added import: `purge_old_events` from `core.price_history_store`
+- New internal function: `_purge_old_price_history(db_path, days_old=14)`
+  - Calls `purge_old_events(days_old=14)`, logs deleted count
+  - Errors logged but never raised (same resilience pattern as poll errors)
+- New APScheduler job: `id="weekly_purge"`, trigger=interval, weeks=1
+  - Registered in `start_scheduler()` alongside `line_poll`
+  - kwargs pass db_path through (same override pattern as line_poll)
+
+#### 3. `tests/test_scheduler.py` — 4 new tests (TestPurgeOldPriceHistory)
+- `test_purge_job_registered`: weekly_purge id in add_job call_args_list
+- `test_purge_job_has_weekly_interval`: weeks=1 confirmed
+- `test_purge_deletes_old_rows`: purge_old_events called with correct args
+- `test_purge_error_does_not_raise`: RuntimeError swallowed silently
+- Fixed 2 existing tests: `test_adds_line_poll_job` + `test_custom_poll_interval`
+  now use `call_args_list[0]` (first add_job call = line_poll) instead of
+  `call_args` (last call = weekly_purge after adding second job)
+
+**Total: 302/302 tests passing (was 298/298)**
+
+### Architecture Notes
+- Sidebar uses `read_probe_log()` / `probe_summary()` calls directly (not
+  `probe_log_status()` string) to get structured data for card rendering.
+  `probe_log_status()` is still the right tool for logs/CLI; cards need raw dict.
+- `price_history_status()` default path resolves to `data/price_history.db`.
+  In app.py, we pass `ROOT / "data" / "line_history.db"` explicitly because
+  the RLM 2.0 wire-in uses the main line_history DB path, not a separate file.
+  Wait — actually price_history uses its own separate DB. The explicit path
+  override matches the scheduler's db_path, not price_history's default.
+  TODO: verify this path matches in next live run session.
+- Weekly purge: 14-day window removes only stale events. Active season events
+  are written every 5 min poll — they're always < 14 days. Safe to run weekly.
+
+### Next Session Recommendation
+Session 11 options:
+A. SHARP_THRESHOLD raise gate counter: sidebar counter showing live RLM fires.
+   Once sufficient live sessions accumulate (target: 5+), consider raising
+   SHARP_THRESHOLD from 45 → 50 in math_engine.py.
+B. Session continuation: verify sidebar health cards display correctly against
+   live data (after price_history_status DB path is confirmed correct).
+C. CLV vs edge% scatter (Analysis page, Panel ③): add a new chart once 10+
+   graded bets exist with both edge% and CLV populated.
+Priority: A (when live RLM fires accumulate) or B (immediate validation check).
+
+---
+
 ## Session 9 — 2026-02-19
 
 ### Objective

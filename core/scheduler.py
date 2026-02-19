@@ -25,6 +25,7 @@ from core.price_history_store import (
     init_price_history_db,
     integrate_with_session_cache,
     inject_historical_prices_into_cache,
+    purge_old_events,
 )
 from core.probe_logger import log_probe_result
 
@@ -83,6 +84,20 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
         logger.error("Poll error #%d: %s", _poll_error_count, exc)
 
 
+def _purge_old_price_history(db_path: Optional[str] = None, days_old: int = 14) -> None:
+    """
+    Called by APScheduler once per week.
+    Deletes price_history rows older than `days_old` days.
+    Errors are logged but never bubble up.
+    """
+    effective_db = db_path or _db_path
+    try:
+        deleted = purge_old_events(days_old=days_old, db_path=effective_db)
+        logger.info("Weekly purge: removed %d old price_history rows (>%dd)", deleted, days_old)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Weekly purge error: %s", exc)
+
+
 def _on_job_event(event) -> None:
     """Log APScheduler job events for observability."""
     if event.exception:
@@ -130,6 +145,14 @@ def start_scheduler(
         id="line_poll",
         replace_existing=True,
         kwargs={"db_path": db_path},
+    )
+    _scheduler.add_job(
+        _purge_old_price_history,
+        trigger="interval",
+        weeks=1,
+        id="weekly_purge",
+        replace_existing=True,
+        kwargs={"db_path": db_path, "days_old": 14},
     )
     _scheduler.start()
     logger.info("Scheduler started (interval=%dm)", poll_interval_minutes)

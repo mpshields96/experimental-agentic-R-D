@@ -69,7 +69,8 @@ class TestStartScheduler:
             instance = MockSched.return_value
             instance.running = True
             start_scheduler(poll_interval_minutes=10)
-            add_job_call = instance.add_job.call_args
+            # line_poll is the FIRST add_job call; weekly_purge is second
+            add_job_call = instance.add_job.call_args_list[0]
             assert add_job_call.kwargs["id"] == "line_poll"
             assert add_job_call.kwargs["kwargs"] == {"db_path": None}
 
@@ -79,7 +80,8 @@ class TestStartScheduler:
             instance = MockSched.return_value
             instance.running = True
             start_scheduler(poll_interval_minutes=15)
-            add_job_call = instance.add_job.call_args
+            # line_poll is the FIRST add_job call
+            add_job_call = instance.add_job.call_args_list[0]
             assert add_job_call.kwargs["minutes"] == 15
 
     def test_stores_db_path(self):
@@ -249,6 +251,51 @@ class TestTriggerPollNow:
             result = trigger_poll_now()
             # last_poll_result was never updated; returns {}
             assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# weekly purge job (10C)
+# ---------------------------------------------------------------------------
+class TestPurgeOldPriceHistory:
+    def test_purge_job_registered(self):
+        """weekly_purge job must be added to the scheduler on start."""
+        with patch("core.scheduler.init_db"), \
+             patch("core.scheduler.init_price_history_db"), \
+             patch("core.scheduler.BackgroundScheduler") as MockSched:
+            instance = MockSched.return_value
+            instance.running = True
+            start_scheduler()
+            job_ids = [call.kwargs.get("id") for call in instance.add_job.call_args_list]
+            assert "weekly_purge" in job_ids
+
+    def test_purge_job_has_weekly_interval(self):
+        """weekly_purge must fire once per week (weeks=1)."""
+        with patch("core.scheduler.init_db"), \
+             patch("core.scheduler.init_price_history_db"), \
+             patch("core.scheduler.BackgroundScheduler") as MockSched:
+            instance = MockSched.return_value
+            instance.running = True
+            start_scheduler()
+            purge_call = next(
+                c for c in instance.add_job.call_args_list
+                if c.kwargs.get("id") == "weekly_purge"
+            )
+            assert purge_call.kwargs.get("weeks") == 1
+
+    def test_purge_deletes_old_rows(self, tmp_path):
+        """_purge_old_price_history calls purge_old_events with correct args."""
+        with patch("core.scheduler.purge_old_events") as mock_purge:
+            mock_purge.return_value = 3
+            sched_mod._db_path = str(tmp_path / "ph.db")
+            from core.scheduler import _purge_old_price_history
+            _purge_old_price_history(days_old=14)
+            mock_purge.assert_called_once_with(days_old=14, db_path=str(tmp_path / "ph.db"))
+
+    def test_purge_error_does_not_raise(self):
+        """Purge errors must be swallowed (same pattern as poll errors)."""
+        with patch("core.scheduler.purge_old_events", side_effect=RuntimeError("db locked")):
+            from core.scheduler import _purge_old_price_history
+            _purge_old_price_history()  # must not raise
 
 
 # ---------------------------------------------------------------------------

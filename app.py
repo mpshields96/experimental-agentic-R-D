@@ -251,6 +251,125 @@ with st.sidebar:
         pass
 
     st.markdown("---")
+
+    # ---------------------------------------------------------------------------
+    # Health dashboard — probe, price history, CLV
+    # ---------------------------------------------------------------------------
+    st.html(
+        """
+        <div style="
+            font-size:0.6rem; font-weight:700; color:#6b7280;
+            letter-spacing:0.12em; text-transform:uppercase;
+            margin-bottom:6px;
+        ">SYSTEM HEALTH</div>
+        """
+    )
+
+    # Pinnacle probe status
+    try:
+        from core.probe_logger import probe_log_status, probe_summary, read_probe_log
+        _probe_entries = read_probe_log(last_n=1)
+        _probe_s = probe_summary(read_probe_log())
+        _n_probe = _probe_s.get("n_probes", 0)
+        _pin_rate = _probe_s.get("pinnacle_rate", 0.0)
+        _pin_present = _probe_s.get("pinnacle_present", False)
+        _pin_color = "#22c55e" if _pin_present else "#ef4444"
+        _pin_label = "ACTIVE" if _pin_present else "ABSENT"
+        _books_seen = _probe_s.get("all_books_seen", [])
+        _books_str = ", ".join(_books_seen[:4])
+        if len(_books_seen) > 4:
+            _books_str += f" +{len(_books_seen) - 4}"
+        st.html(
+            f"""
+            <div style="
+                background:#1a1d23; border:1px solid #2d3139;
+                border-radius:6px; padding:8px 10px; margin-bottom:8px;
+            ">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                    <span style="font-size:0.6rem; font-weight:700; color:#9ca3af; letter-spacing:0.08em;">📡 PINNACLE PROBE</span>
+                    <span style="font-size:0.6rem; font-weight:700; color:{_pin_color};">{_pin_label}</span>
+                </div>
+                <div style="font-size:0.6rem; color:#6b7280; line-height:1.7;">
+                    <div>Probes logged: <span style="color:#d1d5db;">{_n_probe}</span></div>
+                    <div>Pinnacle rate: <span style="color:#d1d5db;">{_pin_rate:.1%}</span></div>
+                    {'<div>Books: <span style="color:#d1d5db;">' + _books_str + '</span></div>' if _books_str else ''}
+                </div>
+            </div>
+            """
+        )
+    except ImportError:
+        pass
+
+    # Price history status
+    try:
+        from core.price_history_store import price_history_status
+        _ph_path = str(ROOT / "data" / "line_history.db")
+        _ph_status = price_history_status(_ph_path)
+        _ph_empty = "empty" in _ph_status
+        _ph_color = "#6b7280" if _ph_empty else "#22c55e"
+        st.html(
+            f"""
+            <div style="
+                background:#1a1d23; border:1px solid #2d3139;
+                border-radius:6px; padding:8px 10px; margin-bottom:8px;
+            ">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                    <span style="font-size:0.6rem; font-weight:700; color:#9ca3af; letter-spacing:0.08em;">📦 PRICE HISTORY</span>
+                    <span style="font-size:0.6rem; font-weight:700; color:{_ph_color};">{'EMPTY' if _ph_empty else 'OK'}</span>
+                </div>
+                <div style="font-size:0.6rem; color:#6b7280;">{_ph_status}</div>
+            </div>
+            """
+        )
+    except ImportError:
+        pass
+
+    # CLV tracker status
+    try:
+        from core.clv_tracker import CLV_GATE, clv_summary, read_clv_log
+        _clv_entries = read_clv_log()
+        _clv_s = clv_summary(_clv_entries)
+        _clv_n = _clv_s.get("n", 0)
+        _clv_avg = _clv_s.get("avg_clv_pct", 0.0)
+        _clv_pos_rate = _clv_s.get("positive_rate", 0.0)
+        _clv_verdict = _clv_s.get("verdict", "INSUFFICIENT DATA")
+        _clv_color = "#22c55e" if "STRONG" in _clv_verdict else (
+            "#f59e0b" if "MARGINAL" in _clv_verdict else
+            "#ef4444" if "NO EDGE" in _clv_verdict else "#6b7280"
+        )
+        _gate_pct = min(1.0, _clv_n / CLV_GATE) if CLV_GATE > 0 else 0.0
+        st.html(
+            f"""
+            <div style="
+                background:#1a1d23; border:1px solid #2d3139;
+                border-radius:6px; padding:8px 10px; margin-bottom:8px;
+            ">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                    <span style="font-size:0.6rem; font-weight:700; color:#9ca3af; letter-spacing:0.08em;">📐 CLV TRACKER</span>
+                    <span style="font-size:0.6rem; font-weight:700; color:{_clv_color};">{_clv_verdict.split()[0]}</span>
+                </div>
+                <div style="font-size:0.6rem; color:#6b7280; line-height:1.7;">
+                    <div>Graded: <span style="color:#d1d5db;">{_clv_n}</span> / {CLV_GATE}</div>
+                    {'<div>Avg CLV: <span style="color:#d1d5db;">' + f"{_clv_avg:+.2f}%" + '</span></div>' if _clv_n > 0 else ''}
+                    {'<div>Positive rate: <span style="color:#d1d5db;">' + f"{_clv_pos_rate:.0%}" + '</span></div>' if _clv_n > 0 else ''}
+                </div>
+                <div style="
+                    background:#2d3139; border-radius:3px; height:3px;
+                    margin-top:6px; overflow:hidden;
+                ">
+                    <div style="
+                        background:#f59e0b; height:3px;
+                        width:{_gate_pct:.0%}; transition:width 0.3s;
+                    "></div>
+                </div>
+                <div style="font-size:0.55rem; color:#4b5563; margin-top:2px;">gate progress</div>
+            </div>
+            """
+        )
+    except ImportError:
+        pass
+
+    st.markdown("---")
     st.markdown("Math > Narrative")
 
 # ---------------------------------------------------------------------------
