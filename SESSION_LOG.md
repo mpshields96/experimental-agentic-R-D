@@ -2,6 +2,141 @@
 
 ---
 
+## Session 12 — 2026-02-19
+
+### Objective
+Sports coverage audit + kill switch coverage map. Verify system tracks user's
+requested sport list. Enforce "follow your recommendations" posture:
+no speculative additions, Math > Narrative, hold anything without tier confirmation.
+
+### Sports Coverage Audit Results
+
+#### Requested vs Configured
+| Sport | System Key | API Key | Kill Switch | Status |
+|---|---|---|---|---|
+| NBA | NBA | basketball_nba | ✅ B2B rest + pace variance | Active |
+| NCAAB | NCAAB | basketball_ncaab | ✅ 3PT reliance + tempo | Active |
+| NCAAF | NCAAF | americanfootball_ncaaf | ⚠️ None (collar-only) | Active |
+| NFL | NFL | americanfootball_nfl | ✅ Wind + backup QB | Active |
+| EPL | EPL | soccer_epl | ✅ Market drift + dead rubber | Active |
+| Ligue 1 | LIGUE1 | soccer_france_ligue_one | ✅ Same soccer kill | Active |
+| Bundesliga | BUNDESLIGA | soccer_germany_bundesliga | ✅ Same soccer kill | Active |
+| Serie A | SERIE_A | soccer_italy_serie_a | ✅ Same soccer kill | Active |
+| La Liga | LA_LIGA | soccer_spain_la_liga | ✅ Same soccer kill | Active |
+| MLS | MLS | soccer_usa_mls | ✅ Same soccer kill | Active |
+| NHL | NHL | icehockey_nhl | ⚠️ None (collar-only) | Active |
+| MLB | MLB | baseball_mlb | ⚠️ None (collar-only) | Active, season Mar 27 |
+| Tennis | — | — | ❌ Not configured | **DEFERRED** |
+| College Baseball | — | — | ❌ Not configured | **DEFERRED** |
+
+#### Soccer spreads note
+Spreads excluded from all soccer markets by design. Odds API returns 422 on
+soccer spread requests via bulk endpoint — h2h and totals only. Confirmed Feb 2026.
+
+#### Kill Switch Gaps (NCAAF, NHL, MLB)
+These three sports are active and polling correctly. They run on:
+- Collar check (-180 to +150)
+- MIN_EDGE (3.5%)
+- SHARP_THRESHOLD (45)
+- Full Sharp Score composite (edge + RLM + efficiency + situational)
+- Consensus fair probability across books
+
+That is meaningful protection. The collar alone eliminates most bad price markets.
+No sport-specific kill needed until live data identifies a real recurring problem:
+
+**NCAAF**: NFL kill switch is applicable in bowl season (wind/backup QB), but
+NCAAF-specific kill would need: SOS differentiation, non-con blowout bias,
+or late-line movement patterns. Deferred — no validated threshold yet.
+
+**NHL**: Goalie injury (confirmed starter scratched) is the main kill candidate.
+No real-time goalie confirmation API available without paid feed. Deferred.
+
+**MLB**: Pitcher fatigue (days rest, pitch count from prior start) + weather
+(wind out/in at Wrigley-type parks). API data insufficient until season starts.
+Deferred — revisit April 2026 after 2+ weeks of live MLB data.
+
+#### Deferred Sports (Tennis, College Baseball)
+**Tennis**: Odds API supports tennis_atp and tennis_wta. Two constraints:
+1. Kill switch: Surface type (clay/hard/grass) + H2H are the validated inputs.
+   Neither is available from Odds API — requires separate data source.
+2. Quota: +2 sports = 14 API calls per 5-min poll. Tier must support it.
+Action: Add only after user confirms API tier covers tennis AND supply of
+surface/H2H data. Do not add as collar-only — tennis volatility is too high.
+
+**College Baseball**: Sparse line posting (1-2 days before game only), thin
+sharp movement data, no pitcher injury feed available from Odds API.
+Action: Deferred indefinitely. Low ROI vs quota cost.
+
+### Origination Method — Confirmed Deferred
+Recommendation confirmed: do NOT implement Pinnacle-anchored true origination
+until `probe_log.json` shows `pinnacle_present: True` consistently (3+ consecutive
+poll sessions). Current state: Pinnacle ABSENT on this API tier.
+`price_history_store.py` continues as session-relative proxy open price — valid
+for RLM detection within session. CLV via `clv_tracker.py` is retroactive
+verification of that proxy. Structurally sound, no false confidence.
+
+### Data Source Research (Session 12)
+
+Research conducted on available free APIs for deferred kill switches:
+
+#### NHL Goalie API — ✅ VIABLE (FREE)
+- `api-web.nhle.com/v1/schedule/now` — public, no key, returns game schedule
+- `api.nhle.com/stats/rest/en/goalie/summary` — GAA, save %, game stats
+- Starting goalies announced ~60-90min pregame; field: `startingGoalies` in schedule endpoint
+- **Zero quota cost** — completely independent of Odds API
+- 🌐 NEEDS WIFI VERIFICATION: Confirm `startingGoalies` field exists in response structure
+  before building parser. Hospital wifi may block nhle.com.
+
+#### MLB Starting Pitcher API — ✅ VIABLE (FREE, season-gated)
+- `statsapi.mlb.com/api/v1/schedule?sportId=1&date=YYYY-MM-DD` — public, no key
+- Field: `games[].gameData.teams.home.pitchers` → probable pitcher
+- Also supports days rest derivation via pitching log endpoint
+- **Deferred to Apr 1 2026** — season starts Mar 27, no live data to validate until then
+- 🌐 NEEDS WIFI VERIFICATION: Confirm `probablePitcher` field name in live schedule response
+
+#### Tennis ATP/WTA — ✅ ON ODDS API, ⚠️ SURFACE DATA MISSING
+- The Odds API supports `tennis_atp` and `tennis_wta` on ALL tiers
+- Covers Grand Slams, ATP 1000, WTA 1000
+- **Gap**: No surface type (clay/hard/grass) in Odds API payload
+- Surface data options: Tennis Abstract (manual scrape), RapidAPI ($10-50/mo)
+- Decision: HOLD tennis until surface data source confirmed + kill switch built
+- 🌐 NEEDS WIFI VERIFICATION: Confirm tennis_atp in our current API tier's sport list
+
+#### College Baseball — ⚠️ ON ODDS API, LOW VALUE
+- The Odds API supports `baseball_ncaa`
+- Coverage confirmed on free tier; historical from May 2023 on paid
+- Markets: moneyline, spreads, totals
+- Decision: STILL DEFERRED — line posting is sparse (1-2 days before game),
+  sharp action thin, no pitcher/weather data pipeline. Low ROI vs quota cost.
+
+### What Was Built This Session
+- MASTER_ROADMAP.md — created: canonical task backlog with all deferred items,
+  WIFI-blocked tasks, session history, priority order for Session 13
+- SESSION_LOG.md: Session 12 entry — sports coverage audit + research findings
+- No code changes — audit + research only. Math is sound.
+- 314/314 tests passing (unchanged)
+
+### Next Session Recommendations (Session 13)
+See MASTER_ROADMAP.md Section 9 for full checklist. Summary:
+
+**REQUIRES GOOD WIFI (do these first if unblocked):**
+1. Verify `api-web.nhle.com/v1/schedule/now` → `startingGoalies` field structure
+2. Verify `statsapi.mlb.com/api/v1/schedule` → `probablePitcher` field
+3. Confirm tennis_atp in current Odds API tier sport list
+4. If #1 confirmed → build core/nhl_data.py + nhl_kill_switch() in math_engine.py
+
+**CAN DO ON ANY WIFI:**
+5. Check bet tracker graded count — if ≥10, build CLV vs edge% scatter (Analysis ③)
+6. Check RLM gate sidebar — if RAISE READY, manually raise SHARP_THRESHOLD to 50
+
+**PERMANENT HOLDS (do not implement):**
+- Tennis: until surface data source confirmed
+- MLB kill: until Apr 1 live data
+- Origination: until Pinnacle confirmed present in probe log
+- College Baseball: low ROI, deferred indefinitely
+
+---
+
 ## Session 11 — 2026-02-19
 
 ### Objective
