@@ -38,6 +38,7 @@ from core.math_engine import (
     passes_collar,
     sharp_to_size,
 )
+from core.clv_tracker import CLV_GATE, clv_summary, read_clv_log
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -563,3 +564,144 @@ st.html(f"""
     </div>
 </div>
 """)
+
+st.markdown("---")
+
+# ---------------------------------------------------------------------------
+# ⑥ CLV Tracker (live data from CSV log)
+# ---------------------------------------------------------------------------
+_section_header(
+    "CLV Tracker",
+    f"Closing Line Value accumulated across graded bets · gate = {CLV_GATE} entries",
+)
+
+_clv_log_path = str(ROOT / "data" / "clv_log.csv")
+try:
+    _entries = read_clv_log(log_path=_clv_log_path)
+except Exception:
+    _entries = []
+
+_summary = clv_summary(_entries)
+_n = _summary["n"]
+
+# KPI strip
+_c1, _c2, _c3, _c4, _c5 = st.columns(5)
+_kpis = [
+    ("Entries", str(_n), "#e5e7eb"),
+    ("Avg CLV", f"{_summary['avg_clv_pct']:+.2f}%" if _n else "—",
+     GREEN if _summary["avg_clv_pct"] >= 0 else RED),
+    ("+ Rate", f"{_summary['positive_rate']:.0%}" if _n else "—",
+     GREEN if _summary.get("positive_rate", 0) >= 0.5 else AMBER),
+    ("Max", f"{_summary['max_clv_pct']:+.2f}%" if _n else "—", GREEN),
+    ("Verdict", _summary["verdict"],
+     AMBER if _summary["below_gate"] else (
+         GREEN if _summary["verdict"] == "STRONG EDGE CAPTURE"
+         else (AMBER if _summary["verdict"] == "MARGINAL" else RED)
+     )),
+]
+for _col, (_label, _val, _color) in zip([_c1, _c2, _c3, _c4, _c5], _kpis):
+    with _col:
+        st.html(f"""
+        <div style="
+            background:#1a1d23; border:1px solid #2d3139; border-radius:4px;
+            padding:8px 12px;
+        ">
+            <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.1em;">{_label.upper()}</div>
+            <div style="font-size:0.95rem; font-weight:800; color:{_color}; margin-top:2px;">{_val}</div>
+        </div>
+        """)
+
+if _n == 0:
+    st.html("""
+    <div style="
+        background:#1a1d23; border:1px dashed #2d3139; border-radius:6px;
+        padding:20px; text-align:center; color:#6b7280; font-size:0.8rem;
+        margin-top:8px;
+    ">
+        No CLV data yet. Grade bets in the Bet Tracker tab with a close price
+        to begin accumulating CLV observations.
+        <br><br>Gate: 30 entries required for statistical verdict.
+    </div>
+    """)
+else:
+    _clv_tab1, _clv_tab2 = st.tabs(["Grade Distribution", "CLV History"])
+
+    with _clv_tab1:
+        _grade_order = ["EXCELLENT", "GOOD", "NEUTRAL", "POOR"]
+        _grade_colors = {"EXCELLENT": GREEN, "GOOD": "#4ade80", "NEUTRAL": GRAY, "POOR": RED}
+        _grade_counts = {g: 0 for g in _grade_order}
+        for _e in _entries:
+            _g = _e.get("grade", "NEUTRAL")
+            if _g in _grade_counts:
+                _grade_counts[_g] += 1
+
+        _fig_grades = go.Figure(data=go.Bar(
+            x=_grade_order,
+            y=[_grade_counts[g] for g in _grade_order],
+            marker_color=[_grade_colors[g] for g in _grade_order],
+            text=[str(_grade_counts[g]) for g in _grade_order],
+            textposition="outside",
+            textfont=dict(color="#d1d5db", size=10),
+        ))
+        _layout_g = dict(PLOTLY_BASE)
+        _layout_g["title"] = dict(
+            text=f"CLV Grade Distribution ({_n} entries)",
+            font=dict(size=12, color="#9ca3af"), x=0,
+        )
+        _layout_g["height"] = 240
+        _layout_g["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="Count")
+        _layout_g["showlegend"] = False
+        _fig_grades.update_layout(**_layout_g)
+        st.plotly_chart(_fig_grades, use_container_width=True, config={"displayModeBar": False})
+
+        _gate_pct = min(_n / CLV_GATE, 1.0) * 100
+        _bar_color = GREEN if _n >= CLV_GATE else AMBER
+        st.html(f"""
+        <div style="margin-top:6px;">
+            <div style="font-size:0.6rem; color:#6b7280; margin-bottom:4px; letter-spacing:0.08em;">
+                GATE PROGRESS — {_n}/{CLV_GATE} entries ({_gate_pct:.0f}%)
+            </div>
+            <div style="background:#1a1d23; border-radius:4px; height:6px; overflow:hidden;">
+                <div style="
+                    background:{_bar_color}; height:100%; width:{_gate_pct:.1f}%;
+                    border-radius:4px;
+                "></div>
+            </div>
+        </div>
+        """)
+
+    with _clv_tab2:
+        _recent = list(reversed(_entries[-50:]))
+        if _recent:
+            _clv_vals = [e.get("clv_pct", 0) for e in _recent]
+            _colors_scatter = [GREEN if v >= 0 else RED for v in _clv_vals]
+
+            _fig_hist = go.Figure()
+            _fig_hist.add_trace(go.Scatter(
+                x=list(range(len(_clv_vals))),
+                y=_clv_vals,
+                mode="markers+lines",
+                marker=dict(color=_colors_scatter, size=6, line=dict(width=0)),
+                line=dict(color="#2d3139", width=1),
+                hovertemplate="Entry %{x}<br>CLV: %{y:+.2f}%<extra></extra>",
+                name="CLV",
+            ))
+            _fig_hist.add_hline(y=0, line_color="#6b7280", line_width=1, line_dash="dash")
+            _fig_hist.add_hline(
+                y=_summary["avg_clv_pct"],
+                line_color=AMBER, line_width=1, line_dash="dot",
+                annotation_text=f"avg {_summary['avg_clv_pct']:+.2f}%",
+                annotation_font=dict(color=AMBER, size=9),
+                annotation_position="right",
+            )
+            _layout_h = dict(PLOTLY_BASE)
+            _layout_h["title"] = dict(
+                text=f"CLV per bet — last {len(_clv_vals)} entries",
+                font=dict(size=12, color="#9ca3af"), x=0,
+            )
+            _layout_h["height"] = 240
+            _layout_h["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="CLV %", ticksuffix="%")
+            _layout_h["xaxis"] = dict(**PLOTLY_BASE["xaxis"], title="Entry #")
+            _layout_h["showlegend"] = False
+            _fig_hist.update_layout(**_layout_h)
+            st.plotly_chart(_fig_hist, use_container_width=True, config={"displayModeBar": False})

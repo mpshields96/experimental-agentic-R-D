@@ -21,6 +21,11 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 from core.odds_fetcher import fetch_batch_odds, quota
 from core.line_logger import init_db, log_snapshot
+from core.price_history_store import (
+    init_price_history_db,
+    integrate_with_session_cache,
+    inject_historical_prices_into_cache,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +58,9 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
         raw = fetch_batch_odds()   # {sport_name: [game_dict, ...]}
         for sport, games in raw.items():
             if games:
+                # RLM 2.0: persist first-ever-seen prices, then seed in-memory cache
+                integrate_with_session_cache(games, sport, effective_db)
+                inject_historical_prices_into_cache(games, effective_db)
                 snapshots = log_snapshot(games, sport, effective_db)
                 results_summary[sport] = len(snapshots)
             else:
@@ -103,7 +111,8 @@ def start_scheduler(
         return
 
     _db_path = db_path
-    init_db(db_path)   # Ensure schema exists before first poll
+    init_db(db_path)                # Ensure line_history schema exists
+    init_price_history_db(db_path)  # Ensure price_history schema exists (RLM 2.0)
 
     _scheduler = BackgroundScheduler(
         job_defaults={"misfire_grace_time": 60},  # tolerate 1-min late fires

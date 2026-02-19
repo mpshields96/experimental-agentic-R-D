@@ -84,6 +84,7 @@ class TestStartScheduler:
 
     def test_stores_db_path(self):
         with patch("core.scheduler.init_db"), \
+             patch("core.scheduler.init_price_history_db"), \
              patch("core.scheduler.BackgroundScheduler") as MockSched:
             MockSched.return_value.running = True
             start_scheduler(db_path="/data/test.db")

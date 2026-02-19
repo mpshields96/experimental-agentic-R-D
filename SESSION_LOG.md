@@ -2,6 +2,82 @@
 
 ---
 
+## Session 8 — 2026-02-19
+
+### Objective
+RLM 2.0: persistent open-price store (fixes cold-start problem across restarts).
+CLV chart exposed in R&D Output page. Tests for all new modules.
+
+### What Was Built
+
+#### 1. `core/price_history_store.py` — RLM 2.0 (new file)
+SQLite-backed append-only store for first-ever-seen market prices across sessions.
+
+Core invariant: `INSERT OR IGNORE` — open price is **never** overwritten.
+
+Public API:
+- `init_price_history_db(db_path)` — schema init, separate from line_history.db
+- `record_open_prices(event_id, sides, sport)` → n rows inserted (0 if all existed)
+- `integrate_with_session_cache(raw_games, sport)` — scan games, persist new events
+- `get_historical_open_price(event_id, side)` → int|None
+- `inject_historical_prices_into_cache(raw_games)` — seeds math_engine RLM cache from DB
+- `purge_old_events(days_old=14)` → rows deleted (housekeeping)
+- `price_history_status()` → one-line status string
+- `get_all_open_prices(sport)` → nested dict {event_id: {side: price}}
+
+Wire-in sequence (called by scheduler each poll cycle, per sport):
+```
+integrate_with_session_cache(games, sport)     # Step 1: persist new events
+inject_historical_prices_into_cache(games)     # Step 2: seed in-memory cache
+log_snapshot(games, sport, db)                 # Step 3: existing call unchanged
+```
+
+#### 2. `core/scheduler.py` — RLM 2.0 wire-in
+- `init_price_history_db(db_path)` called in `start_scheduler()` alongside `init_db()`
+- `integrate_with_session_cache()` + `inject_historical_prices_into_cache()` called
+  in `_poll_all_sports()` per sport, before `log_snapshot()`
+
+#### 3. `pages/05_rd_output.py` — CLV Tracker panel (⑥)
+Live panel reading from `data/clv_log.csv`:
+- KPI strip: Entries, Avg CLV%, Positive Rate, Max, Verdict
+- Empty state: instructions for first use
+- "Grade Distribution" tab: bar chart EXCELLENT/GOOD/NEUTRAL/POOR + gate progress bar
+- "CLV History" tab: scatter+line of last 50 entries, colour-coded, avg hline
+
+#### 4. `tests/test_price_history_store.py` — 36 new tests
+- TestInitPriceHistoryDb (3): file creation, idempotent, mkdir
+- TestRecordOpenPrices (6): insert, never-overwrite, partial, empty
+- TestIntegrateWithSessionCache (7): new games, dedup, empty, no-id, sport tag
+- TestGetHistoricalOpenPrice (5): retrieval, miss, negative/positive odds
+- TestInjectHistoricalPricesIntoCache (5): seeds cache, doesn't overwrite, empty
+- TestPurgeOldEvents (3): zero fresh, purge old, preserve fresh
+- TestPriceHistoryStatus (3): empty, counts, multi-event
+- TestGetAllOpenPrices (4): nested dict, sport filter, empty, multiple
+
+#### 5. `tests/test_scheduler.py` — fix
+- `test_stores_db_path`: added `patch("core.scheduler.init_price_history_db")` so
+  the test (which patches init_db) doesn't hit a read-only filesystem path
+
+**Total: 262/262 tests passing (was 226/226)**
+
+### Architecture Notes
+- `price_history.db` is a SEPARATE file from `line_history.db` — different write patterns
+  (append-only vs upsert). Kept separate by design.
+- DB path overridable via `PRICE_HISTORY_DB_PATH` env var (test isolation)
+- No circular imports: price_history_store imports math_engine only (for seed call)
+- RLM cold-start problem: SOLVED. On process restart, `inject_historical_prices_into_cache()`
+  loads multi-day baselines into memory before first fetch runs.
+
+### Next Session Recommendation
+Session 9 options:
+A. R&D Output page: add Pinnacle probe section — live probe trigger + bookmaker coverage chart
+B. Scheduler probe integration: call `probe_bookmakers()` + log result to a probe_log.json
+C. SHARP_THRESHOLD raise gate tracker: UI counter in sidebar, increment when RLM fires live
+Priority: B — closes the loop between probe_bookmakers() (built S7) and actual scheduler runs.
+          Surfaces Pinnacle data automatically without manual CLI runs.
+
+---
+
 ## Session 7 — 2026-02-19
 
 ### Objective
