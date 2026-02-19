@@ -303,7 +303,7 @@ with st.sidebar:
     # Price history status
     try:
         from core.price_history_store import price_history_status
-        _ph_path = str(ROOT / "data" / "line_history.db")
+        _ph_path = str(ROOT / "data" / "price_history.db")
         _ph_status = price_history_status(_ph_path)
         _ph_empty = "empty" in _ph_status
         _ph_color = "#6b7280" if _ph_empty else "#22c55e"
@@ -363,6 +363,47 @@ with st.sidebar:
                     "></div>
                 </div>
                 <div style="font-size:0.55rem; color:#4b5563; margin-top:2px;">gate progress</div>
+            </div>
+            """
+        )
+    except ImportError:
+        pass
+
+    # RLM fire gate — threshold raise tracker
+    try:
+        from core.math_engine import RLM_FIRE_GATE, rlm_gate_status
+        _rlm = rlm_gate_status()
+        _rlm_n = _rlm["fire_count"]
+        _rlm_gate = _rlm["gate"]
+        _rlm_pct = _rlm["pct_to_gate"]
+        _rlm_reached = _rlm["gate_reached"]
+        _rlm_color = "#22c55e" if _rlm_reached else "#f59e0b"
+        _rlm_label = "RAISE READY" if _rlm_reached else f"{_rlm_n}/{_rlm_gate}"
+        st.html(
+            f"""
+            <div style="
+                background:#1a1d23; border:1px solid #2d3139;
+                border-radius:6px; padding:8px 10px; margin-bottom:8px;
+            ">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                    <span style="font-size:0.6rem; font-weight:700; color:#9ca3af; letter-spacing:0.08em;">📈 RLM GATE</span>
+                    <span style="font-size:0.6rem; font-weight:700; color:{_rlm_color};">{_rlm_label}</span>
+                </div>
+                <div style="font-size:0.6rem; color:#6b7280; line-height:1.7;">
+                    <div>RLM fires: <span style="color:#d1d5db;">{_rlm_n}</span></div>
+                    <div style="color:#4b5563;">Threshold raise at {_rlm_gate} fires</div>
+                    {'<div style="color:#22c55e; font-weight:600;">→ Raise SHARP_THRESHOLD 45→50</div>' if _rlm_reached else ''}
+                </div>
+                <div style="
+                    background:#2d3139; border-radius:3px; height:3px;
+                    margin-top:6px; overflow:hidden;
+                ">
+                    <div style="
+                        background:{_rlm_color}; height:3px;
+                        width:{_rlm_pct:.0%}; transition:width 0.3s;
+                    "></div>
+                </div>
+                <div style="font-size:0.55rem; color:#4b5563; margin-top:2px;">45→50 raise gate</div>
             </div>
             """
         )

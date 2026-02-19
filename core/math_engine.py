@@ -519,6 +519,12 @@ def consensus_fair_prob(
 # Never overwritten — first-seen price is the open price.
 _OPEN_PRICE_CACHE: dict[str, dict[str, int]] = {}
 
+# RLM fire counter — increments each time compute_rlm() returns True.
+# Accumulates across scheduler polls for the SHARP_THRESHOLD raise gate.
+# Target: raise SHARP_THRESHOLD 45 → 50 once _rlm_fire_count >= RLM_FIRE_GATE.
+RLM_FIRE_GATE: int = 20          # minimum confirmed RLM fires before threshold raise
+_rlm_fire_count: int = 0
+
 
 def cache_open_prices(games: list) -> None:
     """
@@ -595,6 +601,8 @@ def compute_rlm(
         (rlm_confirmed: bool, drift_pct: float)
         Cold cache returns (False, 0.0).
     """
+    global _rlm_fire_count
+
     open_price = get_open_price(event_id, side)
     if open_price is None:
         return False, 0.0
@@ -605,6 +613,7 @@ def compute_rlm(
 
     if drift >= 0.03 and public_on_side:
         # Price moved against the public — sharp activity on the other side
+        _rlm_fire_count += 1
         return True, drift
 
     return False, drift
@@ -641,6 +650,49 @@ def clear_open_price_cache() -> None:
 def open_price_cache_size() -> int:
     """Return number of events currently cached. Useful for monitoring."""
     return len(_OPEN_PRICE_CACHE)
+
+
+def get_rlm_fire_count() -> int:
+    """
+    Return the cumulative number of confirmed RLM fires this process.
+
+    Increments each time compute_rlm() detects a genuine reverse line move.
+    Used by the sidebar health dashboard and SHARP_THRESHOLD raise gate.
+
+    Returns:
+        int — total RLM fires since process start (or last reset).
+    """
+    return _rlm_fire_count
+
+
+def reset_rlm_fire_count() -> None:
+    """
+    Reset the RLM fire counter to zero.
+    Intended for testing only — never call from production code.
+    """
+    global _rlm_fire_count
+    _rlm_fire_count = 0
+
+
+def rlm_gate_status() -> dict:
+    """
+    Return structured RLM raise-gate status for sidebar display.
+
+    Returns:
+        {
+            "fire_count":   int,   confirmed RLM fires this process
+            "gate":         int,   RLM_FIRE_GATE constant
+            "pct_to_gate":  float, fraction toward gate (capped at 1.0)
+            "gate_reached": bool,  True if fire_count >= RLM_FIRE_GATE
+        }
+    """
+    pct = min(1.0, _rlm_fire_count / RLM_FIRE_GATE) if RLM_FIRE_GATE > 0 else 0.0
+    return {
+        "fire_count":   _rlm_fire_count,
+        "gate":         RLM_FIRE_GATE,
+        "pct_to_gate":  pct,
+        "gate_reached": _rlm_fire_count >= RLM_FIRE_GATE,
+    }
 
 
 # ---------------------------------------------------------------------------

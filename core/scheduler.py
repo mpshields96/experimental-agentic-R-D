@@ -21,6 +21,7 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 from core.odds_fetcher import fetch_batch_odds, quota, probe_bookmakers
 from core.line_logger import init_db, log_snapshot
+from core.math_engine import rlm_gate_status
 from core.price_history_store import (
     init_price_history_db,
     integrate_with_session_cache,
@@ -200,6 +201,7 @@ def get_status() -> dict:
             "poll_error_count": int,
             "recent_errors": [str],
             "quota_report": str,
+            "rlm_gate": dict,  from math_engine.rlm_gate_status()
         }
     """
     return {
@@ -209,6 +211,7 @@ def get_status() -> dict:
         "poll_error_count": _poll_error_count,
         "recent_errors": list(_poll_errors),
         "quota_report": quota.report(),
+        "rlm_gate": rlm_gate_status(),
     }
 
 

@@ -2,6 +2,71 @@
 
 ---
 
+## Session 11 — 2026-02-19
+
+### Objective
+RLM fire gate counter — accumulate confirmed RLM detections toward
+SHARP_THRESHOLD raise (45→50). DB path bug fix. Sports audit.
+
+### What Was Built
+
+#### 1. `core/math_engine.py` — RLM fire counter
+- New module-level state: `_rlm_fire_count: int = 0`
+- New constant: `RLM_FIRE_GATE: int = 20` — target fires before threshold raise
+- `compute_rlm()` now increments `_rlm_fire_count` each time it returns `True`
+- New public functions:
+  - `get_rlm_fire_count() -> int` — current cumulative count
+  - `reset_rlm_fire_count() -> None` — testing only
+  - `rlm_gate_status() -> dict` — structured gate state:
+    `{fire_count, gate, pct_to_gate, gate_reached}`
+
+#### 2. `core/scheduler.py` — RLM gate in get_status()
+- Added import: `rlm_gate_status` from `core.math_engine`
+- `get_status()` now returns `"rlm_gate": rlm_gate_status()` — UI reads from here
+- Note: importing math_engine from scheduler is safe (math_engine has no scheduler import)
+
+#### 3. `app.py` — RLM Gate sidebar card + DB path fix
+- **Bug fix**: Price History card was reading `line_history.db` — corrected to
+  `price_history.db` (separate DB as designed in Session 8)
+- New **📈 RLM GATE** sidebar card:
+  - Fire count + gate target
+  - Amber progress bar (fill = fires / RLM_FIRE_GATE)
+  - Green "RAISE READY" badge + call-to-action line when gate_reached=True
+  - Stays grey/amber until gate hit — no premature threshold raise noise
+
+#### 4. `tests/test_math_engine.py` — 12 new tests (TestRLMFireCounter)
+- Initial state, increment on fire, accumulation, cold-cache no-fire,
+  drift-below-threshold no-fire, public_on_side=False no-fire,
+  reset zeroes counter, gate status structure, initial gate values,
+  gate_reached at threshold, pct capped at 1.0, constant type check
+- `TestRLM.setup_method` now also calls `reset_rlm_fire_count()` for isolation
+
+#### 5. `tests/test_scheduler.py` — 1 test updated
+- `test_initial_state`: added assertions for `rlm_gate` key + structure
+
+**Total: 314/314 tests passing (was 302/302)**
+
+### Architecture Notes
+- RLM fire count is **in-memory only** (resets on process restart). This is
+  intentional: it counts confirmed fires in live scheduler polls, not historical
+  ones. One process restart = fresh accumulation toward the gate.
+- `RLM_FIRE_GATE = 20` is conservative. With 5-min polls, 20 genuine RLM
+  detections across multiple sports represents meaningful statistical confidence.
+- The gate is advisory only — SHARP_THRESHOLD is still a constant in math_engine.py
+  that must be manually changed when gate_reached=True. The sidebar just tells
+  you when to act, it doesn't act itself. Math > automation here.
+
+### Next Session Recommendation
+Session 12 options:
+A. Sports audit + kill switch review — verify each sport's kill switch logic
+   against current research (see sports audit question from user)
+B. CLV vs edge% scatter in Analysis page — needs 10+ graded bets
+C. Manual SHARP_THRESHOLD raise to 50 once RLM gate is reached in live use
+Priority: A — user explicitly asked for a sports math audit this session.
+          Deliver that as a separate analysis (not code changes unless warranted).
+
+---
+
 ## Session 10 — 2026-02-19
 
 ### Objective

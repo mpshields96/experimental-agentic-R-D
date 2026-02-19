@@ -33,6 +33,9 @@ from core.math_engine import (
     get_open_price,
     clear_open_price_cache,
     open_price_cache_size,
+    get_rlm_fire_count,
+    reset_rlm_fire_count,
+    rlm_gate_status,
     calculate_clv,
     clv_grade,
     BetCandidate,
@@ -42,6 +45,7 @@ from core.math_engine import (
     COLLAR_MAX,
     MIN_EDGE,
     SHARP_THRESHOLD,
+    RLM_FIRE_GATE,
 )
 
 
@@ -472,8 +476,9 @@ class TestConsensusFairProb:
 
 class TestRLM:
     def setup_method(self):
-        """Clear cache before each test to prevent state bleed."""
+        """Clear cache and fire counter before each test to prevent state bleed."""
         clear_open_price_cache()
+        reset_rlm_fire_count()
 
     def test_cold_cache_returns_false(self):
         rlm, drift = compute_rlm("event_001", "Duke", -110, public_on_side=True)
@@ -782,6 +787,95 @@ class TestRunNemesis:
         result = run_nemesis(bet, "NBA")
         # All current nemesis cases have prob <= 0.30, so remove should be False
         assert result["remove"] is False  # 0.30 is not > 0.40
+
+
+# ---------------------------------------------------------------------------
+# RLM Fire Counter (Session 11)
+# ---------------------------------------------------------------------------
+
+class TestRLMFireCounter:
+    def setup_method(self):
+        clear_open_price_cache()
+        reset_rlm_fire_count()
+
+    def test_initial_count_is_zero(self):
+        assert get_rlm_fire_count() == 0
+
+    def test_count_increments_on_fire(self):
+        # Seed open price, then move line enough to fire RLM
+        from core.math_engine import seed_open_prices_from_db
+        seed_open_prices_from_db({"ev1": {"TeamA": -110}})
+        # -180 is a big implied prob shift from -110 (~52% → 64%)
+        compute_rlm("ev1", "TeamA", -180, public_on_side=True)
+        assert get_rlm_fire_count() == 1
+
+    def test_count_accumulates_across_fires(self):
+        from core.math_engine import seed_open_prices_from_db
+        seed_open_prices_from_db({"ev1": {"TeamA": -110}, "ev2": {"TeamB": -110}})
+        compute_rlm("ev1", "TeamA", -180, public_on_side=True)
+        compute_rlm("ev2", "TeamB", -180, public_on_side=True)
+        assert get_rlm_fire_count() == 2
+
+    def test_no_fire_when_cold_cache(self):
+        compute_rlm("no_event", "Team", -180, public_on_side=True)
+        assert get_rlm_fire_count() == 0
+
+    def test_no_fire_when_drift_below_threshold(self):
+        from core.math_engine import seed_open_prices_from_db
+        seed_open_prices_from_db({"ev1": {"TeamA": -110}})
+        # -112 is a tiny shift — below 3% threshold
+        compute_rlm("ev1", "TeamA", -112, public_on_side=True)
+        assert get_rlm_fire_count() == 0
+
+    def test_no_fire_when_public_not_on_side(self):
+        from core.math_engine import seed_open_prices_from_db
+        seed_open_prices_from_db({"ev1": {"TeamA": -110}})
+        compute_rlm("ev1", "TeamA", -180, public_on_side=False)
+        assert get_rlm_fire_count() == 0
+
+    def test_reset_zeroes_counter(self):
+        from core.math_engine import seed_open_prices_from_db
+        seed_open_prices_from_db({"ev1": {"TeamA": -110}})
+        compute_rlm("ev1", "TeamA", -180, public_on_side=True)
+        assert get_rlm_fire_count() == 1
+        reset_rlm_fire_count()
+        assert get_rlm_fire_count() == 0
+
+    def test_rlm_gate_status_structure(self):
+        s = rlm_gate_status()
+        assert "fire_count" in s
+        assert "gate" in s
+        assert "pct_to_gate" in s
+        assert "gate_reached" in s
+
+    def test_rlm_gate_status_initial(self):
+        s = rlm_gate_status()
+        assert s["fire_count"] == 0
+        assert s["gate"] == RLM_FIRE_GATE
+        assert s["pct_to_gate"] == 0.0
+        assert s["gate_reached"] is False
+
+    def test_rlm_gate_reached_at_threshold(self):
+        from core.math_engine import seed_open_prices_from_db
+        # Fire RLM_FIRE_GATE times using unique event IDs
+        for i in range(RLM_FIRE_GATE):
+            seed_open_prices_from_db({f"ev{i}": {"Team": -110}})
+            compute_rlm(f"ev{i}", "Team", -180, public_on_side=True)
+        s = rlm_gate_status()
+        assert s["gate_reached"] is True
+        assert s["pct_to_gate"] == 1.0
+
+    def test_pct_to_gate_capped_at_1(self):
+        from core.math_engine import seed_open_prices_from_db
+        # Fire more than gate times
+        for i in range(RLM_FIRE_GATE + 5):
+            seed_open_prices_from_db({f"ev{i}": {"Team": -110}})
+            compute_rlm(f"ev{i}", "Team", -180, public_on_side=True)
+        assert rlm_gate_status()["pct_to_gate"] == 1.0
+
+    def test_rlm_fire_gate_constant(self):
+        assert isinstance(RLM_FIRE_GATE, int)
+        assert RLM_FIRE_GATE > 0
 
 
 # ---------------------------------------------------------------------------

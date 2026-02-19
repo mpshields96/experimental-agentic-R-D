@@ -157,6 +157,11 @@ class TestGetStatus:
         assert status["poll_error_count"] == 0
         assert status["recent_errors"] == []
         assert isinstance(status["quota_report"], str)
+        # RLM gate must be present and structured
+        assert "rlm_gate" in status
+        assert isinstance(status["rlm_gate"], dict)
+        assert "fire_count" in status["rlm_gate"]
+        assert "gate_reached" in status["rlm_gate"]
 
     def test_running_true_after_start(self):
         with patch("core.scheduler.init_db"), \
