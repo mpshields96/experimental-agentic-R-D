@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 14 | Last updated: 2026-02-19
+## Version: Session 17 | Last updated: 2026-02-19
 ## For: New agentic R&D chat initialization
 
 ---
@@ -124,11 +124,16 @@ PROJECT_INDEX.md has the full public API surface.
 ## 🧮 MATHEMATICAL NON-NEGOTIABLES (inherited from V36.1 — never change without explicit instruction)
 
 ```
-COLLAR:        -180 <= american_odds <= +150  (ABSOLUTE — reject everything outside)
+COLLAR:        -180 <= american_odds <= +150  (standard 2-way markets)
+               EXCEPTION: Soccer 3-way h2h uses passes_collar_soccer(): -250 to +400.
+               Dogs (+290) and draws (+250) are normal soccer prices — do NOT filter them.
 MIN_EDGE:      >= 3.5% (absolute floor for any bet candidate)
 MIN_BOOKS:     >= 2 books for consensus (never single-book edge)
 KELLY:         0.25x fractional. Caps: >60% winprob=2.0u, >54%=1.0u, else=0.5u
 SHARP_THRESHOLD: 45.0 (raise to 50 MANUALLY when RLM gate reached — do NOT automate)
+               NOTE: SHARP_THRESHOLD is NOT a filter gate in parse_game_markets().
+               All candidates passing MIN_EDGE + MIN_BOOKS + collar are returned.
+               It is a reference constant for the manual raise decision only.
 
 EDGE SIGNAL:   Multi-book consensus vig-free mean = model probability
                edge = consensus_prob - implied(best_available_price)
@@ -161,12 +166,12 @@ SORT:          By Sharp Score descending (NOT edge%).
 | NBA | ✅ B2B rest + pace | compute_rest_days_from_schedule() — zero extra API calls |
 | NFL | ✅ Wind + backup QB | 15mph/20mph thresholds — validated |
 | NCAAB | ✅ 3PT reliance + tempo | 40% threshold away — validated |
-| EPL / Ligue1 / Bundesliga / Serie A / La Liga / MLS | ✅ Market drift + dead rubber | Soccer: h2h+totals only |
+| EPL / Ligue1 / Bundesliga / Serie A / La Liga / MLS | ✅ Market drift + dead rubber | Soccer 3-way h2h: uses passes_collar_soccer() + consensus_fair_prob_3way(). Standard 2-way path silently skips 3-outcome markets. |
 | NHL | ✅ Goalie starter kill | nhl_data.py + nhl_kill_switch() + scheduler wired (Session 13) |
 | MLB | ⚠️ Collar-only | Kill switch deferred to Apr 1 (season gate) |
 | NCAAF | ⚠️ Collar-only | Kill switch deferred (no validated threshold) |
-| Tennis | ✅ Kill switch built (S15) | tennis_data.py surface inference — ZERO cost. Wire into SPORT_KEYS next. |
-| College Baseball | ❌ Rejected | probablePitcher absent, thin action, low ROI |
+| Tennis | ✅ COMPLETE (S15+S16) | Dynamic discovery via fetch_active_tennis_keys() — NOT in SPORT_KEYS (keys change weekly). Surface from sport key substring only (zero cost). |
+| College Baseball | ❌ Rejected | probablePitcher absent on sportId=22, thin action |
 
 ---
 
@@ -272,6 +277,10 @@ AVOID: rainbow palettes, excessive expanders, st.metric for everything,
 11. **sharp_breakdown dict keys**: `"edge"`, `"rlm"`, `"efficiency"`, `"situational"` — NOT `"edge_contribution"` etc. Tests that access breakdown must use these exact keys.
 12. **get_bets() API**: Takes keyword filters directly (`result="WIN"`, `sport="NBA"`) — does NOT accept a dict arg. Use direct SQLite queries for ad-hoc gate checks.
 13. **Timing gates in scheduler vs nhl_data**: `_poll_nhl_goalies()` skips games >90min away BEFORE calling `get_starters_for_odds_game`. Tests for "skip distant games" must assert `mock.assert_not_called()`, not `assert_called_once()`.
+14. **Soccer 3-way h2h is silently broken by 2-way path**: `consensus_fair_prob()` has `if len(outcomes) != 2: continue` — silently skips all soccer h2h. Use `consensus_fair_prob_3way()` for SOCCER_SPORTS. Never route soccer h2h through the 2-way path.
+15. **Edge diagnostic pattern**: When few candidates surface, check: (1) collar failures via `passes_collar()` on raw prices, (2) book count failures (< MIN_BOOKS), (3) edge distribution vs MIN_EDGE. Collar is usually the dominant filter (75%+ of games).
+16. **ODDS_API_KEY in scripts**: Must set env var explicitly: `ODDS_API_KEY=xxx python3 script.py`. Key is NOT auto-loaded from any config file.
+17. **Tennis sport keys are dynamic**: Tennis keys like `tennis_atp_qatar_open` change weekly. Do NOT add to SPORT_KEYS. Use `fetch_active_tennis_keys()` at runtime. Tennis h2h is 2-way (no draw) — uses standard collar and consensus_fair_prob().
 
 ---
 
@@ -307,45 +316,40 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 14)
+## 🚦 CURRENT PROJECT STATE (as of Session 17)
 
 ```
-Test suite:   418/418 passing
-Last commit:  TBD (Session 14)
-GitHub:       mpshields96/experimental-agentic-R-D (main branch)
+Test suite:   534/534 passing
+Last commit:  32d9310 (Session 17)
+GitHub:       mpshields96/experimental-agentic-R-D (main branch) — NOT YET PUSHED
 App port:     8503 (8501/8502 are other Streamlit instances on this machine)
 
 BUILT (complete):
   All 5 pages, all core modules, 12 active sports, RLM 2.0, CLV tracker,
   Pinnacle probe, weekly purge, sidebar health dashboard, RLM fire gate,
-  NHL kill switch (nhl_data.py + nhl_kill_switch + scheduler wired),
-  efficiency_feed.py (250+ teams, 10 leagues, wired into Sharp Score pipeline)
-
-EFFICIENCY COMPONENT: LIVE
-  parse_game_markets() now accepts efficiency_gap param (0-20, pre-scaled).
-  pages/01_live_lines.py calls get_efficiency_gap(home, away) per game.
-  All 10 leagues covered: NBA/NCAAB/NFL/MLB/MLS/EPL/Bundesliga/Ligue1/SerieA/LaLiga.
-  Unknown teams fallback: 8.0 (conservative floor).
-
-TENNIS API: CONFIRMED ON CURRENT TIER
-  /v4/sports/ returns tennis_atp + tennis_wta both active.
-  Kill switch built (S15): tennis_data.py surface inference — ZERO cost.
-  Next step: wire tennis_atp/tennis_wta into SPORT_KEYS in odds_fetcher.py.
+  NHL kill switch, efficiency_feed.py, tennis (dynamic discovery + kill switch),
+  soccer 3-way h2h (passes_collar_soccer, no_vig_probability_3way, consensus_fair_prob_3way)
 
 KILL SWITCHES ACTIVE:
   NBA: B2B rest + star absence + pace variance
   NFL: Wind >15/20mph + backup QB
   NCAAB: 3PT reliance >40% on road + tempo diff
-  Soccer (all 6): Market drift >10% + dead rubber
+  Soccer (all 6): Market drift >10% + dead rubber — 3-way h2h now LIVE
   NHL: Backup goalie confirmed (free NHL API, zero quota cost)
-  Tennis: Clay >72% / Grass >75% favourite → FLAG (static surface, zero cost, S15)
-  MLB: DEFERRED to Apr 1 (season starts Mar 27)
+  Tennis: Clay >72% / Grass >75% favourite → FLAG (dynamic discovery, surface from key)
+  MLB: DEFERRED to Apr 1, 2026 (season starts Mar 27)
   NCAAF: DEFERRED (no validated threshold)
 
-NEXT SESSION (Session 16):
-  1. Wire tennis_atp/tennis_wta into SPORT_KEYS (kill switch is ready)
-  2. NBA B2B home/road diff — gate: 10+ B2B instances in DB
-  3. System gates check: RLM fire count, graded bet count
+SYSTEM GATES (all blocked — need live data accumulation):
+  RLM fire count:  0 / 20  → do NOT raise SHARP_THRESHOLD yet
+  Graded bets:     0        → CLV scatter (4A) deferred
+  NBA B2B:         0 instances in DB → 3D deferred
+
+NEXT SESSION (Session 18):
+  1. System gates check (always first)
+  2. Accumulate live data — run app with scheduler
+  3. NBA B2B home/road diff — gate: 10+ B2B instances in DB
+  4. MLB kill switch — HOLD until Apr 1, 2026
   See MASTER_ROADMAP.md Section 9 for full checklist
 ```
 
@@ -363,4 +367,4 @@ NEXT SESSION (Session 16):
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 14, 2026-02-19*
+*Last updated: Session 17, 2026-02-19*
