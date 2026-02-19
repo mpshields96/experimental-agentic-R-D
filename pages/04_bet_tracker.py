@@ -35,6 +35,8 @@ from core.line_logger import (
     log_bet,
     update_bet_result,
 )
+from core.clv_tracker import log_clv_snapshot
+from core.math_engine import get_open_price
 
 DB_PATH = str(ROOT / "data" / "line_history.db")
 
@@ -327,6 +329,24 @@ with pending_col:
                             close_price=close_price if close_price != 0 else None,
                             db_path=DB_PATH,
                         )
+                        # Log CLV snapshot to CSV when close price is provided
+                        if close_price and close_price != 0:
+                            try:
+                                event_id = bet.get("event_id") or ""
+                                bet_price = int(bet.get("price", close_price))
+                                side = bet.get("target") or bet.get("matchup") or "unknown"
+                                # Use RLM cache for open price; fall back to bet_price
+                                open_p = get_open_price(event_id, side) if event_id else None
+                                open_price_val = open_p if open_p is not None else bet_price
+                                log_clv_snapshot(
+                                    event_id=event_id or f"manual_{bet_id}",
+                                    side=side,
+                                    open_price=open_price_val,
+                                    bet_price=bet_price,
+                                    close_price=int(close_price),
+                                )
+                            except Exception:
+                                pass  # CLV log failure must never block bet result save
                         st.success("Result saved.")
                         st.cache_data.clear()
                         st.rerun()

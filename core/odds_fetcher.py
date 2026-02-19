@@ -410,3 +410,95 @@ def sport_key_for(sport_name: str) -> Optional[str]:
 def timestamp_now() -> str:
     """Return current UTC timestamp as ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Pinnacle probe (Session 7 — R&D EXP 2)
+# ---------------------------------------------------------------------------
+
+def probe_bookmakers(raw_games: list[dict]) -> dict:
+    """
+    Survey all bookmaker keys present in a set of raw game dicts.
+
+    Purpose: detect whether Pinnacle is available on our API tier.
+    Run against a live NBA fetch; results drive whether consensus can use
+    Pinnacle as a sharp-price anchor (higher closing accuracy than DK/FD).
+
+    Args:
+        raw_games: Raw game list from fetch_game_lines() or fetch_batch_odds().
+
+    Returns:
+        {
+            "all_keys": sorted list of all bookmaker keys seen,
+            "pinnacle_present": bool,
+            "preferred_found": list of PREFERRED_BOOKS keys that appeared,
+            "n_games_sampled": int,
+            "per_game": [{"matchup": str, "books": [str]}]  # first 5 games
+        }
+
+    >>> result = probe_bookmakers([])
+    >>> result["n_games_sampled"]
+    0
+    >>> result["pinnacle_present"]
+    False
+    """
+    all_keys: set[str] = set()
+    per_game: list[dict] = []
+
+    for game in raw_games:
+        home = game.get("home_team", "?")
+        away = game.get("away_team", "?")
+        books_here = [b["key"] for b in game.get("bookmakers", []) if b.get("key")]
+        all_keys.update(books_here)
+        if len(per_game) < 5:
+            per_game.append({"matchup": f"{away} @ {home}", "books": sorted(books_here)})
+
+    preferred_found = [b for b in PREFERRED_BOOKS if b in all_keys]
+
+    return {
+        "all_keys":        sorted(all_keys),
+        "pinnacle_present": "pinnacle" in all_keys,
+        "preferred_found": preferred_found,
+        "n_games_sampled": len(raw_games),
+        "per_game":        per_game,
+    }
+
+
+def print_pinnacle_report(probe_result: dict) -> None:
+    """
+    Print a human-readable Pinnacle probe report to stdout.
+
+    Intended for CLI runs and R&D log capture.
+    Does NOT modify any state.
+
+    Args:
+        probe_result: Dict returned by probe_bookmakers().
+    """
+    n = probe_result["n_games_sampled"]
+    present = probe_result["pinnacle_present"]
+    all_keys = probe_result["all_keys"]
+    preferred = probe_result["preferred_found"]
+
+    print(f"\n{'='*60}")
+    print(f"  PINNACLE PROBE REPORT — {timestamp_now()}")
+    print(f"{'='*60}")
+    print(f"  Games sampled    : {n}")
+    print(f"  Pinnacle present : {'YES ✓' if present else 'NO ✗'}")
+    print(f"  Preferred books  : {', '.join(preferred) if preferred else 'none'}")
+    print(f"  All book keys    : {', '.join(all_keys) if all_keys else 'none'}")
+    print()
+
+    if probe_result["per_game"]:
+        print("  Sample games (first 5):")
+        for g in probe_result["per_game"]:
+            print(f"    {g['matchup']}")
+            print(f"      books: {', '.join(g['books'])}")
+
+    print()
+    if present:
+        print("  ✓ Pinnacle is available. Evaluate adding to PREFERRED_BOOKS")
+        print("    for sharper consensus anchor — compare implied probs vs DK.")
+    else:
+        print("  ✗ Pinnacle not on this API tier. DraftKings remains primary.")
+        print("    No action required in PREFERRED_BOOKS.")
+    print(f"{'='*60}\n")

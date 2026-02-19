@@ -2,6 +2,78 @@
 
 ---
 
+## Session 7 — 2026-02-19
+
+### Objective
+Build R&D EXP 1 (CLV Tracker) and R&D EXP 2 (Pinnacle Probe) — both marked
+"BUILD NOW" in the ecosystem MASTER_ROADMAP.
+
+### Context Sync
+- Read-only survey of titanium-v36 and titanium-experimental completed in Session 6.
+- Synced against MASTER_ROADMAP.md (titanium-v36 memory/docs, created Session 20 of v36).
+- MASTER_ROADMAP Section 3 (R&D Experimental Backlog):
+  - R&D EXP 1: CLV Tracker [BUILD NOW] ← delivered this session
+  - R&D EXP 2: Pinnacle Probe [BUILD NOW] ← delivered this session
+- sandbox is architecturally ahead of v36 on RLM (DB-seeded cold start) and
+  CLV tracking (CSV accumulation). v36 has the live Streamlit Cloud deploy.
+
+### What Was Built
+
+#### 1. `core/odds_fetcher.py` — Pinnacle Probe (R&D EXP 2)
+- `probe_bookmakers(raw_games)` — surveys all bookmaker keys in a raw games list
+  - Returns: all_keys (sorted), pinnacle_present (bool), preferred_found, n_games_sampled, per_game (first 5)
+  - Zero API calls — works on any already-fetched raw_games dict
+  - Design: diagnostic only — does NOT modify PREFERRED_BOOKS or any state
+- `print_pinnacle_report(probe_result)` — human-readable stdout report for CLI + HANDOFF.md
+
+#### 2. `core/clv_tracker.py` — CLV Tracker (R&D EXP 1)
+New file. Persistence layer on top of math_engine.calculate_clv().
+- `log_clv_snapshot(event_id, side, open_price, bet_price, close_price)` → appends to CSV
+  - CLV stored as percentage (e.g. 1.88, not 0.0188)
+  - Grade auto-populated from math_engine.clv_grade()
+  - Creates CSV + parent dirs on first call
+  - Thread-safe (append mode)
+- `read_clv_log(last_n)` → list[dict] with float/int type coercion
+- `clv_summary(entries)` → {n, avg_clv_pct, positive_rate, max, min, below_gate, verdict}
+  - Gate: 30 entries minimum (CLV_GATE constant)
+  - Verdict tiers: STRONG EDGE CAPTURE / MARGINAL / NO EDGE / INSUFFICIENT DATA
+- `print_clv_report(log_path)` → stdout report with grade breakdown
+
+#### 3. `pages/04_bet_tracker.py` — CLV wire-in
+- On bet grade submit: if close_price provided → `log_clv_snapshot()` fires automatically
+- Open price sourced from RLM cache (`get_open_price(event_id, side)`); falls back to bet_price
+- Failure isolated: CLV log error never blocks bet result save
+
+#### 4. `tests/test_clv_tracker.py` — 46 new tests
+- TestLogClvSnapshot (10 tests): file creation, math accuracy, % vs decimal storage
+- TestReadClvLog (7 tests): type coercion, last_n, missing file
+- TestClvSummary (12 tests): gate logic, all 4 verdict strings, edge cases
+- TestPrintClvReport (3 tests): smoke tests
+- TestProbeBookmakers (11 tests): pinnacle detection, dedup, cap, empty games
+- TestPrintPinnacleReport (3 tests): smoke tests
+
+**Total: 226/226 tests passing (was 180/180)**
+
+### Architecture Notes
+- CLV tracker is a separate file (not stuffed into math_engine) — one file = one job
+- CSV path: `data/clv_log.csv` (relative to sandbox root). Override via `CLV_LOG_PATH` env var.
+- No circular imports: clv_tracker imports from math_engine only (not odds_fetcher)
+- probe_bookmakers is zero-cost (no API calls) — run against any cached fetch
+
+### Wire-in Instructions (future)
+When scheduler polls fire: call `probe_bookmakers(raw_games["NBA"])` on any NBA fetch day.
+Print or log result. If pinnacle_present=True → evaluate adding to PREFERRED_BOOKS.
+
+### Next Session Recommendation
+Session 8 options (from MASTER_ROADMAP):
+A. Expose CLV report in pages/05_rd_output.py — live CLV grade distribution chart
+B. RLM 2.0: price_history_store.py — SQLite persistent open-price store (multi-day baseline)
+   Mirrors experimental Session 18's price_history.json design but SQLite-backed
+C. Sharp Score calibration: scatter edge% vs outcome (needs 20+ graded bets first — future)
+Priority: B (RLM 2.0) — highest structural value, no gate needed
+
+---
+
 ## Session 2 — 2026-02-18/19
 
 ### Objective
