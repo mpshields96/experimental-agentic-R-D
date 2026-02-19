@@ -197,4 +197,5 @@ pages/*           ← from core.* only
 | S12 | Sports audit, API research, MASTER_ROADMAP, PROJECT_INDEX, CLAUDE.md | 314 | 472c4a3 |
 | S13 | NHL kill switch: nhl_data.py + nhl_kill_switch() + scheduler NHL poll | 363 | 2c5fe4c |
 | S14 | efficiency_feed.py (Sharp Score efficiency live) + W6 tennis confirmed | 418 | 15b261d |
-| S15 | tennis_data.py + tennis_kill_switch() — zero cost surface inference | 491 | TBD |
+| S15 | tennis_data.py + tennis_kill_switch() — zero cost surface inference | 491 | 051c7f4 |
+| S16 | Tennis fully wired: fetch_active_tennis_keys() + live lines routing | 506 | 6df802c |
