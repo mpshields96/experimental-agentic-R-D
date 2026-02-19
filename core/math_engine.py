@@ -54,7 +54,7 @@ class BetCandidate:
     """A single bet candidate produced by parse_game_markets()."""
     sport: str
     matchup: str            # "Away @ Home"
-    market_type: str        # "spread", "total", "moneyline"
+    market_type: str        # "spreads", "totals", "h2h"
     target: str             # e.g. "Duke Blue Devils -4.5" or "Over 148.5"
     line: float             # Numeric line value (0.0 for moneylines)
     price: int              # American odds (best price found)
@@ -689,47 +689,47 @@ def run_nemesis(bet: BetCandidate, sport: str) -> dict:
     nemesis_cases: dict[str, list] = {
         "NBA": [
             ("Line movement suggests sharp money on other side",
-             0.30, -15, {"spread", "moneyline"}),
+             0.30, -15, {"spreads", "h2h"}),
             ("Team relies on 3PT shooting, opponent defends arc well",
-             0.25, -15, {"spread", "moneyline"}),
+             0.25, -15, {"spreads", "h2h"}),
             ("Total variance high — pace mismatch creates unpredictable scoring",
-             0.25, -15, {"total"}),
+             0.25, -15, {"totals"}),
             ("B2B fatigue not fully captured in ratings",
              0.20, -10, {"any"}),
         ],
         "NCAAB": [
             ("Road favorite in hostile environment, pressure on young team",
-             0.30, -15, {"spread", "moneyline"}),
+             0.30, -15, {"spreads", "h2h"}),
             ("3PT variance could eliminate efficiency edge",
-             0.25, -15, {"spread", "moneyline", "total"}),
+             0.25, -15, {"spreads", "h2h", "totals"}),
             ("Underdog at home often outperforms ratings",
-             0.20, -10, {"spread", "moneyline"}),
+             0.20, -10, {"spreads", "h2h"}),
             ("Tempo mismatch makes total unreliable",
-             0.25, -15, {"total"}),
+             0.25, -15, {"totals"}),
         ],
         "NFL": [
             ("Line through key number (3, 7, 10) — extra caution",
-             0.25, -15, {"spread"}),
+             0.25, -15, {"spreads"}),
             ("Weather variance not fully modeled",
-             0.25, -15, {"total"}),
+             0.25, -15, {"totals"}),
             ("Injury report could change within 24 hours",
              0.20, -10, {"any"}),
         ],
         "NHL": [
             ("Goalie variance is the dominant factor",
-             0.30, -15, {"moneyline", "spread"}),
+             0.30, -15, {"h2h", "spreads"}),
             ("PDO regression — hot team due for correction",
-             0.25, -15, {"moneyline", "spread"}),
+             0.25, -15, {"h2h", "spreads"}),
             ("Shot quality vs quantity mismatch clouds total",
-             0.25, -15, {"total"}),
+             0.25, -15, {"totals"}),
         ],
         "SOCCER": [
             ("High draw probability (~28%) not fully priced in",
-             0.25, -15, {"moneyline"}),
+             0.25, -15, {"h2h"}),
             ("Must-attack team vulnerable on counter",
-             0.30, -15, {"spread", "moneyline"}),
+             0.30, -15, {"spreads", "h2h"}),
             ("Low xG variance inflates total uncertainty",
-             0.25, -10, {"total"}),
+             0.25, -10, {"totals"}),
         ],
     }
 
