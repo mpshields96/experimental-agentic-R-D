@@ -1,12 +1,14 @@
 # CONTEXT_SUMMARY.md — Titanium-Agentic
-**Session 1 — 2026-02-18**
 **Ground truth document. Update when architecture changes.**
+**Last updated: Session 12, 2026-02-19**
 
 ---
 
 ## Project Mission
 Build **Titanium-Agentic**: a personal sports betting analytics platform that expands
 on Titanium V36.1. Built from scratch in `~/ClaudeCode/agentic-rd-sandbox/`.
+Running in parallel with titanium-v36 (production) and titanium-experimental (R&D).
+Read-only reference of those folders is permitted. NO writes, NO modifications.
 
 ---
 
@@ -14,41 +16,44 @@ on Titanium V36.1. Built from scratch in `~/ClaudeCode/agentic-rd-sandbox/`.
 
 ### Stack
 | Layer | Technology | Notes |
-|-------|-----------|-------|
-| Frontend | Streamlit (multi-page) | `app.py` entry point |
-| Storage | SQLite (local) | `data/line_history.db` |
-| Scheduler | APScheduler (in-process) | 5-min line history pulls |
-| Charts | Plotly | Interactive, Streamlit-native |
-| Python | Match Titanium env (3.11+) | |
-| Hosting target | PythonAnywhere (later) | Local-first |
+|---|---|---|
+| Frontend | Streamlit 1.36+ | `app.py` entry point, st.navigation() + st.Page() |
+| Storage | SQLite WAL | `data/line_history.db` + `data/price_history.db` |
+| Scheduler | APScheduler 3.10+ | In-process, 5-min polls + weekly purge |
+| Charts | Plotly | Interactive, dark theme |
+| Python | 3.13 | datetime.now(timezone.utc) — not utcnow() |
+| Hosting target | Local-first | PythonAnywhere eventually |
 
-### File Structure
+### File Structure (current — Session 12)
 ```
 agentic-rd-sandbox/
-├── CLAUDE.md
-├── CONTEXT_SUMMARY.md         (this file)
-├── SESSION_LOG.md
-├── app.py                     (Streamlit entry point)
+├── CLAUDE.md                    Master init prompt + rules (updated S12)
+├── CONTEXT_SUMMARY.md           This file
+├── SESSION_LOG.md               Build diary (Session 1-12)
+├── MASTER_ROADMAP.md            Task backlog + kill switch specs (updated S12)
+├── PROJECT_INDEX.md             Codebase map — read this at session start (created S12)
+├── requirements.txt
+├── app.py                       Entry point + sidebar health dashboard
 ├── pages/
-│   ├── 01_live_lines.py       (Tab 1 — Live Lines, Priority 2)
-│   ├── 02_analysis.py         (Tab 2 — Analysis, Priority 4)
-│   ├── 03_line_history.py     (Tab 3 — Line History, Priority 1)
-│   ├── 04_bet_tracker.py      (Tab 4 — Bet Tracker, Priority 3)
-│   └── 05_rd_output.py        (Tab 5 — R&D Output, Priority 5)
+│   ├── 01_live_lines.py         Full bet pipeline, math breakdown, Log Bet button
+│   ├── 02_analysis.py           6 panels: KPIs, P&L, edge%, CLV hist, ROI, Line Pressure
+│   ├── 03_line_history.py       Movement cards, sparklines, RLM seed table
+│   ├── 04_bet_tracker.py        Log/grade bets, P&L, CLV wire-in
+│   └── 05_rd_output.py          7 panels: math validation + Pinnacle probe + CLV tracker
 ├── core/
-│   ├── math_engine.py         (All betting math — Kelly, EV, CLV, RLM)
-│   ├── odds_fetcher.py        (Odds API integration only)
-│   ├── line_logger.py         (SQLite writes + schema)
-│   └── scheduler.py           (APScheduler setup)
-├── data/
-│   └── line_history.db        (SQLite, auto-created)
-├── tests/
-│   ├── test_math_engine.py
-│   ├── test_odds_fetcher.py
-│   └── test_line_logger.py
-├── logs/
-│   └── error.log
-└── requirements.txt
+│   ├── math_engine.py           All math (S1, S11 — RLM fire counter added)
+│   ├── odds_fetcher.py          Odds API (S1, S7 — Pinnacle probe added)
+│   ├── line_logger.py           SQLite persistence (S1)
+│   ├── scheduler.py             APScheduler orchestrator (S2, S8, S9, S10, S11)
+│   ├── price_history_store.py   RLM 2.0 persistent open prices (S8)
+│   ├── clv_tracker.py           CLV CSV persistence (S7)
+│   └── probe_logger.py          Pinnacle probe JSON log (S9)
+├── tests/ (7 test files, 314 tests, all passing)
+└── data/
+    ├── line_history.db           Lines + bets
+    ├── price_history.db          RLM open prices (INSERT OR IGNORE)
+    ├── clv_log.csv               CLV snapshots
+    └── probe_log.json            Pinnacle probe history
 ```
 
 ---
@@ -57,158 +62,125 @@ agentic-rd-sandbox/
 
 ### Core Signal
 - **+EV is the only bet selection criterion**
-- Edge detection: multi-book consensus vig-free mean = model probability
-  - Step 1: collect vig-free prob from each book (both sides required)
-  - Step 2: average them → consensus model probability
-  - Step 3: find best available price at any single book
-  - Step 4: edge = consensus_prob - implied(best_price)
-- Minimum edge: **≥ 3.5%** (absolute floor)
-- Minimum books for consensus: **≥ 2**
+- Edge = multi-book consensus vig-free mean - implied(best_price)
+- Minimum edge: **≥ 3.5%** | Minimum books: **≥ 2**
 
 ### Odds Collar
-- American odds: **-180 to +150** only. Reject everything outside.
+- **-180 to +150 only.** Reject everything outside.
 
 ### Kelly Sizing (0.25x fractional)
-- win_prob > 0.60 → cap 2.0 units (NUCLEAR)
-- win_prob > 0.54 → cap 1.0 units (STANDARD)
-- else → cap 0.5 units (LEAN)
+- win_prob > 0.60 → cap 2.0u (NUCLEAR) | > 0.54 → 1.0u (STANDARD) | else → 0.5u (LEAN)
 
-### Sharp Score (0-100 composite)
-| Component | Max pts | Formula |
-|-----------|---------|---------|
-| EDGE | 40 | (edge% / 10%) × 40, capped |
-| RLM | 25 | 25 if RLM confirmed, else 0 |
-| EFFICIENCY | 20 | caller-provided 0-20 scaled gap |
-| SITUATIONAL | 15 | rest + injury + motivation + matchup, capped |
+### Sharp Score (0-100)
+| Component | Max | Formula |
+|---|---|---|
+| EDGE | 40 | (edge% / 10%) × 40 |
+| RLM | 25 | 25 if confirmed, else 0 |
+| EFFICIENCY | 20 | Caller-provided 0-20 |
+| SITUATIONAL | 15 | rest+injury+motivation+matchup, capped |
 
-- **SHARP_THRESHOLD = 45** (require ~7.8% edge to pass)
-- NUCLEAR ≥ 90 | STANDARD ≥ 80 | LEAN ≥ 75
+- **SHARP_THRESHOLD = 45** | NUCLEAR ≥ 90 | STANDARD ≥ 80 | LEAN ≥ 75
+- Without RLM: ceiling ~75. STANDARD/NUCLEAR require RLM signal.
 
 ### RLM (Reverse Line Movement)
-- 3% implied probability shift threshold (NOT 5 cents raw)
-- `_OPEN_PRICE_CACHE` module-level dict → cold on first run
-- Fires on second `run_pipeline()` call within same session
-- `public_on_side` heuristic: `price < -105` = public side
+- 3% implied prob shift threshold
+- `public_on_side` heuristic: price < -105
+- `_OPEN_PRICE_CACHE` in math_engine — cold on process start
+- **RLM 2.0**: `price_history_store.py` — SQLite, INSERT OR IGNORE, persists across restarts
+- **RLM Fire Counter**: `_rlm_fire_count` in math_engine — increments on True return
+- **RLM_FIRE_GATE = 20**: raise SHARP_THRESHOLD 45→50 MANUALLY when gate reached
 
 ### CLV (Closing Line Value)
-- Track consensus open vs closing price
-- Positive CLV validates that we beat the closing line (predictive accuracy signal)
+- Tracks open vs close price. Validates predictive accuracy.
+- **CLV_GATE = 30** entries before verdict meaningful.
 
-### Kill Switches (sport-specific)
-- NBA: rest_disadvantage AND spread < -4 → KILL spread
-- NFL: wind > 15mph AND total > 42 → FORCE_UNDER
-- NCAAB: 3PT reliance > 40% AND away → KILL
-- Soccer: market drift > 10% → KILL
-- NHL/MLB: no kill switch (pass-through)
-
-### Dedup + Diversity
-- Never output both sides of the same market
-- Max 10 bets total | Max 3 per sport | Max 60% concentration
-
----
-
-## Key Architecture Decisions Inherited from V36.1
-1. Multi-book consensus IS the edge signal (not single-book comparison)
-2. Soccer bulk endpoint: h2h,totals only (spreads cause 422)
-3. Player props NOT supported on bulk endpoint (API tier 422)
-4. `_KILL_ROUTER` has no "nba" entry by design — NBA handled explicitly
-5. `st.html()` for full HTML slates (not `st.markdown()` — Streamlit 1.54+ sandboxes it)
-6. Inline styles only in card renderer (Streamlit strips `<style>` tags)
-7. Circular import warning: never import `math_engine` from `odds_fetcher` (V36 lesson)
+### Kill Switches
+| Sport | Trigger | Type |
+|---|---|---|
+| NBA | B2B rest + spread < 4 | KILL spread |
+| NBA | B2b (no spread criterion) | FLAG — Kelly -50% |
+| NBA | star absent + spread inside avg_margin | KILL |
+| NBA | pace_std_dev > 4 + total market | KILL total |
+| NFL | wind > 20mph | KILL all totals |
+| NFL | wind > 15mph + total > 42 | FORCE_UNDER |
+| NFL | backup_qb | KILL |
+| NCAAB | 3PT > 40% + away | KILL |
+| NCAAB | tempo_diff > 10 + total | KILL total |
+| Soccer | market_drift > 10% | KILL |
+| Soccer | dead rubber | KILL |
+| NHL | (not built yet) | Deferred — MASTER_ROADMAP 3A |
+| MLB | (not built yet) | Deferred — MASTER_ROADMAP 3B |
 
 ---
 
-## New Capabilities vs V36.1 (Titanium-Agentic expansion)
-
-### Priority 1 — Line History (NEW, not in V36)
-- SQLite persistent storage: `data/line_history.db`
-- APScheduler: pull every 5 minutes
-- Delta detection: flag movement > 3 points
-- Schema: sport, market, team, open_line, current_line, timestamp, movement_delta
-- This enables CLV tracking and active RLM detection (not passive)
-
-### Priority 2 — Live Lines (Clean V36 port)
-- No V35 bugs (duplicate market sides, wrong model JSON, collar violations)
-- Global bet ranking by edge%
-- Collar logic respected
-
-### Priority 3 — Bet Tracker (Rebuild)
-- Reference: `~/Projects/bet-tracker/index.html` (localStorage-based single-file)
-- Rebuild in Python/SQLite: log bets, outcomes, P&L
-- Fields: team, bet_type, odds, stake, result, edge_pct, kelly_size, sport, matchup
-
-### Priority 4 — Analysis (depends on line history data)
-- CLV tracking over time
-- RLM detection visualization (active, from line_history.db)
-- Edge% distribution charts
-- ROI by bet type, sport, time period
-
-### Priority 5 — R&D Output Display
-- Model parameter comparisons
-- Backtest result visualization
-- Mathematical foundation validation dashboard
+## Import Rules (critical — prevents circular imports)
+```
+math_engine       ← nothing from core/
+odds_fetcher      ← nothing from math_engine (circular risk — confirmed V36 bug)
+line_logger       ← nothing from math_engine or odds_fetcher
+price_history_store ← math_engine ONLY
+clv_tracker       ← math_engine ONLY
+probe_logger      ← nothing from core
+scheduler         ← all of the above (orchestrator — only exception)
+pages/*           ← from core.* only
+```
 
 ---
 
-## Available Tools (Plugin Audit)
+## New Capabilities vs V36.1
+
+| Feature | Status | Notes |
+|---|---|---|
+| SQLite line history | ✅ | WAL mode, delta detection, 5-min polls |
+| RLM 2.0 persistent | ✅ | price_history_store.py — INSERT OR IGNORE |
+| CLV tracking | ✅ | clv_tracker.py — CSV accumulation, 30-entry gate |
+| Pinnacle probe | ✅ | probe_logger.py — rolling JSON, scheduler-wired |
+| RLM fire gate | ✅ | _rlm_fire_count → sidebar RAISE READY badge |
+| Weekly purge | ✅ | purge_old_events() via APScheduler weekly_purge job |
+| Sidebar health | ✅ | Probe, price history, CLV, RLM gate cards |
+| Bet tracker | ✅ | Log, grade, P&L, CLV per bet |
+| Analysis page | ✅ | 6 panels, all with graceful empty states |
+| R&D Output | ✅ | 7 panels, math validation + live probe + CLV |
+| NHL kill switch | 📋 | READY TO BUILD — endpoint verified (MASTER_ROADMAP 3A) |
+| MLB kill switch | ⏳ | Apr 1 gate — endpoint verified (MASTER_ROADMAP 3B) |
+| Tennis | ⏳ | $40/mo surface data gate (MASTER_ROADMAP 3C) |
+
+---
+
+## Available Tools
 | Tool | Status | Use |
-|------|--------|-----|
-| Context7 MCP | ✅ Available | Live library documentation lookups |
-| SuperClaude (sc:*) | ✅ Available | Architect, debugger, implement personas |
-| Playwright MCP | ✅ Available | Browser automation (not needed for build) |
-| Supabase MCP | ✅ Available | Future storage upgrade path |
-| GitHub MCP | ❌ Not installed | Use Bash git commands only |
+|---|---|---|
+| Context7 MCP | ✅ | Live library docs |
+| SuperClaude (sc:*) | ✅ | implement, test, analyze, index-repo |
+| Playwright MCP | ✅ | Browser automation (not needed for build) |
+| Supabase MCP | ✅ | Future storage upgrade |
+| Task (subagent) | ✅ | Background research, parallel work |
+| GitHub MCP | ❌ | Use Bash git only |
 
 ---
 
-## What's Different from V36 R&D
-- V36 root-level imports: `from edge_calculator import` / `from odds_fetcher import`
-- Titanium-Agentic uses package imports: `from core.math_engine import` / `from core.odds_fetcher import`
-- V36 data is in `data/` subfolder with `__init__.py` — same pattern here
-- V36 R&D had no persistent line history — this is the primary new capability
-- V36 used `calculate_edges()` as the unified entry point — same here via `core.math_engine`
-
----
-
-## Known Risks / Constraints
-- API key must come from `os.environ.get("ODDS_API_KEY")` — never hardcode
-- APScheduler in-process: must handle app restarts (load existing DB on init)
-- SQLite: not thread-safe without WAL mode — enable `PRAGMA journal_mode=WAL`
-- Streamlit reruns on every interaction: scheduler must not restart on rerun
-  - Solution: use `st.session_state` to track if scheduler is already running
+## UI Design System
+- Background: `#0e1117` | Card: `#1a1d23` | Border: `#2d3139`
+- Brand amber: `#f59e0b` | Positive: `#22c55e` | Nuclear: `#ef4444`
+- Plotly: `paper_bgcolor="#0e1117"`, `plot_bgcolor="#13161d"`, `font.color="#d1d5db"`
+- `st.html()` for cards (inline styles only)
+- `st.markdown(unsafe_allow_html=True)` for global CSS only
+- `st.navigation()` + `st.Page()` for programmatic nav
 
 ---
 
 ## Session Build State
-| Session | Built | Tests | Committed |
-|---------|-------|-------|-----------|
-| 1 | math_engine, odds_fetcher, line_logger, requirements.txt | 154/154 | 7853fca |
-| 2 | core/scheduler.py, app.py, pages/01–05 | 180/180 | TBD |
-
----
-
-## UI Design System (Session 2)
-
-### Color Palette
-- Background: `#0e1117` (Streamlit dark mode)
-- Card surfaces: `#1a1d23`
-- Borders: `#2d3139`
-- Accent / edge positive: `#22c55e` (green)
-- Accent / size label: `#f59e0b` (amber) — brand color
-- Nuclear signal: `#ef4444` (red)
-- Muted text: `#6b7280`, `#9ca3af`
-
-### Rules
-- `st.html()` for custom cards — never `st.markdown()` for styled HTML
-- Inline styles only — `<style>` blocks work via `st.markdown(unsafe_allow_html=True)` for global CSS only
-- Plotly: `paper_bgcolor="#0e1117"`, `plot_bgcolor="#13161d"`, `font.color="#d1d5db"`
-- `st.dataframe()` with `column_config` for typed columns; `st.data_editor` only for editable tables
-- `st.navigation()` + `st.Page()` programmatic nav (Streamlit 1.36+) — not pages/ folder auto-discovery
-- Terminal aesthetic: monospace accents, uppercase labels, minimal decoration
-
-### Patterns to AVOID
-- `st.metric()` with delta for everything (reserved for meaningful deltas only)
-- Rainbow color palettes
-- Excessive `st.expander` nesting
-- Verbose "natural language" explanations in UI labels
-- `st.spinner()` on instant operations
+| Session | Built | Tests | Commit |
+|---|---|---|---|
+| S1 | math_engine, odds_fetcher, line_logger | 154 | 7853fca |
+| S2 | scheduler, app.py, pages/01-05 scaffolds | 180 | a070e22 |
+| S3 | bet_tracker full, Log Bet button | 180 | 3f83b2c |
+| S4 | analysis page (6 panels), market_type fix | 180 | ef7158d |
+| S5 | rd_output page (7 panels) | 180 | 2656d10 |
+| S6 | Context sync, v36 read-only survey | 180 | a11a3a2 |
+| S7 | CLV tracker, Pinnacle probe | 226 | 1ebf380 |
+| S8 | price_history_store (RLM 2.0) | 262 | c818075 |
+| S9 | probe_logger, scheduler probe wire-in | 298 | afd703c |
+| S10 | Sidebar health dashboard, weekly purge | 302 | 3ade35b |
+| S11 | RLM fire gate counter, DB path fix | 314 | 8eb9ed7 |
+| S12 | Sports audit, API research, MASTER_ROADMAP, PROJECT_INDEX, CLAUDE.md | 314 | 472c4a3 |

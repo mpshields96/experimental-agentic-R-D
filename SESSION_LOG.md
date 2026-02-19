@@ -111,30 +111,41 @@ Research conducted on available free APIs for deferred kill switches:
 - **Verdict: Do not add to system at all. No viable path to a meaningful kill switch.**
 
 ### What Was Built This Session
-- MASTER_ROADMAP.md — created: canonical task backlog with all deferred items,
-  WIFI-blocked tasks, session history, priority order for Session 13
-- SESSION_LOG.md: Session 12 entry — sports coverage audit + research findings
-- No code changes — audit + research only. Math is sound.
+- **MASTER_ROADMAP.md** — created + updated with verified API research:
+  exact endpoint specs, confirmed field names, corrected NHL/MLB assumptions,
+  tennis cost confirmed ($40/mo api-tennis.com), college baseball rejected
+- **PROJECT_INDEX.md** — created: full codebase map in ~3K tokens
+  (replaces reading 58K+ tokens of source). Covers all public APIs,
+  import rules, test counts, data files, design system, system gates
+- **CLAUDE.md** — complete rewrite: master init prompt for new chat.
+  Full role definition, prohibited paths (titanium-v36/experimental = read-only),
+  session start/end rituals, math non-negotiables, current state, Session 13 directive
+- **CONTEXT_SUMMARY.md** — updated to Session 12: full arch state, build diary,
+  complete capability map vs V36, kill switch table, session history table
+- No code changes — documentation + research session. Math is sound.
 - 314/314 tests passing (unchanged)
 
 ### Next Session Recommendations (Session 13)
 See MASTER_ROADMAP.md Section 9 for full checklist. Summary:
 
-**REQUIRES GOOD WIFI (do these first if unblocked):**
-1. Verify `api-web.nhle.com/v1/schedule/now` → `startingGoalies` field structure
-2. Verify `statsapi.mlb.com/api/v1/schedule` → `probablePitcher` field
-3. Confirm tennis_atp in current Odds API tier sport list
-4. If #1 confirmed → build core/nhl_data.py + nhl_kill_switch() in math_engine.py
+**API research complete. W1 and W2 are resolved. Ready to build.**
+
+**PRIORITY:**
+1. Build `core/nhl_data.py` — NHL boxscore poller, team name normalizer, starter detection
+   Endpoint confirmed: `api-web.nhle.com/v1/gamecenter/{gameId}/boxscore`
+   Field confirmed: `playerByGameStats.{team}.goalies[n].starter` (bool)
+2. Add `nhl_kill_switch()` to math_engine.py + tests
+3. Wire NHL kill into scheduler._poll_all_sports() NHL branch
 
 **CAN DO ON ANY WIFI:**
-5. Check bet tracker graded count — if ≥10, build CLV vs edge% scatter (Analysis ③)
-6. Check RLM gate sidebar — if RAISE READY, manually raise SHARP_THRESHOLD to 50
+4. Check bet tracker graded count — if ≥10, build CLV vs edge% scatter (Analysis ③)
+5. Check RLM gate sidebar — if RAISE READY, manually raise SHARP_THRESHOLD to 50
 
-**PERMANENT HOLDS (do not implement):**
-- Tennis: until surface data source confirmed
-- MLB kill: until Apr 1 live data
+**PERMANENT HOLDS:**
+- Tennis: until user approves api-tennis.com $40/mo + confirms Odds API tier
+- MLB kill: Apr 1 gate — season hasn't started
 - Origination: until Pinnacle confirmed present in probe log
-- College Baseball: low ROI, deferred indefinitely
+- College Baseball: REJECTED — do not add
 
 ---
 
