@@ -269,6 +269,9 @@ AVOID: rainbow palettes, excessive expanders, st.metric for everything,
 8. **st.markdown for HTML**: Streamlit sandboxes it in newer versions. Use st.html() for custom cards.
 9. **Inline styles only**: Streamlit strips <style> tags from card HTML. Global CSS via st.markdown(unsafe_allow_html=True) only.
 10. **call_args vs call_args_list**: When a mock has multiple calls, use call_args_list[0] for first call, not call_args (which returns the LAST call).
+11. **sharp_breakdown dict keys**: `"edge"`, `"rlm"`, `"efficiency"`, `"situational"` — NOT `"edge_contribution"` etc. Tests that access breakdown must use these exact keys.
+12. **get_bets() API**: Takes keyword filters directly (`result="WIN"`, `sport="NBA"`) — does NOT accept a dict arg. Use direct SQLite queries for ad-hoc gate checks.
+13. **Timing gates in scheduler vs nhl_data**: `_poll_nhl_goalies()` skips games >90min away BEFORE calling `get_starters_for_odds_game`. Tests for "skip distant games" must assert `mock.assert_not_called()`, not `assert_called_once()`.
 
 ---
 

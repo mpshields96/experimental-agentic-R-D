@@ -1,6 +1,6 @@
 # CONTEXT_SUMMARY.md — Titanium-Agentic
 **Ground truth document. Update when architecture changes.**
-**Last updated: Session 12, 2026-02-19**
+**Last updated: Session 14, 2026-02-19**
 
 ---
 
@@ -24,35 +24,37 @@ Read-only reference of those folders is permitted. NO writes, NO modifications.
 | Python | 3.13 | datetime.now(timezone.utc) — not utcnow() |
 | Hosting target | Local-first | PythonAnywhere eventually |
 
-### File Structure (current — Session 12)
+### File Structure (current — Session 14)
 ```
 agentic-rd-sandbox/
-├── CLAUDE.md                    Master init prompt + rules (updated S12)
+├── CLAUDE.md                    Master init prompt + rules (updated S14)
 ├── CONTEXT_SUMMARY.md           This file
-├── SESSION_LOG.md               Build diary (Session 1-12)
-├── MASTER_ROADMAP.md            Task backlog + kill switch specs (updated S12)
+├── SESSION_LOG.md               Build diary (Session 1-14)
+├── MASTER_ROADMAP.md            Task backlog + kill switch specs (updated S14)
 ├── PROJECT_INDEX.md             Codebase map — read this at session start (created S12)
 ├── requirements.txt
 ├── app.py                       Entry point + sidebar health dashboard
 ├── pages/
-│   ├── 01_live_lines.py         Full bet pipeline, math breakdown, Log Bet button
+│   ├── 01_live_lines.py         Full bet pipeline, efficiency_gap wired, sort by sharp_score (S14)
 │   ├── 02_analysis.py           6 panels: KPIs, P&L, edge%, CLV hist, ROI, Line Pressure
 │   ├── 03_line_history.py       Movement cards, sparklines, RLM seed table
 │   ├── 04_bet_tracker.py        Log/grade bets, P&L, CLV wire-in
 │   └── 05_rd_output.py          7 panels: math validation + Pinnacle probe + CLV tracker
 ├── core/
-│   ├── math_engine.py           All math (S1, S11 — RLM fire counter added)
+│   ├── math_engine.py           All math (S1, S11, S14 — efficiency_gap param added)
 │   ├── odds_fetcher.py          Odds API (S1, S7 — Pinnacle probe added)
 │   ├── line_logger.py           SQLite persistence (S1)
-│   ├── scheduler.py             APScheduler orchestrator (S2, S8, S9, S10, S11)
+│   ├── scheduler.py             APScheduler orchestrator (S2, S8-S11, S13 — NHL poll)
 │   ├── price_history_store.py   RLM 2.0 persistent open prices (S8)
 │   ├── clv_tracker.py           CLV CSV persistence (S7)
-│   └── probe_logger.py          Pinnacle probe JSON log (S9)
-├── tests/ (7 test files, 314 tests, all passing)
+│   ├── probe_logger.py          Pinnacle probe JSON log (S9)
+│   ├── nhl_data.py              NHL goalie starter detection — free NHL API (S13)
+│   └── efficiency_feed.py       Team efficiency data — 250+ teams, 10 leagues (S14)
+├── tests/ (9 test files, 418 tests, all passing)
 └── data/
-    ├── line_history.db           Lines + bets
+    ├── line_history.db           Lines + bets (1,149 rows as of S14)
     ├── price_history.db          RLM open prices (INSERT OR IGNORE)
-    ├── clv_log.csv               CLV snapshots
+    ├── clv_log.csv               CLV snapshots (0 entries — gate not met)
     └── probe_log.json            Pinnacle probe history
 ```
 
@@ -79,7 +81,7 @@ agentic-rd-sandbox/
 | EFFICIENCY | 20 | Caller-provided 0-20 |
 | SITUATIONAL | 15 | rest+injury+motivation+matchup, capped |
 
-- **SHARP_THRESHOLD = 45** | NUCLEAR ≥ 90 | STANDARD ≥ 80 | LEAN ≥ 75
+- **SHARP_THRESHOLD = 45** | NUCLEAR ≥ 90 | STANDARD ≥ 80 | LEAN < 80 (no floor — anything above SHARP_THRESHOLD qualifies)
 - Without RLM: ceiling ~75. STANDARD/NUCLEAR require RLM signal.
 
 ### RLM (Reverse Line Movement)
@@ -98,7 +100,7 @@ agentic-rd-sandbox/
 | Sport | Trigger | Type |
 |---|---|---|
 | NBA | B2B rest + spread < 4 | KILL spread |
-| NBA | B2b (no spread criterion) | FLAG — Kelly -50% |
+| NBA | B2B (no spread criterion) | FLAG — Kelly -50% |
 | NBA | star absent + spread inside avg_margin | KILL |
 | NBA | pace_std_dev > 4 + total market | KILL total |
 | NFL | wind > 20mph | KILL all totals |
@@ -108,8 +110,11 @@ agentic-rd-sandbox/
 | NCAAB | tempo_diff > 10 + total | KILL total |
 | Soccer | market_drift > 10% | KILL |
 | Soccer | dead rubber | KILL |
-| NHL | (not built yet) | Deferred — MASTER_ROADMAP 3A |
-| MLB | (not built yet) | Deferred — MASTER_ROADMAP 3B |
+| NHL | backup_goalie confirmed | KILL (require 12%+ edge override) |
+| NHL | b2b | FLAG — Kelly -50% |
+| NHL | goalie not confirmed within 90min | FLAG — require 8%+ edge |
+| MLB | (not built yet) | Apr 1 gate — MASTER_ROADMAP 3B |
+| Tennis | (not built yet) | api-tennis.com $40/mo gate — MASTER_ROADMAP 3C |
 
 ---
 
@@ -121,6 +126,8 @@ line_logger       ← nothing from math_engine or odds_fetcher
 price_history_store ← math_engine ONLY
 clv_tracker       ← math_engine ONLY
 probe_logger      ← nothing from core
+nhl_data          ← nothing from core (data-only)
+efficiency_feed   ← nothing from core (data-only)
 scheduler         ← all of the above (orchestrator — only exception)
 pages/*           ← from core.* only
 ```
@@ -141,9 +148,10 @@ pages/*           ← from core.* only
 | Bet tracker | ✅ | Log, grade, P&L, CLV per bet |
 | Analysis page | ✅ | 6 panels, all with graceful empty states |
 | R&D Output | ✅ | 7 panels, math validation + live probe + CLV |
-| NHL kill switch | 📋 | READY TO BUILD — endpoint verified (MASTER_ROADMAP 3A) |
+| NHL kill switch | ✅ | nhl_data.py + nhl_kill_switch() + scheduler wired (S13) |
+| Efficiency component (Sharp Score) | ✅ | efficiency_feed.py, 250+ teams, 10 leagues (S14) |
 | MLB kill switch | ⏳ | Apr 1 gate — endpoint verified (MASTER_ROADMAP 3B) |
-| Tennis | ⏳ | $40/mo surface data gate (MASTER_ROADMAP 3C) |
+| Tennis | ⏳ | api-tennis.com $40/mo gate (MASTER_ROADMAP 3C) |
 
 ---
 
@@ -184,3 +192,5 @@ pages/*           ← from core.* only
 | S10 | Sidebar health dashboard, weekly purge | 302 | 3ade35b |
 | S11 | RLM fire gate counter, DB path fix | 314 | 8eb9ed7 |
 | S12 | Sports audit, API research, MASTER_ROADMAP, PROJECT_INDEX, CLAUDE.md | 314 | 472c4a3 |
+| S13 | NHL kill switch: nhl_data.py + nhl_kill_switch() + scheduler NHL poll | 363 | 2c5fe4c |
+| S14 | efficiency_feed.py (Sharp Score efficiency live) + W6 tennis confirmed | 418 | 15b261d |

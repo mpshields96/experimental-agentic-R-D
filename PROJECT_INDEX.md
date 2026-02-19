@@ -57,7 +57,7 @@ agentic-rd-sandbox/
 |---|---|
 | `app.py` | `streamlit run app.py` — launches full app on port 8501+ |
 | `core/scheduler.py` | `start_scheduler()` called in app.py with session_state guard |
-| `tests/` | `python3 -m pytest tests/` — all 314 tests |
+| `tests/` | `python3 -m pytest tests/` — all 418 tests |
 
 ---
 
@@ -251,7 +251,7 @@ bets = parse_game_markets(game, sport, efficiency_gap=eff_gap)
 
 | File | Tests | Key areas |
 |---|---|---|
-| test_math_engine.py | ~165 | All math functions, RLM fire counter, kill switches, NHL kill, efficiency_gap |
+| test_math_engine.py | 117 | All math functions, RLM fire counter, kill switches, NHL kill, efficiency_gap |
 | test_odds_fetcher.py | 32 | Fetch, backoff, quota, probe_bookmakers |
 | test_line_logger.py | 31 | Schema, upsert, movements, bets, P&L |
 | test_scheduler.py | 35 | Start/stop, jobs, poll, purge, rlm_gate, NHL goalie poll |
@@ -259,7 +259,7 @@ bets = parse_game_markets(game, sport, efficiency_gap=eff_gap)
 | test_clv_tracker.py | 46 | Log, read, summary, verdict tiers |
 | test_probe_logger.py | 36 | Log, read, summary, rolling trim |
 | test_nhl_data.py | 34 | normalize_team_name, schedule, boxscore, FUT state, cache |
-| test_efficiency_feed.py | 53 | get_team_data, get_efficiency_gap, list_teams, architecture checks |
+| test_efficiency_feed.py | 51 | get_team_data, get_efficiency_gap, list_teams, architecture checks |
 | **TOTAL** | **418** | **All passing** |
 
 ---
