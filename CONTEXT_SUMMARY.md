@@ -182,4 +182,33 @@ agentic-rd-sandbox/
 ## Session Build State
 | Session | Built | Tests | Committed |
 |---------|-------|-------|-----------|
-| 1 | In progress | — | — |
+| 1 | math_engine, odds_fetcher, line_logger, requirements.txt | 154/154 | 7853fca |
+| 2 | core/scheduler.py, app.py, pages/01–05 | 180/180 | TBD |
+
+---
+
+## UI Design System (Session 2)
+
+### Color Palette
+- Background: `#0e1117` (Streamlit dark mode)
+- Card surfaces: `#1a1d23`
+- Borders: `#2d3139`
+- Accent / edge positive: `#22c55e` (green)
+- Accent / size label: `#f59e0b` (amber) — brand color
+- Nuclear signal: `#ef4444` (red)
+- Muted text: `#6b7280`, `#9ca3af`
+
+### Rules
+- `st.html()` for custom cards — never `st.markdown()` for styled HTML
+- Inline styles only — `<style>` blocks work via `st.markdown(unsafe_allow_html=True)` for global CSS only
+- Plotly: `paper_bgcolor="#0e1117"`, `plot_bgcolor="#13161d"`, `font.color="#d1d5db"`
+- `st.dataframe()` with `column_config` for typed columns; `st.data_editor` only for editable tables
+- `st.navigation()` + `st.Page()` programmatic nav (Streamlit 1.36+) — not pages/ folder auto-discovery
+- Terminal aesthetic: monospace accents, uppercase labels, minimal decoration
+
+### Patterns to AVOID
+- `st.metric()` with delta for everything (reserved for meaningful deltas only)
+- Rainbow color palettes
+- Excessive `st.expander` nesting
+- Verbose "natural language" explanations in UI labels
+- `st.spinner()` on instant operations

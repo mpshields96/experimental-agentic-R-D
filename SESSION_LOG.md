@@ -2,6 +2,62 @@
 
 ---
 
+## Session 2 — 2026-02-18/19
+
+### Objective
+Build scheduler + Streamlit entry point + Priority 1 (line history tab) + Priority 2 (live lines scaffold).
+
+### What Was Built
+- [x] `core/scheduler.py` — APScheduler in-process with st.session_state guard
+  - `start_scheduler()`, `stop_scheduler()`, `trigger_poll_now()`, `get_status()`
+  - `reset_state()` for test isolation
+  - Polls `_poll_all_sports()` every 5 min → `log_snapshot()` per sport
+  - Error list capped at 10, error count tracked for UI display
+- [x] `tests/test_scheduler.py` — 26 tests passing
+- [x] `app.py` — Streamlit entry point
+  - `st.navigation()` + `st.Page()` programmatic nav (Streamlit 1.36+)
+  - Scheduler init with `st.session_state` guard
+  - Sidebar: scheduler status dot, last poll time, "Refresh Now" button, quota display
+  - Global CSS injection (global style block via `st.markdown(unsafe_allow_html=True)`)
+- [x] `pages/01_live_lines.py` — Full bet-ranking pipeline
+  - `_fetch_and_rank()` cached (60s TTL) — fetch + parse + sort by edge%
+  - `_bet_card()` renders via `st.html()` with inline styles
+  - Filters: sport, market type, min sharp score, auto-refresh toggle
+  - Math breakdown expander: shows every calculation step
+  - Graceful no-data state
+- [x] `pages/03_line_history.py` — Priority 1 (line history display)
+  - Status bar: total lines, distinct games, flagged movements, scheduler status
+  - `_movement_card()` via `st.html()` — two-column card grid
+  - Game drill-down: `_build_sparkline()` Plotly chart + data table
+  - RLM open price seed table
+  - Graceful empty states throughout
+- [x] `pages/02_analysis.py` — Stub (Session 4 target)
+- [x] `pages/04_bet_tracker.py` — Stub (Session 3 target)
+- [x] `pages/05_rd_output.py` — Stub (Session 5 target)
+
+**Total: 180/180 tests passing**
+
+### UI Design Decisions (Session 2)
+- Dark terminal aesthetic: `#0e1117` bg, `#f59e0b` amber brand accent
+- `st.html()` for cards; inline styles only in components
+- `st.navigation()` + `st.Page()` programmatic navigation
+- Plotly dark: `paper_bgcolor="#0e1117"`, `plot_bgcolor="#13161d"`
+- WebSearch was not available in subagent — applied production-validated patterns from known Streamlit behavior instead
+
+### Blockers / Notes
+- APScheduler was not installed; ran `pip3 install APScheduler`
+- `datetime.utcnow()` deprecated in Python 3.13 — replaced with `datetime.now(timezone.utc)` throughout
+- `st.navigation()` requires Streamlit 1.36+ — documented in CONTEXT_SUMMARY.md
+
+### Next Session Recommendation
+Session 3: Build `pages/04_bet_tracker.py` (Bet Tracker tab)
+- Rebuild from bet-tracker logic reference (log bets, outcomes, P&L, CLV per bet)
+- Add "Log Bet" button to live_lines page linking to tracker
+- Build ROI summary: win rate, avg edge, avg CLV, sport breakdown
+- Unit test: `tests/test_bet_tracker_page.py` for any helper functions extracted to core
+
+---
+
 ## Session 1 — 2026-02-18
 
 ### Objective
