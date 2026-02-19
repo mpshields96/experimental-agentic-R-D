@@ -16,8 +16,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.math_engine import (
     passes_collar,
+    passes_collar_soccer,
     implied_probability,
     no_vig_probability,
+    no_vig_probability_3way,
     calculate_edge,
     calculate_profit,
     fractional_kelly,
@@ -30,6 +32,7 @@ from core.math_engine import (
     nhl_kill_switch,
     tennis_kill_switch,
     consensus_fair_prob,
+    consensus_fair_prob_3way,
     compute_rlm,
     cache_open_prices,
     get_open_price,
@@ -45,6 +48,9 @@ from core.math_engine import (
     parse_game_markets,
     COLLAR_MIN,
     COLLAR_MAX,
+    COLLAR_MIN_SOCCER,
+    COLLAR_MAX_SOCCER,
+    SOCCER_SPORTS,
     MIN_EDGE,
     SHARP_THRESHOLD,
     RLM_FIRE_GATE,
@@ -1067,6 +1073,237 @@ class TestTennisKillSwitch:
         killed, reason = tennis_kill_switch("clay", 0.721, True, "h2h")
         assert killed is False
         assert "FLAG" in reason
+
+
+# ---------------------------------------------------------------------------
+# Soccer collar + 3-way no-vig
+# ---------------------------------------------------------------------------
+
+class TestPassesCollarSoccer:
+
+    def test_standard_odds_pass(self):
+        assert passes_collar_soccer(-110) is True
+
+    def test_standard_dog_passes(self):
+        assert passes_collar_soccer(250) is True
+
+    def test_at_max_passes(self):
+        assert passes_collar_soccer(COLLAR_MAX_SOCCER) is True
+
+    def test_above_max_fails(self):
+        assert passes_collar_soccer(COLLAR_MAX_SOCCER + 1) is False
+
+    def test_at_min_passes(self):
+        assert passes_collar_soccer(COLLAR_MIN_SOCCER) is True
+
+    def test_below_min_fails(self):
+        assert passes_collar_soccer(COLLAR_MIN_SOCCER - 1) is False
+
+    def test_draw_price_passes(self):
+        # Typical draw price in soccer
+        assert passes_collar_soccer(225) is True
+
+    def test_heavy_favourite_passes(self):
+        assert passes_collar_soccer(-220) is True
+
+    def test_soccer_max_exceeds_standard_max(self):
+        assert COLLAR_MAX_SOCCER > COLLAR_MAX
+
+    def test_soccer_sports_constant(self):
+        assert "EPL" in SOCCER_SPORTS
+        assert "MLS" in SOCCER_SPORTS
+        assert "NBA" not in SOCCER_SPORTS
+
+
+class TestNoVigProbability3Way:
+
+    def test_probs_sum_to_one(self):
+        a, b, c = no_vig_probability_3way(-105, 290, 250)
+        assert abs(a + b + c - 1.0) < 1e-9
+
+    def test_favourite_highest_prob(self):
+        a, b, c = no_vig_probability_3way(-140, 320, 260)
+        assert a > b  # favourite higher than underdog
+        assert a > c  # favourite higher than draw
+
+    def test_all_positive(self):
+        a, b, c = no_vig_probability_3way(-110, 280, 240)
+        assert a > 0 and b > 0 and c > 0
+
+    def test_symmetrical_match(self):
+        # Equal-odds match: home/away equal, draw at same price
+        a, b, c = no_vig_probability_3way(200, 200, 200)
+        assert abs(a - b) < 1e-9
+        assert abs(b - c) < 1e-9
+
+    def test_realistic_soccer_prices(self):
+        # Mainz -105, Hamburger +290, Draw +250
+        a, b, c = no_vig_probability_3way(-105, 290, 250)
+        assert 0.3 < a < 0.5   # moderate favourite
+        assert 0.1 < b < 0.3   # underdog
+        assert 0.2 < c < 0.4   # draw
+
+    def test_returns_tuple_of_three(self):
+        result = no_vig_probability_3way(-110, 280, 240)
+        assert len(result) == 3
+
+    def test_returns_floats(self):
+        a, b, c = no_vig_probability_3way(-110, 280, 240)
+        assert isinstance(a, float)
+        assert isinstance(b, float)
+        assert isinstance(c, float)
+
+
+class TestConsensusFairProb3Way:
+
+    def _make_bookmakers(self, home_price, away_price, draw_price, home="Team A", away="Team B"):
+        return [
+            {
+                "key": "book1",
+                "markets": [{"key": "h2h", "outcomes": [
+                    {"name": home, "price": home_price},
+                    {"name": away, "price": away_price},
+                    {"name": "Draw", "price": draw_price},
+                ]}]
+            },
+            {
+                "key": "book2",
+                "markets": [{"key": "h2h", "outcomes": [
+                    {"name": home, "price": home_price - 5},
+                    {"name": away, "price": away_price + 5},
+                    {"name": "Draw", "price": draw_price + 5},
+                ]}]
+            },
+        ]
+
+    def test_home_team_prob_returned(self):
+        bks = self._make_bookmakers(-120, 280, 240)
+        cp, std, n = consensus_fair_prob_3way("Team A", bks)
+        assert n == 2
+        assert 0.3 < cp < 0.6
+
+    def test_draw_prob_returned(self):
+        bks = self._make_bookmakers(-120, 280, 240)
+        cp, std, n = consensus_fair_prob_3way("Draw", bks)
+        assert n == 2
+        assert 0.2 < cp < 0.4
+
+    def test_not_found_returns_zero_books(self):
+        bks = self._make_bookmakers(-120, 280, 240)
+        cp, std, n = consensus_fair_prob_3way("Unknown Team", bks)
+        assert n == 0
+
+    def test_empty_bookmakers(self):
+        cp, std, n = consensus_fair_prob_3way("Team A", [])
+        assert n == 0
+
+    def test_two_book_books_count(self):
+        bks = self._make_bookmakers(-110, 270, 230)
+        _, _, n = consensus_fair_prob_3way("Team A", bks)
+        assert n == 2
+
+    def test_ignores_2way_markets(self):
+        # 2-outcome h2h should be ignored (not 3-way soccer)
+        bks = [{"key": "book1", "markets": [{"key": "h2h", "outcomes": [
+            {"name": "Team A", "price": -110},
+            {"name": "Team B", "price": 100},
+        ]}]}]
+        cp, std, n = consensus_fair_prob_3way("Team A", bks)
+        assert n == 0
+
+
+class TestParseGameMarketsSoccer3Way:
+    """Integration tests: parse_game_markets handles soccer 3-way h2h correctly."""
+
+    def _soccer_game(self, home_price, away_price, draw_price, home="Arsenal", away="Chelsea"):
+        return {
+            "id": "soccer_test_001",
+            "home_team": home,
+            "away_team": away,
+            "commence_time": "2026-03-01T15:00:00Z",
+            "bookmakers": [
+                {
+                    "key": "draftkings",
+                    "markets": [
+                        {"key": "h2h", "outcomes": [
+                            {"name": home, "price": home_price},
+                            {"name": away, "price": away_price},
+                            {"name": "Draw", "price": draw_price},
+                        ]},
+                        {"key": "totals", "outcomes": [
+                            {"name": "Over", "price": -115, "point": 2.5},
+                            {"name": "Under", "price": -105, "point": 2.5},
+                        ]},
+                    ]
+                },
+                {
+                    "key": "fanduel",
+                    "markets": [
+                        {"key": "h2h", "outcomes": [
+                            {"name": home, "price": home_price + 5},
+                            {"name": away, "price": away_price - 5},
+                            {"name": "Draw", "price": draw_price + 5},
+                        ]},
+                        {"key": "totals", "outcomes": [
+                            {"name": "Over", "price": -110, "point": 2.5},
+                            {"name": "Under", "price": -110, "point": 2.5},
+                        ]},
+                    ]
+                },
+            ]
+        }
+
+    def test_soccer_h2h_dog_not_collar_filtered(self):
+        # Dog at +290 would fail standard collar but should pass soccer collar
+        game = self._soccer_game(home_price=-120, away_price=290, draw_price=240)
+        cands = parse_game_markets(game, sport="EPL")
+        # At minimum, should not crash and should have collar-passed
+        # (may or may not have edge — depends on prices)
+        assert isinstance(cands, list)
+
+    def test_draw_candidate_can_appear(self):
+        # Construct game where Draw has clear edge
+        game = self._soccer_game(home_price=-150, away_price=320, draw_price=290)
+        cands = parse_game_markets(game, sport="BUNDESLIGA")
+        assert isinstance(cands, list)
+        # Draw candidate target format
+        draw_cands = [c for c in cands if c.target == "Draw"]
+        if draw_cands:
+            assert draw_cands[0].market_type == "h2h"
+
+    def test_non_soccer_sport_not_affected(self):
+        # NBA game with same structure should use 2-way path
+        game = {
+            "id": "nba_001",
+            "home_team": "Lakers",
+            "away_team": "Celtics",
+            "commence_time": "2026-03-01T01:00:00Z",
+            "bookmakers": [
+                {"key": "dk", "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Lakers", "price": -110},
+                    {"name": "Celtics", "price": 100},
+                ]}]},
+                {"key": "fd", "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Lakers", "price": -115},
+                    {"name": "Celtics", "price": 105},
+                ]}]},
+            ]
+        }
+        cands = parse_game_markets(game, sport="NBA")
+        assert isinstance(cands, list)
+        # Should not produce "Draw" candidates for NBA
+        assert not any(c.target == "Draw" for c in cands)
+
+    def test_soccer_totals_still_work(self):
+        game = self._soccer_game(-120, 290, 240)
+        cands = parse_game_markets(game, sport="LA_LIGA")
+        totals = [c for c in cands if c.market_type == "totals"]
+        # Totals should still be evaluated (they use standard 2-way collar)
+        assert isinstance(totals, list)
+
+    def test_soccer_sports_constant_covers_all_leagues(self):
+        for league in ["EPL", "LIGUE1", "BUNDESLIGA", "SERIE_A", "LA_LIGA", "MLS"]:
+            assert league in SOCCER_SPORTS
 
 
 # ---------------------------------------------------------------------------

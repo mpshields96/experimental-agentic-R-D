@@ -43,6 +43,13 @@ KELLY_FRACTION: float = 0.25     # fractional Kelly multiplier
 SHARP_THRESHOLD: float = 45.0    # minimum Sharp Score to pass (raise to 50-55 after RLM wired)
 COLLAR_MIN: int = -180           # minimum allowed American odds
 COLLAR_MAX: int = 150            # maximum allowed American odds
+COLLAR_MAX_SOCCER: int = 400     # expanded cap for soccer 3-way h2h (dogs/draws reach +350+)
+COLLAR_MIN_SOCCER: int = -250    # expanded floor for soccer heavy favourites
+
+# Soccer sports use 3-way h2h (home/away/draw) — need separate consensus logic
+SOCCER_SPORTS: frozenset = frozenset({
+    "EPL", "LIGUE1", "BUNDESLIGA", "SERIE_A", "LA_LIGA", "MLS",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +107,72 @@ def passes_collar(american_odds: int) -> bool:
     False
     """
     return COLLAR_MIN <= american_odds <= COLLAR_MAX
+
+
+def passes_collar_soccer(american_odds: int) -> bool:
+    """
+    Expanded collar for soccer 3-way h2h markets.
+
+    Soccer dogs and draws commonly price at +200 to +400.
+    The standard collar (+150 max) would reject all such outcomes.
+    Favourites can be heavier than -180, so floor is also expanded.
+
+    Only used for soccer h2h outcomes (home/away/draw), NOT for soccer totals.
+
+    >>> passes_collar_soccer(-110)
+    True
+    >>> passes_collar_soccer(-250)
+    True
+    >>> passes_collar_soccer(-260)
+    False
+    >>> passes_collar_soccer(400)
+    True
+    >>> passes_collar_soccer(401)
+    False
+    """
+    return COLLAR_MIN_SOCCER <= american_odds <= COLLAR_MAX_SOCCER
+
+
+# ---------------------------------------------------------------------------
+# 3-way no-vig probability (soccer h2h)
+# ---------------------------------------------------------------------------
+
+def no_vig_probability_3way(
+    odds_a: int,
+    odds_b: int,
+    odds_c: int,
+) -> tuple[float, float, float]:
+    """
+    Remove bookmaker margin from a 3-outcome market (home/away/draw).
+
+    Method: proportional normalization (fair share of total overround).
+    Each raw implied probability is divided by the sum of all three.
+
+    Args:
+        odds_a: American odds for outcome A (home win).
+        odds_b: American odds for outcome B (away win).
+        odds_c: American odds for outcome C (draw).
+
+    Returns:
+        (fair_a, fair_b, fair_c) vig-free probabilities summing to 1.0.
+
+    Raises:
+        ZeroDivisionError: if any implied probability is zero.
+        ValueError: if total implied prob is zero.
+
+    >>> a, b, c = no_vig_probability_3way(-105, 290, 250)
+    >>> round(a + b + c, 4)
+    1.0
+    >>> a > b  # favourite always has higher fair prob
+    True
+    """
+    p_a = implied_probability(odds_a)
+    p_b = implied_probability(odds_b)
+    p_c = implied_probability(odds_c)
+    total = p_a + p_b + p_c
+    if total <= 0:
+        raise ValueError(f"Total implied probability non-positive: {total}")
+    return p_a / total, p_b / total, p_c / total
 
 
 # ---------------------------------------------------------------------------
@@ -616,6 +689,65 @@ def consensus_fair_prob(
     return mean, std, n
 
 
+def consensus_fair_prob_3way(
+    team_name: str,
+    bookmakers: list,
+    outcome_label: str = "home",
+) -> tuple[float, float, int]:
+    """
+    Consensus vig-free probability for one outcome in a 3-way h2h market.
+
+    Used for soccer h2h where each book posts home/away/draw odds.
+    Requires all 3 outcomes present per book to compute no-vig probability.
+
+    Args:
+        team_name:     Name of the team (home or away) or "Draw" for the draw.
+        bookmakers:    Raw bookmakers list from Odds API game dict.
+        outcome_label: "home", "away", or "draw" — used only for logging.
+                       The actual matching is done by team_name.
+
+    Returns:
+        (mean_fair_prob, std_dev, n_books) — n_books=0 means no data.
+
+    >>> # Cannot easily doctest without mock data; see test_math_engine.py
+    """
+    fair_probs: list[float] = []
+
+    for book in bookmakers:
+        market_map = {m["key"]: m for m in book.get("markets", [])}
+        if "h2h" not in market_map:
+            continue
+        outcomes = market_map["h2h"].get("outcomes", [])
+        if len(outcomes) != 3:
+            continue
+
+        prices = {o.get("name"): o.get("price") for o in outcomes}
+        if len(prices) != 3 or None in prices.values():
+            continue
+        if team_name not in prices:
+            continue
+
+        price_list = list(prices.values())
+        try:
+            odds_a, odds_b, odds_c = price_list[0], price_list[1], price_list[2]
+            fp_all = no_vig_probability_3way(odds_a, odds_b, odds_c)
+            # Find which index corresponds to team_name
+            names_list = list(prices.keys())
+            idx = names_list.index(team_name)
+            fair_probs.append(fp_all[idx])
+        except (ZeroDivisionError, ValueError, IndexError):
+            pass
+
+    if not fair_probs:
+        return 0.5, 0.0, 0
+
+    n = len(fair_probs)
+    mean = sum(fair_probs) / n
+    variance = sum((p - mean) ** 2 for p in fair_probs) / n if n > 1 else 0.0
+    std = math.sqrt(variance)
+    return mean, std, n
+
+
 # ---------------------------------------------------------------------------
 # RLM (Reverse Line Movement) passive tracker
 # ---------------------------------------------------------------------------
@@ -1007,6 +1139,20 @@ def parse_game_markets(
                         best_book = book.get("title", book.get("key", ""))
         return best_price, best_line, best_book
 
+    def _get_all_h2h_outcome_names(bks: list) -> list[str]:
+        """Return all unique outcome names from h2h markets across books."""
+        seen: dict[str, int] = {}
+        for book in bks:
+            for mkt in book.get("markets", []):
+                if mkt["key"] != "h2h":
+                    continue
+                for o in mkt.get("outcomes", []):
+                    name = o.get("name", "")
+                    if name:
+                        seen[name] = seen.get(name, 0) + 1
+        # Only include outcomes seen in at least MIN_BOOKS books
+        return [name for name, count in seen.items() if count >= MIN_BOOKS]
+
     # --- Spreads ---
     for team_name in [home, away]:
         cp, std, n_books = consensus_fair_prob(team_name, "spreads", "team", bookmakers)
@@ -1041,39 +1187,79 @@ def parse_game_markets(
                 sharp_breakdown=breakdown,
             ))
 
-    # --- Moneylines ---
-    for team_name in [home, away]:
-        cp, std, n_books = consensus_fair_prob(team_name, "h2h", "team", bookmakers)
-        if n_books < MIN_BOOKS:
-            continue
-        best_price, _, best_book_name = _best_price_for(team_name, "h2h")
-        if best_price is None or not passes_collar(best_price):
-            continue
-        edge = cp - implied_probability(best_price)
-        if edge >= MIN_EDGE:
-            kelly = fractional_kelly(cp, best_price)
-            public_on_side = best_price < -105
-            rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
-            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
-            candidates.append(BetCandidate(
-                sport=sport,
-                matchup=matchup,
-                market_type="h2h",
-                target=f"{team_name} ML",
-                line=0.0,
-                price=best_price,
-                edge_pct=edge,
-                win_prob=cp,
-                market_implied=implied_probability(best_price),
-                fair_implied=cp,
-                kelly_size=kelly,
-                event_id=event_id,
-                commence_time=commence_time,
-                book=f"Best: {best_book_name} ({n_books} books)",
-                std_dev=std,
-                sharp_score=score,
-                sharp_breakdown=breakdown,
-            ))
+    # --- Moneylines / Soccer 3-way H2H ---
+    is_soccer = sport.upper() in SOCCER_SPORTS
+    if is_soccer:
+        # Soccer 3-way: evaluate home, away, and draw separately
+        # Uses expanded collar and 3-way no-vig consensus
+        all_h2h_outcomes = _get_all_h2h_outcome_names(bookmakers)
+        for outcome_name in all_h2h_outcomes:
+            cp, std, n_books = consensus_fair_prob_3way(outcome_name, bookmakers)
+            if n_books < MIN_BOOKS:
+                continue
+            best_price, _, best_book_name = _best_price_for(outcome_name, "h2h")
+            if best_price is None or not passes_collar_soccer(best_price):
+                continue
+            edge = cp - implied_probability(best_price)
+            if edge >= MIN_EDGE:
+                kelly = fractional_kelly(cp, best_price)
+                public_on_side = best_price < -105
+                rlm_confirmed, _rlm_drift = compute_rlm(event_id, outcome_name, best_price, public_on_side)
+                score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+                label = outcome_name if outcome_name == "Draw" else f"{outcome_name} ML"
+                candidates.append(BetCandidate(
+                    sport=sport,
+                    matchup=matchup,
+                    market_type="h2h",
+                    target=label,
+                    line=0.0,
+                    price=best_price,
+                    edge_pct=edge,
+                    win_prob=cp,
+                    market_implied=implied_probability(best_price),
+                    fair_implied=cp,
+                    kelly_size=kelly,
+                    event_id=event_id,
+                    commence_time=commence_time,
+                    book=f"Best: {best_book_name} ({n_books} books)",
+                    std_dev=std,
+                    sharp_score=score,
+                    sharp_breakdown=breakdown,
+                ))
+    else:
+        # Standard 2-way moneyline (NBA, NFL, NHL, NCAAB, Tennis, etc.)
+        for team_name in [home, away]:
+            cp, std, n_books = consensus_fair_prob(team_name, "h2h", "team", bookmakers)
+            if n_books < MIN_BOOKS:
+                continue
+            best_price, _, best_book_name = _best_price_for(team_name, "h2h")
+            if best_price is None or not passes_collar(best_price):
+                continue
+            edge = cp - implied_probability(best_price)
+            if edge >= MIN_EDGE:
+                kelly = fractional_kelly(cp, best_price)
+                public_on_side = best_price < -105
+                rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
+                score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+                candidates.append(BetCandidate(
+                    sport=sport,
+                    matchup=matchup,
+                    market_type="h2h",
+                    target=f"{team_name} ML",
+                    line=0.0,
+                    price=best_price,
+                    edge_pct=edge,
+                    win_prob=cp,
+                    market_implied=implied_probability(best_price),
+                    fair_implied=cp,
+                    kelly_size=kelly,
+                    event_id=event_id,
+                    commence_time=commence_time,
+                    book=f"Best: {best_book_name} ({n_books} books)",
+                    std_dev=std,
+                    sharp_score=score,
+                    sharp_breakdown=breakdown,
+                ))
 
     # --- Totals ---
     for side in ["Over", "Under"]:
