@@ -758,6 +758,49 @@ class TestParseGameMarkets:
         candidates = parse_game_markets(game, "NCAAB")
         assert candidates == []
 
+    def test_efficiency_gap_zero_default(self):
+        """Default efficiency_gap=0.0 → efficiency_contribution=0 in breakdown."""
+        game = self._make_game_with_clear_edge()
+        candidates = parse_game_markets(game, sport="NCAAB")  # no efficiency_gap arg
+        duke_bets = [c for c in candidates if "Duke" in c.target and c.market_type == "h2h"]
+        assert len(duke_bets) == 1
+        c = duke_bets[0]
+        assert c.sharp_breakdown is not None
+        assert c.sharp_breakdown.get("efficiency", -1) == 0.0
+
+    def test_efficiency_gap_increases_sharp_score(self):
+        """Passing efficiency_gap=15.0 should raise sharp_score vs gap=0.0."""
+        game = self._make_game_with_clear_edge()
+        low_eff = parse_game_markets(game, sport="NCAAB", efficiency_gap=0.0)
+        high_eff = parse_game_markets(game, sport="NCAAB", efficiency_gap=15.0)
+        duke_low = [c for c in low_eff if "Duke" in c.target and c.market_type == "h2h"]
+        duke_high = [c for c in high_eff if "Duke" in c.target and c.market_type == "h2h"]
+        assert len(duke_low) == 1
+        assert len(duke_high) == 1
+        assert duke_high[0].sharp_score > duke_low[0].sharp_score
+
+    def test_efficiency_gap_reflected_in_breakdown(self):
+        """efficiency_contribution in breakdown should equal the efficiency_gap passed."""
+        game = self._make_game_with_clear_edge()
+        candidates = parse_game_markets(game, sport="NCAAB", efficiency_gap=12.5)
+        duke_bets = [c for c in candidates if "Duke" in c.target and c.market_type == "h2h"]
+        assert len(duke_bets) == 1
+        c = duke_bets[0]
+        assert c.sharp_breakdown is not None
+        # calculate_sharp_score clamps efficiency to [0, 20], so 12.5 should pass through
+        assert c.sharp_breakdown.get("efficiency", -1) == pytest.approx(12.5, abs=0.01)
+
+    def test_efficiency_gap_capped_at_20(self):
+        """efficiency_gap > 20 should be clamped to 20 by calculate_sharp_score."""
+        game = self._make_game_with_clear_edge()
+        capped = parse_game_markets(game, sport="NCAAB", efficiency_gap=25.0)
+        uncapped = parse_game_markets(game, sport="NCAAB", efficiency_gap=20.0)
+        duke_capped = [c for c in capped if "Duke" in c.target and c.market_type == "h2h"]
+        duke_uncapped = [c for c in uncapped if "Duke" in c.target and c.market_type == "h2h"]
+        assert len(duke_capped) == 1
+        assert len(duke_uncapped) == 1
+        assert duke_capped[0].sharp_score == duke_uncapped[0].sharp_score
+
 
 # ---------------------------------------------------------------------------
 # Nemesis (display-only)

@@ -1,5 +1,5 @@
 # PROJECT_INDEX.md — Titanium-Agentic
-## Generated: Session 13, 2026-02-19 | 363/363 tests passing
+## Generated: Session 14, 2026-02-19 | 418/418 tests passing
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
@@ -25,16 +25,18 @@ agentic-rd-sandbox/
 │   ├── price_history_store.py  RLM 2.0 — persistent open-price SQLite store
 │   ├── clv_tracker.py          CLV CSV persistence + verdict
 │   ├── probe_logger.py         Pinnacle probe JSON log
-│   └── nhl_data.py             NHL goalie starter detection (free NHL API, zero quota cost)
+│   ├── nhl_data.py             NHL goalie starter detection (free NHL API, zero quota cost)
+│   └── efficiency_feed.py      Team efficiency data layer — 250+ teams, 10 leagues (no imports)
 ├── tests/
-│   ├── test_math_engine.py     ~160 tests (incl. RLM fire counter + NHL kill switch)
+│   ├── test_math_engine.py     ~165 tests (incl. RLM, NHL kill switch, efficiency_gap wire-in)
 │   ├── test_odds_fetcher.py    32 tests
 │   ├── test_line_logger.py     31 tests
 │   ├── test_scheduler.py       35 tests (incl. NHL goalie poll)
 │   ├── test_price_history_store.py  36 tests
 │   ├── test_clv_tracker.py     46 tests
 │   ├── test_probe_logger.py    36 tests
-│   └── test_nhl_data.py        34 tests  [TOTAL: 363]
+│   ├── test_nhl_data.py        34 tests
+│   └── test_efficiency_feed.py 53 tests  [TOTAL: 418]
 ├── data/
 │   ├── line_history.db         SQLite — lines + bets (WAL mode)
 │   ├── price_history.db        SQLite — RLM open prices (append-only)
@@ -87,7 +89,7 @@ agentic-rd-sandbox/
 | `calculate_clv(open, close, bet)` | CLV as decimal (multiply by 100 for %) |
 | `clv_grade(clv)` | EXCELLENT/GOOD/NEUTRAL/POOR |
 | `run_nemesis(bet, sport)` | Stress-test bet against worst-case scenarios |
-| `parse_game_markets(game, sport)` | Raw game dict → list[BetCandidate] (main pipeline entry) |
+| `parse_game_markets(game, sport, nhl_goalie_status, efficiency_gap)` | Raw game dict → list[BetCandidate] (main pipeline entry) |
 
 **Key constants**: `MIN_EDGE=0.035`, `MIN_BOOKS=2`, `KELLY_FRACTION=0.25`, `SHARP_THRESHOLD=45.0`, `COLLAR_MIN=-180`, `COLLAR_MAX=150`, `RLM_FIRE_GATE=20`
 
@@ -192,6 +194,29 @@ agentic-rd-sandbox/
 
 ---
 
+### `core/efficiency_feed.py` — TEAM EFFICIENCY DATA LAYER
+**Rule**: NO imports from other core modules. Pure static data.
+**Coverage**: 250+ teams across NBA, NCAAB, NFL, MLB, MLS, EPL, Bundesliga, Ligue1, Serie A, La Liga.
+
+| Function | Purpose |
+|---|---|
+| `get_team_data(team_name)` | Returns raw dict {adj_em, league} or None. Checks canonical → alias → case-insensitive. |
+| `get_efficiency_gap(home_team, away_team)` | Returns 0-20 scaled gap. 10.0 = even. >10 = home edge. Returns 8.0 if either unknown. |
+| `list_teams(league=None)` | Canonical team names. Optional filter: "NBA", "NFL", "NCAAB", etc. |
+
+**Scaling formula**: `gap = (home_adj_em - away_adj_em + 30) / 60 × 20`, clamped [0, 20].
+**Unknown fallback**: `8.0` (below neutral — conservative, doesn't inflate unknown matchup scores).
+**Alias support**: 70+ entries (NBA nicknames, NFL nicknames, soccer short forms e.g. "PSG", "Man City").
+
+**Usage in pipeline**:
+```python
+from core.efficiency_feed import get_efficiency_gap
+eff_gap = get_efficiency_gap(home_team, away_team)  # 0-20 float
+bets = parse_game_markets(game, sport, efficiency_gap=eff_gap)
+```
+
+---
+
 ### `core/nhl_data.py` — NHL GOALIE STARTER DETECTION
 **API**: `api-web.nhle.com` (free, public, no key, zero Odds API quota cost)
 **Cache**: `_goalie_cache: dict[str, dict]` keyed by Odds API event_id
@@ -226,7 +251,7 @@ agentic-rd-sandbox/
 
 | File | Tests | Key areas |
 |---|---|---|
-| test_math_engine.py | ~160 | All math functions, RLM fire counter, kill switches, NHL kill |
+| test_math_engine.py | ~165 | All math functions, RLM fire counter, kill switches, NHL kill, efficiency_gap |
 | test_odds_fetcher.py | 32 | Fetch, backoff, quota, probe_bookmakers |
 | test_line_logger.py | 31 | Schema, upsert, movements, bets, P&L |
 | test_scheduler.py | 35 | Start/stop, jobs, poll, purge, rlm_gate, NHL goalie poll |
@@ -234,23 +259,25 @@ agentic-rd-sandbox/
 | test_clv_tracker.py | 46 | Log, read, summary, verdict tiers |
 | test_probe_logger.py | 36 | Log, read, summary, rolling trim |
 | test_nhl_data.py | 34 | normalize_team_name, schedule, boxscore, FUT state, cache |
-| **TOTAL** | **363** | **All passing** |
+| test_efficiency_feed.py | 53 | get_team_data, get_efficiency_gap, list_teams, architecture checks |
+| **TOTAL** | **418** | **All passing** |
 
 ---
 
 ## 🔗 Import Rules (enforce — prevents circular imports)
 
 ```
-math_engine     ← no imports from other core modules
-odds_fetcher    ← no imports from math_engine (circular risk)
-line_logger     ← no imports from math_engine or odds_fetcher
+math_engine       ← no imports from other core modules
+odds_fetcher      ← no imports from math_engine (circular risk)
+line_logger       ← no imports from math_engine or odds_fetcher
 price_history_store ← imports math_engine ONLY (for seed call)
-clv_tracker     ← imports math_engine ONLY
-probe_logger    ← no imports from core (self-contained)
-nhl_data        ← no imports from other core modules (data-only)
-scheduler       ← imports all (orchestrator — allowed)
-pages/*         ← import from core.* only
-app.py          ← imports from core.* only
+clv_tracker       ← imports math_engine ONLY
+probe_logger      ← no imports from core (self-contained)
+nhl_data          ← no imports from other core modules (data-only)
+efficiency_feed   ← no imports from other core modules (data-only)
+scheduler         ← imports all (orchestrator — allowed)
+pages/*           ← import from core.* only
+app.py            ← imports from core.* only
 ```
 
 ---

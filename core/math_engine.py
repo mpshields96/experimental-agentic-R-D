@@ -877,6 +877,7 @@ def parse_game_markets(
     game: dict,
     sport: str = "NCAAB",
     nhl_goalie_status: Optional[dict] = None,
+    efficiency_gap: float = 0.0,
 ) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
@@ -891,6 +892,11 @@ def parse_game_markets(
             If provided and sport=="NHL", nhl_kill_switch() is evaluated.
             Format: {"away": {"starter_confirmed": bool, "starter_name": str|None},
                      "home": {"starter_confirmed": bool, "starter_name": str|None}}
+        efficiency_gap: Pre-scaled 0-20 efficiency advantage for home team.
+            Computed by efficiency_feed.get_efficiency_gap(home, away).
+            10.0 = evenly matched. >10 = home structural edge.
+            Defaults to 0.0 (no efficiency component) — callers should supply
+            this from efficiency_feed rather than leaving at default.
 
     Returns:
         List of BetCandidates passing collar AND minimum edge.
@@ -943,7 +949,7 @@ def parse_game_markets(
             kelly = fractional_kelly(cp, best_price)
             public_on_side = best_price < -105
             rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
-            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, 0.0)
+            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
@@ -977,7 +983,7 @@ def parse_game_markets(
             kelly = fractional_kelly(cp, best_price)
             public_on_side = best_price < -105
             rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
-            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, 0.0)
+            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
@@ -1012,7 +1018,7 @@ def parse_game_markets(
             # Totals: "Over" tends to be the public side (fans like scoring)
             public_on_side = (side == "Over" and best_price < -105)
             rlm_confirmed, _rlm_drift = compute_rlm(event_id, side, best_price, public_on_side)
-            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, 0.0)
+            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,

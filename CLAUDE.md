@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 13 | Last updated: 2026-02-19
+## Version: Session 14 | Last updated: 2026-02-19
 ## For: New agentic R&D chat initialization
 
 ---
@@ -165,7 +165,7 @@ SORT:          By Sharp Score descending (NOT edge%).
 | NHL | ✅ Goalie starter kill | nhl_data.py + nhl_kill_switch() + scheduler wired (Session 13) |
 | MLB | ⚠️ Collar-only | Kill switch deferred to Apr 1 (season gate) |
 | NCAAF | ⚠️ Collar-only | Kill switch deferred (no validated threshold) |
-| Tennis | ❌ Not configured | Deferred — surface data = $40/mo (user decision needed) |
+| Tennis | ⚠️ API confirmed, not configured | tennis_atp/wta on current tier. Kill switch needs api-tennis.com $40/mo (user decision) |
 | College Baseball | ❌ Rejected | probablePitcher absent, thin action, low ROI |
 
 ---
@@ -182,17 +182,19 @@ ONE FILE = ONE JOB:
   clv_tracker.py     — CLV CSV. Append-only.
   probe_logger.py    — Probe JSON. Rolling 200. No other modules.
   nhl_data.py        — NHL goalie starter detection. Free NHL API. Zero quota cost.
+  efficiency_feed.py — Team efficiency data. 250+ teams, 10 leagues. NO imports from core.
 
 IMPORT RULES (enforce strictly — circular imports kill this codebase):
-  math_engine     ← imports nothing from core/
-  odds_fetcher    ← imports nothing from math_engine (CRITICAL: circular risk)
-  line_logger     ← imports nothing from math_engine or odds_fetcher
+  math_engine       ← imports nothing from core/
+  odds_fetcher      ← imports nothing from math_engine (CRITICAL: circular risk)
+  line_logger       ← imports nothing from math_engine or odds_fetcher
   price_history_store ← math_engine only
-  clv_tracker     ← math_engine only
-  probe_logger    ← nothing from core
-  nhl_data        ← nothing from core (data-only module)
-  scheduler       ← imports all (orchestrator — only place this is allowed)
-  pages/*         ← from core.* only
+  clv_tracker       ← math_engine only
+  probe_logger      ← nothing from core
+  nhl_data          ← nothing from core (data-only module)
+  efficiency_feed   ← nothing from core (data-only module)
+  scheduler         ← imports all (orchestrator — only place this is allowed)
+  pages/*           ← from core.* only
 
 TESTING RULE: Every mathematical function gets a unit test before UI touches it.
 TESTING RULE: All tests mock external calls (requests, sqlite path via tmp_path).
@@ -249,7 +251,7 @@ AVOID: rainbow palettes, excessive expanders, st.metric for everything,
 | SHARP_THRESHOLD raise | 0/20 RLM fires | MANUALLY change 45→50 in math_engine.py |
 | Pinnacle origination | pinnacle_present=False | Add to PREFERRED_BOOKS when consistently True |
 | CLV verdict | 0/30 graded bets | Check clv_summary() verdict |
-| NHL kill switch | READY TO BUILD | See MASTER_ROADMAP 3A |
+| NHL kill switch | ✅ COMPLETE (Session 13) | nhl_data.py + nhl_kill_switch() + scheduler wired |
 | MLB kill switch | Season gate (Apr 1) | See MASTER_ROADMAP 3B |
 | Tennis | Needs user approval | See MASTER_ROADMAP 3C |
 
@@ -302,18 +304,29 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 12)
+## 🚦 CURRENT PROJECT STATE (as of Session 14)
 
 ```
-Test suite:   363/363 passing
-Last commit:  TBD (Session 13)
+Test suite:   418/418 passing
+Last commit:  TBD (Session 14)
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App port:     8503 (8501/8502 are other Streamlit instances on this machine)
 
 BUILT (complete):
   All 5 pages, all core modules, 12 active sports, RLM 2.0, CLV tracker,
   Pinnacle probe, weekly purge, sidebar health dashboard, RLM fire gate,
-  NHL kill switch (nhl_data.py + nhl_kill_switch + scheduler wired)
+  NHL kill switch (nhl_data.py + nhl_kill_switch + scheduler wired),
+  efficiency_feed.py (250+ teams, 10 leagues, wired into Sharp Score pipeline)
+
+EFFICIENCY COMPONENT: LIVE
+  parse_game_markets() now accepts efficiency_gap param (0-20, pre-scaled).
+  pages/01_live_lines.py calls get_efficiency_gap(home, away) per game.
+  All 10 leagues covered: NBA/NCAAB/NFL/MLB/MLS/EPL/Bundesliga/Ligue1/SerieA/LaLiga.
+  Unknown teams fallback: 8.0 (conservative floor).
+
+TENNIS API: CONFIRMED ON CURRENT TIER
+  /v4/sports/ returns tennis_atp + tennis_wta both active.
+  Next gate: user decision on api-tennis.com $40/mo for surface data.
 
 KILL SWITCHES ACTIVE:
   NBA: B2B rest + star absence + pace variance
@@ -324,10 +337,10 @@ KILL SWITCHES ACTIVE:
   MLB: DEFERRED to Apr 1 (season starts Mar 27)
   NCAAF: DEFERRED (no validated threshold)
 
-NEXT SESSION (Session 14):
+NEXT SESSION (Session 15):
   1. System gates check: RLM fire count, graded bet count
-  2. NBA Home/Road B2B differentiation (gate: 10+ B2B instances in DB)
-  3. Confirm tennis_atp API tier (needs wifi + API key)
+  2. Tennis kill switch — user must approve api-tennis.com $40/mo first
+  3. NBA B2B home/road diff — gate: 10+ B2B instances in DB
   See MASTER_ROADMAP.md Section 9 for full checklist
 ```
 
@@ -345,4 +358,4 @@ NEXT SESSION (Session 14):
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 13, 2026-02-19*
+*Last updated: Session 14, 2026-02-19*

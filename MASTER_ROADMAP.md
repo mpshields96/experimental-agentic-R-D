@@ -1,5 +1,5 @@
 # MASTER_ROADMAP.md — Titanium-Agentic Sandbox
-## Last updated: Session 13 (NHL kill switch complete), 2026-02-19
+## Last updated: Session 14 (efficiency_feed.py + Sharp Score wire-in), 2026-02-19
 
 This is the canonical task backlog for the agentic-rd-sandbox build.
 It is maintained by the agent and read at the start of each session.
@@ -20,12 +20,13 @@ It is maintained by the agent and read at the start of each session.
 
 | Module | Status | Sessions |
 |---|---|---|
-| core/math_engine.py | ✅ | S1, S11 |
+| core/math_engine.py | ✅ | S1, S11, S14 |
 | core/odds_fetcher.py | ✅ | S1 |
 | core/line_logger.py | ✅ | S1 |
 | core/scheduler.py | ✅ | S2, S10, S11 |
 | app.py (Streamlit entry) | ✅ | S2, S10, S11 |
-| pages/01_live_lines.py | ✅ | S2, S3 |
+| core/efficiency_feed.py | ✅ | S14 |
+| pages/01_live_lines.py | ✅ | S2, S3, S14 |
 | pages/02_analysis.py | ✅ | S4 |
 | pages/03_line_history.py | ✅ | S2 |
 | pages/04_bet_tracker.py | ✅ | S3 |
@@ -37,7 +38,7 @@ It is maintained by the agent and read at the start of each session.
 | Weekly purge scheduler job | ✅ | S10 |
 | SYSTEM HEALTH sidebar | ✅ | S10, S11 |
 
-**Test suite: 314/314 passing as of S12**
+**Test suite: 418/418 passing as of S14**
 
 ---
 
@@ -314,10 +315,10 @@ major endpoints. Key corrections to prior assumptions documented below.
 |---|---|---|---|
 | W1 | NHL API goalie field | ✅ RESOLVED | `startingGoalies` does NOT exist in schedule endpoint for future games. Use boxscore polling at T-60min. Field confirmed: `playerByGameStats.awayTeam.goalies[n].starter` |
 | W2 | MLB Stats API pitcher | ✅ RESOLVED | `probablePitcher` confirmed. Endpoint: `schedule?sportId=1&date=YYYY-MM-DD&hydrate=probablePitcher,team`. Field path: `games[].teams.home.probablePitcher.fullName`. Days rest via `people/{id}?hydrate=stats(group=pitching,type=gameLog)` → `stat.numberOfPitches` + `date` |
-| W3 | Tennis API tier | 🌐 STILL OPEN | Need to call Odds API `/v4/sports` with actual API key to verify tennis_atp appears in response. Cannot confirm without live key. |
+| W3 | Tennis API tier | ✅ RESOLVED | Called `/v4/sports/` with live key (S14). 83 sports returned. `tennis_atp_qatar_open` (active=True) and `tennis_wta_dubai` (active=True) confirmed. Tennis IS on current tier. |
 | W4 | Reddit r/algobetting | ✅ PARTIAL | CAPTCHA-blocked for full browse. Community consensus confirmed via search previews: no free pre-game goalie API exists, DailyFaceoff scraping is the common workaround |
 | W5 | Build core/nhl_data.py | 📋 READY TO BUILD | Endpoint structure confirmed. Implement: boxscore polling, team name normalization, starter detection. See Section 3A for full spec. |
-| W6 | Tennis tier confirmation | 🌐 STILL OPEN | Run: `requests.get("https://api.the-odds-api.com/v4/sports/", params={"apiKey": KEY})` and grep output for "tennis" |
+| W6 | Tennis tier confirmation | ✅ RESOLVED | S14: tennis_atp + tennis_wta both active on current API tier. No upgrade needed. |
 
 ---
 
@@ -338,28 +339,30 @@ major endpoints. Key corrections to prior assumptions documented below.
 | S11 | RLM fire gate counter, DB path fix | 314 |
 | S12 | Sports coverage audit, research gaps | 314 |
 | S13 | NHL kill switch: nhl_data.py + nhl_kill_switch() + scheduler wire-in | 363 |
+| S14 | efficiency_feed.py (250+ teams, 10 leagues) + Sharp Score wire-in + W6 resolved | 418 |
 
 ---
 
-## SECTION 9: Next Session Checklist (Session 14)
+## SECTION 9: Next Session Checklist (Session 15)
 
-**NHL kill switch is complete and tested. 363/363 tests passing.**
+**efficiency_feed.py complete. 418/418 tests passing. W6 resolved (tennis on current tier).**
 
 Priority order:
 1. **SYSTEM GATES CHECK** (always first):
    - RLM gate sidebar: if fire_count ≥ 20, manually raise SHARP_THRESHOLD 45→50
    - Bet tracker: if ≥10 graded bets, build CLV vs edge% scatter (Analysis ③, item 4A)
-2. **3D. NBA Home/Road B2B Differentiation** — add `is_home_b2b` param to nba_kill_switch()
-   - Gate: 10+ B2B instances logged in line_history.db. Check before building.
-   - If gate not met: defer, do not build without validated data
-3. **W6**: Confirm tennis_atp in current Odds API tier
-   - Run: `requests.get("https://api.the-odds-api.com/v4/sports/", params={"apiKey": KEY})`
-   - Grep output for "tennis" — needs unrestricted wifi + user's API key
-4. **MLB kill**: HOLD until Apr 1 gate. Season starts Mar 27. No live data to validate.
-5. **UI enhancement** (optional, low priority): Surface NHL goalie starter names in Live Lines
-   bet cards when goalie_status is available in cache.
+2. **Tennis kill switch** (Section 3C):
+   - W6 RESOLVED: tennis_atp/tennis_wta are on current API tier. No upgrade needed.
+   - Gate remaining: user decision on api-tennis.com $40/mo Starter plan for surface data.
+   - If user approves: build surface lookup dict, player name normalizer, `tennis_kill_switch()`,
+     add `tennis_atp`/`tennis_wta` to SPORT_KEYS in odds_fetcher.
+   - If user declines: continue monitoring, defer to future session.
+3. **3D. NBA Home/Road B2B Differentiation** — gate: 10+ B2B instances in DB.
+   - If gate met: add `is_home_b2b` param to `nba_kill_switch()`.
+4. **MLB kill switch** — HOLD until Apr 1 gate. No live 2026 data yet.
 
-**Do NOT build tennis or MLB kill until their gates are cleared.**
+**Do NOT add tennis to SPORT_KEYS until kill switch is built AND user approves api-tennis.com.**
+**Do NOT build NBA B2B diff without 10+ confirmed B2B instances in DB.**
 
 ---
 *Generated by agent. Update this file at the end of each session.*

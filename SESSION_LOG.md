@@ -2,6 +2,103 @@
 
 ---
 
+## Session 14 — 2026-02-19
+
+### Objective
+Wire the efficiency component into the Sharp Score pipeline (it was always 0.0).
+Run system gates check, W6 tennis tier check. Build `core/efficiency_feed.py`.
+
+### System Gates (checked at session start)
+- RLM fire count: 0/20 — in-memory counter, gate NOT met
+- CLV/graded bets: 0 — gate NOT met
+- NBA B2B instances: 13 events/2 dates only — gate NOT met (need 10+ confirmed B2B)
+- W6 tennis: RESOLVED (see below)
+
+### W6 — Tennis Tier Confirmation
+- Odds API key `01dc7be6ca076e6b79ac4f54001d142d` verified.
+- `GET /v4/sports/` returns 83 sports total.
+- `tennis_atp_qatar_open` (active=True) and `tennis_wta_dubai` (active=True) both present.
+- **Tennis IS on this API tier.** No upgrade needed.
+- Next gate: build tennis kill switch (surface + H2H data = api-tennis.com $40/mo decision).
+  See MASTER_ROADMAP Section 3C for spec. Gated on user approval for $40/mo spend.
+
+### What Was Built
+
+#### 1. `core/efficiency_feed.py` — NEW MODULE
+Team efficiency data layer. 250+ canonical teams across 10 leagues/sports.
+
+**Data coverage**:
+- NBA: 30 teams (Net Rating × 2.2 → adj_em)
+- NCAAB: 80+ programs (KenPom/Barttorvik AdjEM)
+- NFL: 32 teams (EPA/play × 80.0)
+- MLB: 30 teams ((4.30 − ERA) × 8.0)
+- MLS: 27+ clubs (xGD/90 × 15.0)
+- EPL: 20 clubs (xG-differential)
+- Bundesliga: 18 clubs | Ligue 1: 18 clubs | Serie A: 20 clubs | La Liga: 20 clubs
+
+**Scaling formula** (uniform across all sports):
+```
+differential = home_adj_em − away_adj_em
+gap = (differential + 30) / 60 × 20     # result is 0-20
+gap = clamp(gap, 0.0, 20.0)
+```
+- gap=10.0 → evenly matched
+- gap>10.0 → home structural edge
+- Unknown team fallback: 8.0 (below neutral — doesn't inflate scores)
+
+**Functions**:
+- `get_team_data(team_name)` → direct match, alias lookup, case-insensitive fallback
+- `get_efficiency_gap(home, away)` → 0-20 float. Returns 8.0 if either team unknown.
+- `list_teams(league=None)` → canonical team names, optional league filter
+- 70+ aliases (NBA/NFL short names, soccer abbreviations)
+
+**Architecture**: NO imports from other core modules. Pure data.
+
+#### 2. `core/math_engine.py` — UPDATED
+`parse_game_markets()` now accepts `efficiency_gap: float = 0.0` parameter.
+All three `calculate_sharp_score()` call sites updated from `0.0` to `efficiency_gap`.
+Docstring updated with parameter description.
+
+#### 3. `pages/01_live_lines.py` — UPDATED
+- Imports `from core.efficiency_feed import get_efficiency_gap`
+- Computes `eff_gap = get_efficiency_gap(home, away)` per game in `_fetch_and_rank()`
+- Passes `efficiency_gap=eff_gap` to `parse_game_markets()`
+- **Sort fixed**: candidates now sorted by `sharp_score` descending (was `edge_pct` — violation of CLAUDE.md rule "Sort: By Sharp Score descending")
+
+#### 4. `tests/test_efficiency_feed.py` — NEW (53 tests)
+- `TestGetTeamData`: canonical, alias, case-insensitive, miss, whitespace, all leagues
+- `TestGetEfficiencyGap`: formula precision, clamp, unknown fallback, symmetry, cross-sport
+- `TestListTeams`: count per league, filter, unknown league, no duplicates
+- `TestArchitecture`: confirms no imports from math_engine, odds_fetcher, line_logger
+
+#### 5. `tests/test_math_engine.py` — UPDATED (+5 tests)
+- `test_efficiency_gap_zero_default` — default arg leaves efficiency=0 in breakdown
+- `test_efficiency_gap_increases_sharp_score` — 15.0 gap > 0.0 gap score
+- `test_efficiency_gap_reflected_in_breakdown` — breakdown["efficiency"] == passed gap
+- `test_efficiency_gap_capped_at_20` — 25.0 clamps to same score as 20.0
+
+### Test Results
+**418/418 passing** (was 363/363). +55 new tests.
+
+### Impact on Sharp Score
+Before: efficiency component = 0.0 for all games (up to 20 pts uncaptured).
+After: efficiency component = 0-20 for all known teams across 10 leagues.
+
+Example uplift:
+- OKC (28.0 em) at home vs Wizards (-21.6 em): gap=16.5 → +16.5 pts to Sharp Score
+- Evenly matched NBA game: gap≈10.0 → +10.0 pts to Sharp Score
+- Unknown teams: gap=8.0 → +8.0 pts (conservative floor, doesn't inflate)
+
+### Next Session Starting Point (Session 15)
+Priority:
+1. **Tennis kill switch** — spec in MASTER_ROADMAP Section 3C. $40/mo decision needed first.
+   If user approves api-tennis.com, build: surface lookup dict, player name normalization,
+   `tennis_kill_switch()`, add tennis_atp/tennis_wta to SPORT_KEYS.
+2. **NBA B2B home/road differentiation** — waiting for 10+ B2B instances in DB.
+3. **MLBkill switch** — Apr 1 gate. Not yet.
+
+---
+
 ## Session 13 — 2026-02-19
 
 ### Objective

@@ -35,6 +35,7 @@ DB_PATH = str(ROOT / "data" / "line_history.db")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.efficiency_feed import get_efficiency_gap
 from core.line_logger import log_bet as _log_bet
 from core.math_engine import (
     BetCandidate,
@@ -88,13 +89,16 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
     for sport, games in raw.items():
         for game in games:
             try:
-                bets = parse_game_markets(game, sport)
+                home = game.get("home_team", "")
+                away = game.get("away_team", "")
+                eff_gap = get_efficiency_gap(home, away)
+                bets = parse_game_markets(game, sport, efficiency_gap=eff_gap)
                 candidates.extend(bets)
             except Exception:
                 continue  # individual game parse failure doesn't crash the page
 
-    # Sort globally by edge% descending
-    candidates.sort(key=lambda b: b.edge_pct, reverse=True)
+    # Sort globally by Sharp Score descending (per CLAUDE.md — NOT edge%)
+    candidates.sort(key=lambda b: b.sharp_score, reverse=True)
 
     remaining = quota.remaining if quota.remaining is not None else -1
     return candidates, "", remaining
