@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 12 | Last updated: 2026-02-19
+## Version: Session 13 | Last updated: 2026-02-19
 ## For: New agentic R&D chat initialization
 
 ---
@@ -162,7 +162,7 @@ SORT:          By Sharp Score descending (NOT edge%).
 | NFL | ✅ Wind + backup QB | 15mph/20mph thresholds — validated |
 | NCAAB | ✅ 3PT reliance + tempo | 40% threshold away — validated |
 | EPL / Ligue1 / Bundesliga / Serie A / La Liga / MLS | ✅ Market drift + dead rubber | Soccer: h2h+totals only |
-| NHL | ⚠️ Collar-only | Kill switch READY TO BUILD (see MASTER_ROADMAP 3A) |
+| NHL | ✅ Goalie starter kill | nhl_data.py + nhl_kill_switch() + scheduler wired (Session 13) |
 | MLB | ⚠️ Collar-only | Kill switch deferred to Apr 1 (season gate) |
 | NCAAF | ⚠️ Collar-only | Kill switch deferred (no validated threshold) |
 | Tennis | ❌ Not configured | Deferred — surface data = $40/mo (user decision needed) |
@@ -181,6 +181,7 @@ ONE FILE = ONE JOB:
   price_history_store.py — RLM open-price DB. INSERT OR IGNORE only.
   clv_tracker.py     — CLV CSV. Append-only.
   probe_logger.py    — Probe JSON. Rolling 200. No other modules.
+  nhl_data.py        — NHL goalie starter detection. Free NHL API. Zero quota cost.
 
 IMPORT RULES (enforce strictly — circular imports kill this codebase):
   math_engine     ← imports nothing from core/
@@ -189,6 +190,7 @@ IMPORT RULES (enforce strictly — circular imports kill this codebase):
   price_history_store ← math_engine only
   clv_tracker     ← math_engine only
   probe_logger    ← nothing from core
+  nhl_data        ← nothing from core (data-only module)
   scheduler       ← imports all (orchestrator — only place this is allowed)
   pages/*         ← from core.* only
 
@@ -303,19 +305,29 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 ## 🚦 CURRENT PROJECT STATE (as of Session 12)
 
 ```
-Test suite:   314/314 passing
-Last commit:  472c4a3 (Session 12 research)
+Test suite:   363/363 passing
+Last commit:  TBD (Session 13)
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App port:     8503 (8501/8502 are other Streamlit instances on this machine)
 
 BUILT (complete):
   All 5 pages, all core modules, 12 active sports, RLM 2.0, CLV tracker,
-  Pinnacle probe, weekly purge, sidebar health dashboard, RLM fire gate
+  Pinnacle probe, weekly purge, sidebar health dashboard, RLM fire gate,
+  NHL kill switch (nhl_data.py + nhl_kill_switch + scheduler wired)
 
-NEXT SESSION (Session 13):
-  1. Build core/nhl_data.py + nhl_kill_switch() in math_engine.py
-  2. Wire NHL kill into scheduler._poll_all_sports()
-  3. Add tests (test_nhl_kill_switch, test_nhl_data.py)
+KILL SWITCHES ACTIVE:
+  NBA: B2B rest + star absence + pace variance
+  NFL: Wind >15/20mph + backup QB
+  NCAAB: 3PT reliance >40% on road + tempo diff
+  Soccer (all 6): Market drift >10% + dead rubber
+  NHL: Backup goalie confirmed (free NHL API, zero quota cost)
+  MLB: DEFERRED to Apr 1 (season starts Mar 27)
+  NCAAF: DEFERRED (no validated threshold)
+
+NEXT SESSION (Session 14):
+  1. System gates check: RLM fire count, graded bet count
+  2. NBA Home/Road B2B differentiation (gate: 10+ B2B instances in DB)
+  3. Confirm tennis_atp API tier (needs wifi + API key)
   See MASTER_ROADMAP.md Section 9 for full checklist
 ```
 
@@ -333,4 +345,4 @@ NEXT SESSION (Session 13):
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 12, 2026-02-19*
+*Last updated: Session 13, 2026-02-19*

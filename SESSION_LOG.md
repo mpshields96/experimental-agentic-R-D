@@ -2,6 +2,121 @@
 
 ---
 
+## Session 13 — 2026-02-19
+
+### Objective
+Build NHL kill switch pipeline: goalie starter detection → kill switch logic → scheduler wiring.
+Research from Session 12 confirmed NHL boxscore API is free, public, no key required.
+Goal: activate NHL from collar-only to full kill-switch-equipped sport.
+
+### What Was Built
+
+#### 1. `core/nhl_data.py` — NEW MODULE
+NHL goalie starter detection from free NHL Stats API.
+
+**Functions**:
+- `normalize_team_name(name)` — Odds API team name → NHL abbrev (BOS/NYR/etc.)
+  - Handles: full name, abbrev passthrough, last-word match, case-insensitive
+  - All 32 NHL teams + Utah Hockey Club
+- `get_nhl_game_ids_for_date(date_str, session)` — Today's schedule via `api-web.nhle.com/v1/schedule/{date}`
+  - Returns: list of {game_id, away_team, home_team, game_start_utc, game_state}
+  - Returns [] on API error (graceful degradation)
+- `get_nhl_starters_for_game(game_id, session)` — Boxscore via `api-web.nhle.com/v1/gamecenter/{id}/boxscore`
+  - Returns None when game is in FUT state (no playerByGameStats)
+  - Returns None when no goalies populated (still loading)
+  - Returns structured dict with away/home starter_confirmed + starter_name + backup_name
+- `get_starters_for_odds_game(away, home, game_start_utc, session)` — High-level: name→abbrev→game_id→boxscore
+  - Timing gate: returns None if >90 min before game start (too early, FUT state)
+  - Returns None if team name normalization fails or no matching game in schedule
+
+**Module-level goalie cache**:
+- `_goalie_cache: dict[str, dict]` — keyed by Odds API event_id
+- `cache_goalie_status(event_id, status)` — scheduler writes here
+- `get_cached_goalie_status(event_id)` — parse_game_markets() reads here
+- `clear_goalie_cache()` + `goalie_cache_size()` — testing utilities
+
+**Architecture**: Zero imports from math_engine, odds_fetcher, line_logger, or scheduler.
+No API key required. Zero quota cost. Returns None on all failure paths (never raises).
+
+#### 2. `core/math_engine.py` — `nhl_kill_switch()` added
+
+```python
+def nhl_kill_switch(
+    backup_goalie: bool,
+    b2b: bool = False,
+    goalie_confirmed: bool = True,
+) -> tuple[bool, str]:
+```
+
+**Fires (KILL)**: backup_goalie=True → "KILL: Backup goalie confirmed — require 12%+ edge to override"
+**Flags (FLAG)**:
+- b2b=True → "FLAG: B2B — reduce Kelly 50%"
+- goalie_confirmed=False → "FLAG: Goalie not yet confirmed — require 8%+ edge"
+**Safe**: All False → ("", False)
+
+Priority: backup kill overrides b2b flag. b2b overrides unconfirmed flag.
+
+**parse_game_markets() updated**:
+- New optional param: `nhl_goalie_status: Optional[dict] = None`
+- When sport=="NHL" and nhl_goalie_status provided:
+  - Determines per-candidate opponent goalie status (away bet → care about home goalie)
+  - Calls nhl_kill_switch() and sets c.kill_reason on each candidate
+- When sport=="NHL" and nhl_goalie_status=None:
+  - Applies FLAG(goalie not confirmed) to all NHL candidates (safe default)
+
+#### 3. `core/scheduler.py` — NHL goalie poll wired in
+
+**New function**: `_poll_nhl_goalies(games)` — internal, called by `_poll_all_sports()`
+- For each NHL game: checks if commence_time is within 90 min window
+- Calls `get_starters_for_odds_game()` for qualifying games
+- Writes results to `nhl_data.cache_goalie_status(event_id, data)` when starters confirmed
+- Errors are swallowed (logger.warning) — no goalie data = FLAG not crash
+
+**`_poll_all_sports()` updated**:
+- Added: `if sport == "NHL": _poll_nhl_goalies(games)` after existing probe logic
+- Import added: `from core.nhl_data import get_starters_for_odds_game, cache_goalie_status`
+
+### Tests Added
+
+| File | New Tests | Total |
+|---|---|---|
+| tests/test_nhl_data.py | 34 (new file) | 34 |
+| tests/test_math_engine.py | 10 (TestNhlKillSwitch) | ~160 |
+| tests/test_scheduler.py | 5 (TestNhlGoaliePoll) | 35 |
+| **Session total** | **49** | **363** |
+
+**363/363 passing** (was 314/314)
+
+### Kill Switch Status Update
+
+| Sport | Kill Switch | Before | After |
+|---|---|---|---|
+| NHL | Goalie starter detection | ⚠️ Collar-only | ✅ Full kill switch |
+
+### Architecture Decisions
+
+1. **Goalie cache in nhl_data.py** (not scheduler): Keeps scheduler thin. parse_game_markets()
+   can read it without scheduler coupling.
+2. **nhl_goalie_status as parse_game_markets() param**: Clean — math_engine stays pure (no I/O),
+   UI/pages pass the cached value when calling parse_game_markets for NHL games.
+3. **FUT state = FLAG (not KILL)**: returning None from boxscore = goalie not confirmed = require
+   higher edge. Not a hard kill — market might still be good without the kill signal.
+4. **90-min window**: Matches when NHL API actually populates `playerByGameStats`.
+   Before that, rosters haven't finalized and starter field is absent.
+
+### Next Session Targets (Session 14)
+
+From MASTER_ROADMAP Section 9 (updated):
+
+1. **Check system gates**:
+   - RLM gate sidebar: if RAISE READY (≥20 fires), manually raise SHARP_THRESHOLD 45→50
+   - Bet tracker: if ≥10 graded bets, build CLV vs edge% scatter (Analysis ③, item 4A)
+2. **3D. NBA Home/Road B2B** — add `is_home_b2b` param once 10+ B2B instances in DB
+3. **W6**: Confirm tennis_atp in current Odds API tier (needs good wifi + API key)
+4. **MLB kill**: HOLD until Apr 1 gate. Season starts Mar 27.
+
+---
+
 ## Session 12 — 2026-02-19
 
 ### Objective

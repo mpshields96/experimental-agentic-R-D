@@ -304,6 +304,109 @@ class TestPurgeOldPriceHistory:
 
 
 # ---------------------------------------------------------------------------
+# NHL goalie poll integration
+# ---------------------------------------------------------------------------
+class TestNhlGoaliePoll:
+    """Tests for _poll_nhl_goalies being triggered during NHL sport polls."""
+
+    def test_nhl_sport_triggers_goalie_poll(self):
+        """When NHL games are fetched, _poll_nhl_goalies should be called."""
+        nhl_game = {
+            "id": "nhl_event_001",
+            "away_team": "Boston Bruins",
+            "home_team": "New York Rangers",
+            "commence_time": "2099-01-01T23:00:00Z",  # future game
+        }
+        fake_data = {"NHL": [nhl_game]}
+        with patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
+             patch("core.scheduler.log_snapshot", return_value=[nhl_game]), \
+             patch("core.scheduler._poll_nhl_goalies") as mock_goalies, \
+             patch("core.scheduler.integrate_with_session_cache"), \
+             patch("core.scheduler.inject_historical_prices_into_cache"), \
+             patch("core.scheduler.probe_bookmakers", return_value={}), \
+             patch("core.scheduler.log_probe_result"):
+            trigger_poll_now()
+            mock_goalies.assert_called_once_with([nhl_game])
+
+    def test_non_nhl_sport_does_not_trigger_goalie_poll(self):
+        """NBA, NFL etc. should not trigger NHL goalie poll."""
+        fake_data = {"NBA": [{"id": "nba_game_1"}]}
+        with patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
+             patch("core.scheduler.log_snapshot", return_value=[{}]), \
+             patch("core.scheduler._poll_nhl_goalies") as mock_goalies, \
+             patch("core.scheduler.integrate_with_session_cache"), \
+             patch("core.scheduler.inject_historical_prices_into_cache"), \
+             patch("core.scheduler.probe_bookmakers", return_value={}), \
+             patch("core.scheduler.log_probe_result"):
+            trigger_poll_now()
+            mock_goalies.assert_not_called()
+
+    def test_poll_nhl_goalies_caches_starter_data(self):
+        """_poll_nhl_goalies() writes to nhl_data goalie cache when data available."""
+        from core.nhl_data import get_cached_goalie_status, clear_goalie_cache
+        from core.scheduler import _poll_nhl_goalies
+        from datetime import timedelta
+        clear_goalie_cache()
+
+        now = datetime.now(timezone.utc)
+        near_start = (now + timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        game = {
+            "id": "nhl_event_cache_test",
+            "away_team": "Boston Bruins",
+            "home_team": "New York Rangers",
+            "commence_time": near_start,
+        }
+        mock_starter_data = {
+            "game_id": 9999,
+            "away": {"starter_confirmed": True, "starter_name": "S. Knight", "backup_name": None},
+            "home": {"starter_confirmed": True, "starter_name": "I. Shesterkin", "backup_name": None},
+        }
+        with patch("core.scheduler.get_starters_for_odds_game", return_value=mock_starter_data):
+            _poll_nhl_goalies([game])
+
+        result = get_cached_goalie_status("nhl_event_cache_test")
+        assert result is not None
+        assert result["away"]["starter_name"] == "S. Knight"
+        clear_goalie_cache()
+
+    def test_poll_nhl_goalies_skips_distant_games(self):
+        """Games >90 min away are skipped before calling get_starters_for_odds_game."""
+        from core.nhl_data import get_cached_goalie_status, clear_goalie_cache
+        from core.scheduler import _poll_nhl_goalies
+        from datetime import timedelta
+        clear_goalie_cache()
+
+        now = datetime.now(timezone.utc)
+        distant_start = (now + timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        game = {
+            "id": "nhl_event_distant",
+            "away_team": "Boston Bruins",
+            "home_team": "New York Rangers",
+            "commence_time": distant_start,
+        }
+        with patch("core.scheduler.get_starters_for_odds_game", return_value=None) as mock_get:
+            _poll_nhl_goalies([game])
+            # Scheduler skips game >90 min away — get_starters never called
+            mock_get.assert_not_called()
+
+        result = get_cached_goalie_status("nhl_event_distant")
+        assert result is None
+        clear_goalie_cache()
+
+    def test_poll_nhl_goalies_swallows_errors(self):
+        """An error in goalie fetch must not propagate."""
+        from core.scheduler import _poll_nhl_goalies
+        game = {
+            "id": "nhl_error_game",
+            "away_team": "Boston Bruins",
+            "home_team": "New York Rangers",
+            "commence_time": "2026-02-19T23:00:00Z",
+        }
+        with patch("core.scheduler.get_starters_for_odds_game", side_effect=Exception("API Error")):
+            _poll_nhl_goalies([game])  # must not raise
+
+
+# ---------------------------------------------------------------------------
 # reset_state
 # ---------------------------------------------------------------------------
 class TestResetState:

@@ -1,5 +1,5 @@
 # PROJECT_INDEX.md — Titanium-Agentic
-## Generated: Session 12, 2026-02-19 | 314/314 tests passing
+## Generated: Session 13, 2026-02-19 | 363/363 tests passing
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
@@ -24,15 +24,17 @@ agentic-rd-sandbox/
 │   ├── scheduler.py            APScheduler — polls + purges
 │   ├── price_history_store.py  RLM 2.0 — persistent open-price SQLite store
 │   ├── clv_tracker.py          CLV CSV persistence + verdict
-│   └── probe_logger.py         Pinnacle probe JSON log
+│   ├── probe_logger.py         Pinnacle probe JSON log
+│   └── nhl_data.py             NHL goalie starter detection (free NHL API, zero quota cost)
 ├── tests/
-│   ├── test_math_engine.py     91 tests → expanded to 150+ (incl. RLM fire counter)
+│   ├── test_math_engine.py     ~160 tests (incl. RLM fire counter + NHL kill switch)
 │   ├── test_odds_fetcher.py    32 tests
 │   ├── test_line_logger.py     31 tests
-│   ├── test_scheduler.py       30 tests
+│   ├── test_scheduler.py       35 tests (incl. NHL goalie poll)
 │   ├── test_price_history_store.py  36 tests
 │   ├── test_clv_tracker.py     46 tests
-│   └── test_probe_logger.py    36 tests  [TOTAL: 314]
+│   ├── test_probe_logger.py    36 tests
+│   └── test_nhl_data.py        34 tests  [TOTAL: 363]
 ├── data/
 │   ├── line_history.db         SQLite — lines + bets (WAL mode)
 │   ├── price_history.db        SQLite — RLM open prices (append-only)
@@ -76,6 +78,7 @@ agentic-rd-sandbox/
 | `nfl_kill_switch(wind, total, ...)` | Wind >15/20mph thresholds |
 | `ncaab_kill_switch(3pt, is_away, ...)` | 40% 3PT reliance on road |
 | `soccer_kill_switch(drift, ...)` | 10% market drift |
+| `nhl_kill_switch(backup_goalie, b2b, goalie_confirmed)` | Backup goalie KILL, B2B FLAG, unconfirmed FLAG |
 | `consensus_fair_prob(team, market, side, books)` | Multi-book vig-free mean + std_dev |
 | `cache_open_prices(games)` | Seed in-memory RLM cache (first-seen = open) |
 | `compute_rlm(event_id, side, current, public)` | Returns (bool, drift). Increments fire counter. |
@@ -189,6 +192,25 @@ agentic-rd-sandbox/
 
 ---
 
+### `core/nhl_data.py` — NHL GOALIE STARTER DETECTION
+**API**: `api-web.nhle.com` (free, public, no key, zero Odds API quota cost)
+**Cache**: `_goalie_cache: dict[str, dict]` keyed by Odds API event_id
+
+| Function | Purpose |
+|---|---|
+| `normalize_team_name(name)` | Odds API team name → NHL abbrev (all 32 teams) |
+| `get_nhl_game_ids_for_date(date_str, session)` | Today's schedule → list of game dicts |
+| `get_nhl_starters_for_game(game_id, session)` | Boxscore → confirmed starter data or None (FUT state) |
+| `get_starters_for_odds_game(away, home, start_utc, session)` | High-level: name→abbrev→boxscore |
+| `cache_goalie_status(event_id, status)` | Write to module cache (called by scheduler) |
+| `get_cached_goalie_status(event_id)` | Read from cache (called by parse_game_markets) |
+| `clear_goalie_cache()` | Testing utility |
+
+**Timing gate**: Returns None if >90 min before game start (FUT state — starter not yet set)
+**FUT state**: `playerByGameStats` absent in boxscore → returns None → caller applies FLAG
+
+---
+
 ## 🗄️ Data Files
 
 | File | Format | Written by | Read by |
@@ -204,14 +226,15 @@ agentic-rd-sandbox/
 
 | File | Tests | Key areas |
 |---|---|---|
-| test_math_engine.py | ~150 | All math functions, RLM fire counter, kill switches |
+| test_math_engine.py | ~160 | All math functions, RLM fire counter, kill switches, NHL kill |
 | test_odds_fetcher.py | 32 | Fetch, backoff, quota, probe_bookmakers |
 | test_line_logger.py | 31 | Schema, upsert, movements, bets, P&L |
-| test_scheduler.py | 30 | Start/stop, jobs, poll, purge, rlm_gate in status |
+| test_scheduler.py | 35 | Start/stop, jobs, poll, purge, rlm_gate, NHL goalie poll |
 | test_price_history_store.py | 36 | INSERT OR IGNORE, inject, purge |
 | test_clv_tracker.py | 46 | Log, read, summary, verdict tiers |
 | test_probe_logger.py | 36 | Log, read, summary, rolling trim |
-| **TOTAL** | **314** | **All passing** |
+| test_nhl_data.py | 34 | normalize_team_name, schedule, boxscore, FUT state, cache |
+| **TOTAL** | **363** | **All passing** |
 
 ---
 
@@ -224,6 +247,7 @@ line_logger     ← no imports from math_engine or odds_fetcher
 price_history_store ← imports math_engine ONLY (for seed call)
 clv_tracker     ← imports math_engine ONLY
 probe_logger    ← no imports from core (self-contained)
+nhl_data        ← no imports from other core modules (data-only)
 scheduler       ← imports all (orchestrator — allowed)
 pages/*         ← import from core.* only
 app.py          ← imports from core.* only
@@ -252,7 +276,7 @@ app.py          ← imports from core.* only
 
 NBA · NFL · NCAAF · NCAAB · NHL · MLB (Mar 27+) · EPL · Ligue1 · Bundesliga · Serie A · La Liga · MLS
 
-Kill switches active for: NBA, NFL, NCAAB, all Soccer. NHL/MLB/NCAAF = collar-only (see MASTER_ROADMAP).
+Kill switches active for: NBA, NFL, NCAAB, all Soccer, NHL (goalie starter). MLB/NCAAF = collar-only (see MASTER_ROADMAP).
 
 ---
 
@@ -265,7 +289,7 @@ Kill switches active for: NBA, NFL, NCAAB, all Soccer. NHL/MLB/NCAAF = collar-on
 | CLV verdict | ≥30 graded bets in clv_log.csv | Check verdict tier |
 | Tennis activation | User approves tier + api-tennis.com $40/mo | Add to SPORT_KEYS + build kill switch |
 | MLB kill switch | Apr 1 2026 with 1wk live data | Build mlb_kill_switch() |
-| NHL kill switch | Build core/nhl_data.py (READY NOW) | nhl_kill_switch() + tests |
+| NHL kill switch | ✅ COMPLETE (Session 13) | nhl_data.py + nhl_kill_switch() + scheduler wired |
 
 ---
 

@@ -29,6 +29,7 @@ from core.price_history_store import (
     purge_old_events,
 )
 from core.probe_logger import log_probe_result
+from core.nhl_data import get_starters_for_odds_game, cache_goalie_status
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,9 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
                 # Probe: log bookmaker coverage for this sport's fetch
                 probe_result = probe_bookmakers(games)
                 log_probe_result(probe_result, sport=sport)
+                # NHL: poll boxscore for goalie starters within 90min window
+                if sport == "NHL":
+                    _poll_nhl_goalies(games)
             else:
                 results_summary[sport] = 0
 
@@ -83,6 +87,56 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
         if len(_poll_errors) > 10:
             _poll_errors.pop(0)
         logger.error("Poll error #%d: %s", _poll_error_count, exc)
+
+
+def _poll_nhl_goalies(games: list) -> None:
+    """
+    For each NHL game within 90 minutes of puck drop, fetch confirmed starting goalies
+    and store results in nhl_data._goalie_cache keyed by event_id.
+
+    Called by _poll_all_sports() only for sport == "NHL".
+    Errors are swallowed — no goalie data = graceful degradation (FLAG not KILL).
+    """
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+
+    for game in games:
+        event_id = game.get("id", "")
+        away_team = game.get("away_team", "")
+        home_team = game.get("home_team", "")
+        commence_time_str = game.get("commence_time", "")
+
+        # Parse game start time
+        try:
+            game_start = datetime.fromisoformat(
+                commence_time_str.replace("Z", "+00:00")
+            )
+        except (ValueError, AttributeError):
+            continue
+
+        # Only poll within 90 minutes of puck drop
+        minutes_to_start = (game_start - now).total_seconds() / 60
+        if minutes_to_start > 90 or minutes_to_start < -30:
+            # Too early or game already well underway
+            continue
+
+        try:
+            starter_data = get_starters_for_odds_game(
+                away_team_name=away_team,
+                home_team_name=home_team,
+                game_start_utc=game_start,
+            )
+            if starter_data is not None and event_id:
+                cache_goalie_status(event_id, starter_data)
+                logger.info(
+                    "NHL goalie cache updated: %s @ %s → away_starter=%s, home_starter=%s",
+                    away_team, home_team,
+                    starter_data.get("away", {}).get("starter_name"),
+                    starter_data.get("home", {}).get("starter_name"),
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("NHL goalie poll failed for %s @ %s: %s", away_team, home_team, exc)
 
 
 def _purge_old_price_history(db_path: Optional[str] = None, days_old: int = 14) -> None:

@@ -27,6 +27,7 @@ from core.math_engine import (
     nfl_kill_switch,
     ncaab_kill_switch,
     soccer_kill_switch,
+    nhl_kill_switch,
     consensus_fair_prob,
     compute_rlm,
     cache_open_prices,
@@ -876,6 +877,70 @@ class TestRLMFireCounter:
     def test_rlm_fire_gate_constant(self):
         assert isinstance(RLM_FIRE_GATE, int)
         assert RLM_FIRE_GATE > 0
+
+
+# ---------------------------------------------------------------------------
+# NHL Kill Switch
+# ---------------------------------------------------------------------------
+
+class TestNhlKillSwitch:
+    def test_backup_goalie_killed(self):
+        killed, reason = nhl_kill_switch(backup_goalie=True)
+        assert killed is True
+        assert "KILL" in reason
+        assert "Backup goalie" in reason
+
+    def test_confirmed_starter_safe(self):
+        killed, reason = nhl_kill_switch(backup_goalie=False)
+        assert killed is False
+        assert reason == ""
+
+    def test_b2b_flagged_not_killed(self):
+        killed, reason = nhl_kill_switch(backup_goalie=False, b2b=True)
+        assert killed is False
+        assert "FLAG" in reason
+        assert "B2B" in reason
+
+    def test_unconfirmed_goalie_flagged(self):
+        killed, reason = nhl_kill_switch(backup_goalie=False, goalie_confirmed=False)
+        assert killed is False
+        assert "FLAG" in reason
+        assert "confirmed" in reason.lower()
+
+    def test_backup_overrides_b2b(self):
+        """Backup kill takes priority over B2B flag."""
+        killed, reason = nhl_kill_switch(backup_goalie=True, b2b=True)
+        assert killed is True
+        assert "KILL" in reason
+
+    def test_backup_overrides_unconfirmed(self):
+        """backup_goalie=True overrides goalie_confirmed=False."""
+        killed, reason = nhl_kill_switch(backup_goalie=True, goalie_confirmed=False)
+        assert killed is True
+
+    def test_return_type_is_tuple(self):
+        result = nhl_kill_switch(backup_goalie=False)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert isinstance(result[0], bool)
+        assert isinstance(result[1], str)
+
+    def test_b2b_not_killed_only_flagged(self):
+        """B2B should never kill — only flag for Kelly reduction."""
+        killed, _ = nhl_kill_switch(backup_goalie=False, b2b=True)
+        assert killed is False
+
+    def test_all_safe_conditions_empty_reason(self):
+        killed, reason = nhl_kill_switch(
+            backup_goalie=False, b2b=False, goalie_confirmed=True
+        )
+        assert killed is False
+        assert reason == ""
+
+    def test_kill_message_mentions_edge_threshold(self):
+        """Kill message should reference the edge override threshold."""
+        _, reason = nhl_kill_switch(backup_goalie=True)
+        assert "12%" in reason
 
 
 # ---------------------------------------------------------------------------

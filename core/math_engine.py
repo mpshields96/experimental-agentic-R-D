@@ -428,6 +428,46 @@ def soccer_kill_switch(
     return False, ""
 
 
+def nhl_kill_switch(
+    backup_goalie: bool,
+    b2b: bool = False,
+    goalie_confirmed: bool = True,
+) -> tuple[bool, str]:
+    """
+    NHL kill switch.
+
+    Fires (killed=True) when:
+    - backup_goalie confirmed starting (no star between pipes)
+
+    Flags (killed=False, non-empty reason) when:
+    - b2b: reduce Kelly by 50%
+    - not goalie_confirmed: starter data not yet available — require higher edge
+
+    Returns immediately if backup confirmed — b2b is secondary.
+
+    Args:
+        backup_goalie: True if backup/non-starter goalie is in net.
+        b2b: True if team is on back-to-back (second game in 2 nights).
+        goalie_confirmed: False if starter data not yet available from NHL API.
+
+    >>> nhl_kill_switch(True)
+    (True, 'KILL: Backup goalie confirmed — require 12%+ edge to override')
+    >>> nhl_kill_switch(False, b2b=True)
+    (False, 'FLAG: B2B — reduce Kelly 50%')
+    >>> nhl_kill_switch(False, goalie_confirmed=False)
+    (False, 'FLAG: Goalie not yet confirmed — require 8%+ edge')
+    >>> nhl_kill_switch(False)
+    (False, '')
+    """
+    if backup_goalie:
+        return True, "KILL: Backup goalie confirmed — require 12%+ edge to override"
+    if b2b:
+        return False, "FLAG: B2B — reduce Kelly 50%"
+    if not goalie_confirmed:
+        return False, "FLAG: Goalie not yet confirmed — require 8%+ edge"
+    return False, ""
+
+
 # ---------------------------------------------------------------------------
 # Multi-book consensus fair probability
 # ---------------------------------------------------------------------------
@@ -833,7 +873,11 @@ def run_nemesis(bet: BetCandidate, sport: str) -> dict:
 # parse_game_markets — game dict → BetCandidate list
 # ---------------------------------------------------------------------------
 
-def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
+def parse_game_markets(
+    game: dict,
+    sport: str = "NCAAB",
+    nhl_goalie_status: Optional[dict] = None,
+) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
 
@@ -842,10 +886,16 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
 
     Args:
         game:  Raw game dict from fetch_game_lines() / fetch_batch_odds().
-        sport: Sport key for BetCandidate (e.g. "NCAAB", "NBA").
+        sport: Sport key for BetCandidate (e.g. "NCAAB", "NHL").
+        nhl_goalie_status: Optional goalie starter dict from nhl_data module.
+            If provided and sport=="NHL", nhl_kill_switch() is evaluated.
+            Format: {"away": {"starter_confirmed": bool, "starter_name": str|None},
+                     "home": {"starter_confirmed": bool, "starter_name": str|None}}
 
     Returns:
         List of BetCandidates passing collar AND minimum edge.
+        BetCandidates with KILL reason have kill_reason set and are included
+        so the UI can display them as killed (not silently dropped).
     """
     candidates: list[BetCandidate] = []
     home = game.get("home_team", "")
@@ -982,5 +1032,41 @@ def parse_game_markets(game: dict, sport: str = "NCAAB") -> list[BetCandidate]:
                 sharp_score=score,
                 sharp_breakdown=breakdown,
             ))
+
+    # --- NHL Kill Switch ---
+    # Apply after all candidates are built so kill reason is visible in UI.
+    if sport == "NHL" and candidates:
+        if nhl_goalie_status is not None:
+            # Determine per-team backup status from goalie data
+            away_data = nhl_goalie_status.get("away", {})
+            home_data = nhl_goalie_status.get("home", {})
+            away_backup = not away_data.get("starter_confirmed", True)
+            home_backup = not home_data.get("starter_confirmed", True)
+            goalie_confirmed = (
+                away_data.get("starter_confirmed", False)
+                or home_data.get("starter_confirmed", False)
+            )
+
+            for c in candidates:
+                # Determine which team's goalie we care about for this candidate
+                # If betting on a team's spread or ML, opponent's goalie is the risk
+                is_away_bet = away in c.target
+                backup = home_backup if is_away_bet else away_backup
+
+                killed, reason = nhl_kill_switch(
+                    backup_goalie=backup,
+                    goalie_confirmed=goalie_confirmed,
+                )
+                if reason:
+                    c.kill_reason = reason
+        else:
+            # No goalie data available — apply FLAG to all NHL candidates
+            for c in candidates:
+                killed, reason = nhl_kill_switch(
+                    backup_goalie=False,
+                    goalie_confirmed=False,
+                )
+                if reason:
+                    c.kill_reason = reason
 
     return candidates
