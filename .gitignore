@@ -24,6 +24,12 @@ secrets.toml
 data/*.db
 data/*.db-wal
 data/*.db-shm
+*.db
+*.db-wal
+*.db-shm
+
+# Session/probe data (generated at runtime, not source)
+data/probe_log.json
 
 # Logs
 logs/*.log
