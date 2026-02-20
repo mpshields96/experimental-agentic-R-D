@@ -610,32 +610,35 @@ def tennis_kill_switch(
     favourite_implied_prob: float,
     is_favourite_bet: bool,
     market_type: str = "h2h",
+    favourite_last_name: str = "",
+    underdog_last_name: str = "",
 ) -> tuple[bool, str]:
     """
     Tennis kill switch — zero external API cost, static surface inference only.
 
     Surface data is derived from tournament name (Odds API sport key).
     Surface data is free — inferred from Odds API tournament key, zero cost.
-    Player-specific surface win rates are not needed: structural surface risk
-    (clay variance, grass serve dominance) is the mathematically valid signal.
 
-    Kill logic:
+    Kill logic (structural):
     - Clay + heavy favourite (>72% implied) + h2h → FLAG: surface upsets frequent
     - Grass + heavy favourite (>75% implied) + h2h → FLAG: serve variance high
     - Unknown surface → FLAG: require 8%+ edge
     - Hard court → no flag (most predictable surface)
     - Totals are not flagged for surface (not applicable in tennis context)
 
-    Note: We do NOT kill outright — without per-player surface records we cannot
-    confirm the specific surface handicap. The FLAG reduces confidence and prompts
-    higher edge requirement, consistent with the incomplete-information doctrine.
+    Player-specific enrichment (when name provided):
+    - Looks up surface win rates from tennis_data static table (zero API cost).
+    - If favourite's surface rate < SURFACE_SPECIALIST_THRESHOLD (0.60) → FLAG warning
+    - If underdog has superior surface rate vs favourite → FLAG differential
+    - Rate data covers top-75 ATP + top-75 WTA (2020-2025 aggregate).
 
     Args:
-        surface: "clay", "grass", "hard", or "unknown" from tennis_data.surface_from_sport_key().
+        surface:               "clay", "grass", "hard", or "unknown".
         favourite_implied_prob: Market-implied win probability for the favourite.
-            Use implied_probability(price) to compute from American odds.
-        is_favourite_bet: True if this candidate is betting ON the favourite.
-        market_type: "h2h", "spreads", or "totals".
+        is_favourite_bet:      True if this candidate bets ON the favourite.
+        market_type:           "h2h", "spreads", or "totals".
+        favourite_last_name:   Optional: last name for player surface rate lookup.
+        underdog_last_name:    Optional: last name for opponent surface rate lookup.
 
     Returns:
         (killed, reason) — killed is always False (FLAG only, no KILL).
@@ -651,6 +654,12 @@ def tennis_kill_switch(
     >>> tennis_kill_switch("clay", 0.75, True, "totals")
     (False, '')
     """
+    from core.tennis_data import (
+        get_player_surface_rate,
+        get_surface_risk_summary,
+        SURFACE_SPECIALIST_THRESHOLD,
+    )
+
     # Totals are not surface-sensitive in tennis (not typically offered or relevant)
     if market_type == "totals":
         return False, ""
@@ -659,17 +668,43 @@ def tennis_kill_switch(
     if surface == "unknown":
         return False, "FLAG: Surface unknown — require 8%+ edge"
 
-    # Clay: highest upset frequency for heavy favourites
+    reasons: list[str] = []
+
+    # Structural surface risk (tournament-level, always applied)
+    pct = favourite_implied_prob * 100
+
     if surface == "clay" and is_favourite_bet and favourite_implied_prob > 0.72:
-        pct = favourite_implied_prob * 100
-        return False, f"FLAG: Clay court + heavy favourite ({pct:.1f}%) — upsets common, require 8%+ edge"
+        reasons.append(f"Clay court + heavy favourite ({pct:.1f}%) — upsets common, require 8%+ edge")
 
-    # Grass: high variance due to serving dominance
     if surface == "grass" and is_favourite_bet and favourite_implied_prob > 0.75:
-        pct = favourite_implied_prob * 100
-        return False, f"FLAG: Grass court + heavy favourite ({pct:.1f}%) — serve variance high, require 7%+ edge"
+        reasons.append(f"Grass court + heavy favourite ({pct:.1f}%) — serve variance high, require 7%+ edge")
 
-    return False, ""
+    # Player-specific surface enrichment (static table, zero cost)
+    if is_favourite_bet and favourite_last_name:
+        fav_rate = get_player_surface_rate(favourite_last_name, surface)
+        if fav_rate is not None and fav_rate < SURFACE_SPECIALIST_THRESHOLD:
+            reasons.append(
+                f"{favourite_last_name} {surface} win rate={fav_rate*100:.0f}% (below avg) — "
+                f"surface mismatch for favourite"
+            )
+
+    if favourite_last_name and underdog_last_name:
+        risk = get_surface_risk_summary(favourite_last_name, underdog_last_name, surface)
+        if risk["surface_delta"] is not None:
+            delta_pp = risk["surface_delta"] * 100
+            if delta_pp < -5:
+                # Underdog is meaningfully better on this surface
+                reasons.append(
+                    f"Surface edge: underdog better on {surface} by {-delta_pp:.0f}pp "
+                    f"({risk['advisory']})"
+                )
+        if risk["risk_flag"]:
+            reasons.append(f"Player surface risk detected: {risk['advisory']}")
+
+    if not reasons:
+        return False, ""
+
+    return False, "FLAG: " + " · ".join(reasons)
 
 
 # ---------------------------------------------------------------------------
@@ -1703,9 +1738,14 @@ def parse_game_markets(
     # --- Tennis Kill Switch ---
     # Applies when sport starts with "TENNIS" and a sport key is provided.
     # Surface derived from Odds API sport key (zero external API cost).
+    # Player names extracted from game home/away for static surface rate lookup.
     if sport.upper().startswith("TENNIS") and tennis_sport_key and candidates:
-        from core.tennis_data import surface_from_sport_key
+        from core.tennis_data import extract_last_name, surface_from_sport_key
         surface = surface_from_sport_key(tennis_sport_key)
+
+        # Extract last names for player-specific surface enrichment
+        home_last = extract_last_name(home)
+        away_last = extract_last_name(away)
 
         for c in candidates:
             if c.kill_reason:
@@ -1713,11 +1753,24 @@ def parse_game_markets(
             # Favourite is the player whose price is < -105 (< even money)
             is_favourite = c.market_implied > 0.5
             is_favourite_bet = is_favourite
+
+            # Determine which player is the favourite for name routing
+            # target usually == home or away player name for h2h
+            target_last = extract_last_name(c.target.split()[0] if c.target else "")
+            if home_last and away_last:
+                fav_last = home_last if is_favourite else away_last
+                dog_last = away_last if is_favourite else home_last
+            else:
+                fav_last = target_last
+                dog_last = ""
+
             _, reason = tennis_kill_switch(
                 surface=surface,
                 favourite_implied_prob=c.market_implied if is_favourite else (1.0 - c.market_implied),
                 is_favourite_bet=is_favourite_bet,
                 market_type=c.market_type,
+                favourite_last_name=fav_last,
+                underdog_last_name=dog_last,
             )
             if reason:
                 c.kill_reason = reason

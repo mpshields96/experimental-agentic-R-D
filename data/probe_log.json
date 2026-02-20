@@ -772,5 +772,41 @@
     "all_keys": [],
     "preferred_found": [],
     "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:31:43.438800+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:31:43.441025+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:33:23.211716+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:33:23.213752+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
   }
 ]

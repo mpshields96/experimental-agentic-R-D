@@ -1279,6 +1279,58 @@ class TestTennisKillSwitch:
         assert killed is False
         assert "FLAG" in reason
 
+    # Player-specific surface enrichment tests
+    def test_poor_surface_player_adds_flag(self):
+        """Ruud on grass (0.56) → below 0.60 threshold → additional flag."""
+        killed, reason = tennis_kill_switch(
+            "grass", 0.80, True, "h2h",
+            favourite_last_name="Ruud", underdog_last_name="Djokovic",
+        )
+        assert killed is False
+        assert "FLAG" in reason
+        # Should mention player surface rate AND structural grass flag
+        assert "grass" in reason.lower() or "Ruud" in reason
+
+    def test_elite_surface_player_no_extra_flag(self):
+        """Djokovic clay (0.84) → above threshold → no extra player flag."""
+        killed, reason = tennis_kill_switch(
+            "clay", 0.78, True, "h2h",
+            favourite_last_name="Djokovic", underdog_last_name="Ruud",
+        )
+        assert killed is False
+        assert "FLAG" in reason  # structural flag still fires
+        # No player-specific "mismatch" flag
+        assert "mismatch" not in reason.lower()
+
+    def test_underdog_better_on_surface_fires_flag(self):
+        """Swiatek clay=0.95 vs Rybakina clay=0.72 — surface delta Swiatek +23pp → no risk flag.
+        But if Swiatek is underdog and Rybakina is favourite: rybakina clay=0.72
+        vs swiatek clay=0.95 → delta = 0.72-0.95 = -0.23 → underdog better by 23pp."""
+        killed, reason = tennis_kill_switch(
+            "clay", 0.75, True, "h2h",
+            favourite_last_name="Rybakina", underdog_last_name="Swiatek",
+        )
+        assert killed is False
+        # Swiatek has +23pp surface edge vs Rybakina as underdog → should flag delta
+        assert "FLAG" in reason
+
+    def test_unknown_player_names_no_crash(self):
+        """Unknown player names should not crash — fall back to structural signal."""
+        killed, reason = tennis_kill_switch(
+            "clay", 0.78, True, "h2h",
+            favourite_last_name="BogusPlayer", underdog_last_name="AnotherBogus",
+        )
+        assert killed is False
+        assert "FLAG" in reason  # structural clay flag still fires
+
+    def test_no_player_names_backward_compat(self):
+        """No player names → same behavior as before (structural only)."""
+        _, reason_no_names = tennis_kill_switch("clay", 0.78, True, "h2h")
+        _, reason_empty = tennis_kill_switch("clay", 0.78, True, "h2h", "", "")
+        # Both should have FLAG from structural clay signal
+        assert "FLAG" in reason_no_names
+        assert "FLAG" in reason_empty
+
 
 # ---------------------------------------------------------------------------
 # Soccer collar + 3-way no-vig

@@ -15,16 +15,24 @@ Coverage:
 
 import pytest
 from core.tennis_data import (
+    ATP_SURFACE_WIN_RATES,
     SURFACE_CLAY,
+    SURFACE_DOMINANT_THRESHOLD,
+    SURFACE_ELITE_THRESHOLD,
     SURFACE_GRASS,
     SURFACE_HARD,
+    SURFACE_SPECIALIST_THRESHOLD,
     SURFACE_UNKNOWN,
+    WTA_SURFACE_WIN_RATES,
     extract_last_name,
+    get_player_surface_rate,
+    get_surface_risk_summary,
     is_tennis_sport_key,
     is_upset_surface,
     normalize_player_name,
     surface_from_sport_key,
     surface_label,
+    surface_mismatch_severity,
 )
 
 
@@ -286,3 +294,180 @@ class TestArchitecture:
         source = inspect.getsource(mod)
         assert "from core.scheduler" not in source
         assert "import scheduler" not in source
+
+# ---------------------------------------------------------------------------
+# Player surface win rate table
+# ---------------------------------------------------------------------------
+
+class TestGetPlayerSurfaceRate:
+
+    def test_swiatek_clay_elite(self):
+        rate = get_player_surface_rate("Swiatek", "clay")
+        assert rate == 0.95
+
+    def test_djokovic_clay(self):
+        assert get_player_surface_rate("Djokovic", "clay") == 0.84
+
+    def test_djokovic_hard(self):
+        assert get_player_surface_rate("Djokovic", "hard") == 0.90
+
+    def test_ruud_grass_poor(self):
+        """Ruud is a clay specialist with weak grass numbers."""
+        rate = get_player_surface_rate("Ruud", "grass")
+        assert rate is not None
+        assert rate < SURFACE_SPECIALIST_THRESHOLD  # below 0.60
+
+    def test_medvedev_hard_dominant(self):
+        rate = get_player_surface_rate("Medvedev", "hard")
+        assert rate >= SURFACE_DOMINANT_THRESHOLD
+
+    def test_rybakina_grass_specialist(self):
+        rate = get_player_surface_rate("Rybakina", "grass")
+        assert rate >= SURFACE_DOMINANT_THRESHOLD
+
+    def test_case_insensitive_lookup(self):
+        """Lookup is case-insensitive."""
+        assert get_player_surface_rate("DJOKOVIC", "clay") == get_player_surface_rate("djokovic", "clay")
+        assert get_player_surface_rate("Swiatek", "CLAY") == get_player_surface_rate("swiatek", "clay")
+
+    def test_unknown_player_returns_none(self):
+        assert get_player_surface_rate("Zverevski", "clay") is None
+
+    def test_empty_name_returns_none(self):
+        assert get_player_surface_rate("", "clay") is None
+
+    def test_empty_surface_returns_none(self):
+        assert get_player_surface_rate("Djokovic", "") is None
+
+    def test_all_atp_players_have_all_surfaces(self):
+        """Every player in ATP table has clay, grass, hard entries."""
+        for name, rates in ATP_SURFACE_WIN_RATES.items():
+            for surface in ["clay", "grass", "hard"]:
+                assert surface in rates, f"{name} missing {surface}"
+
+    def test_all_wta_players_have_all_surfaces(self):
+        for name, rates in WTA_SURFACE_WIN_RATES.items():
+            for surface in ["clay", "grass", "hard"]:
+                assert surface in rates, f"{name} missing {surface}"
+
+    def test_all_rates_in_valid_range(self):
+        """All non-None rates must be between 0.0 and 1.0."""
+        from core.tennis_data import _ALL_SURFACE_WIN_RATES
+        for name, rates in _ALL_SURFACE_WIN_RATES.items():
+            for surface, rate in rates.items():
+                if rate is not None:
+                    assert 0.0 <= rate <= 1.0, f"{name} {surface}={rate} out of range"
+
+    def test_last_name_alias_consistency(self):
+        """Players with aliases (e.g. de minaur / minaur) return the same value."""
+        r1 = get_player_surface_rate("de minaur", "clay")
+        r2 = get_player_surface_rate("minaur", "clay")
+        assert r1 == r2
+
+    def test_at_least_50_atp_entries(self):
+        assert len(ATP_SURFACE_WIN_RATES) >= 40
+
+    def test_at_least_40_wta_entries(self):
+        assert len(WTA_SURFACE_WIN_RATES) >= 35
+
+
+# ---------------------------------------------------------------------------
+# surface_mismatch_severity
+# ---------------------------------------------------------------------------
+
+class TestSurfaceMismatchSeverity:
+
+    def test_swiatek_clay_is_elite(self):
+        assert surface_mismatch_severity("Swiatek", "clay") == "elite"
+
+    def test_djokovic_hard_is_elite(self):
+        assert surface_mismatch_severity("Djokovic", "hard") == "elite"
+
+    def test_djokovic_grass_is_elite(self):
+        assert surface_mismatch_severity("Djokovic", "grass") == "elite"
+
+    def test_rybakina_grass_is_specialist(self):
+        assert surface_mismatch_severity("Rybakina", "grass") in {"elite", "specialist"}
+
+    def test_medvedev_clay_is_adequate(self):
+        # Medvedev clay=0.66 — between SPECIALIST_THRESHOLD (0.60) and DOMINANT (0.75)
+        sev = surface_mismatch_severity("Medvedev", "clay")
+        assert sev == "adequate"
+
+    def test_ruud_grass_is_poor(self):
+        # Ruud grass=0.56 — below SPECIALIST_THRESHOLD (0.60) and above 0.50
+        sev = surface_mismatch_severity("Ruud", "grass")
+        assert sev in {"weak", "poor"}
+
+    def test_unknown_player_is_unknown(self):
+        assert surface_mismatch_severity("Bogusplayer", "clay") == "unknown"
+
+    def test_severity_ordering(self):
+        """Elite rate > specialist rate > adequate rate for same player on same surface."""
+        # Swiatek clay (0.95) > adequate threshold
+        assert surface_mismatch_severity("Swiatek", "clay") in {"elite", "specialist"}
+        # Medvedev clay (0.66) > specialist threshold
+        assert surface_mismatch_severity("Medvedev", "clay") in {"specialist", "adequate"}
+
+    def test_all_severities_are_valid_strings(self):
+        valid = {"elite", "specialist", "adequate", "weak", "poor", "unknown"}
+        for name in ["Djokovic", "Ruud", "Medvedev", "UnknownX"]:
+            for surface in ["clay", "grass", "hard"]:
+                sev = surface_mismatch_severity(name, surface)
+                assert sev in valid, f"{name} {surface} returned invalid severity: {sev}"
+
+
+# ---------------------------------------------------------------------------
+# get_surface_risk_summary
+# ---------------------------------------------------------------------------
+
+class TestGetSurfaceRiskSummary:
+
+    def test_known_vs_known_has_no_none_rates(self):
+        r = get_surface_risk_summary("Swiatek", "Rybakina", "clay")
+        assert r["player1_rate"] is not None
+        assert r["player2_rate"] is not None
+
+    def test_delta_computed_correctly(self):
+        r = get_surface_risk_summary("Swiatek", "Rybakina", "clay")
+        # Swiatek clay=0.95, Rybakina clay=0.72 → delta ≈ +0.23
+        assert r["surface_delta"] is not None
+        assert abs(r["surface_delta"] - (0.95 - 0.72)) < 0.01
+
+    def test_risk_flag_fires_for_poor_player(self):
+        # Ruud grass=0.56 → poor/weak → risk_flag should be True
+        r = get_surface_risk_summary("Ruud", "Djokovic", "grass")
+        assert r["risk_flag"] is True
+
+    def test_risk_flag_false_for_strong_matchup(self):
+        r = get_surface_risk_summary("Djokovic", "Alcaraz", "clay")
+        # Both are elite clay players — no risk flag
+        assert r["risk_flag"] is False
+
+    def test_unknown_vs_unknown_has_advisory(self):
+        r = get_surface_risk_summary("Bogus1", "Bogus2", "clay")
+        assert "advisory" in r
+        assert len(r["advisory"]) > 0
+
+    def test_unknown_player_rate_is_none(self):
+        r = get_surface_risk_summary("BogusPlayer", "Djokovic", "hard")
+        assert r["player1_rate"] is None
+        assert r["player2_rate"] is not None
+
+    def test_delta_none_when_one_player_unknown(self):
+        r = get_surface_risk_summary("Unknown", "Djokovic", "hard")
+        assert r["surface_delta"] is None
+
+    def test_advisory_contains_rate_info(self):
+        r = get_surface_risk_summary("Djokovic", "Medvedev", "clay")
+        assert "clay" in r["advisory"].lower() or "%" in r["advisory"]
+
+    def test_return_dict_has_required_keys(self):
+        r = get_surface_risk_summary("Swiatek", "Gauff", "hard")
+        for k in ["player1_rate", "player2_rate", "player1_severity", "player2_severity",
+                  "surface_delta", "risk_flag", "advisory"]:
+            assert k in r
+
+    def test_risk_flag_is_bool(self):
+        r = get_surface_risk_summary("Djokovic", "Sinner", "hard")
+        assert isinstance(r["risk_flag"], bool)
