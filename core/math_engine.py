@@ -1135,6 +1135,7 @@ def parse_game_markets(
     efficiency_gap: float = 0.0,
     tennis_sport_key: str = "",
     rest_days: Optional[dict] = None,
+    wind_mph: float = 0.0,
 ) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
@@ -1162,6 +1163,9 @@ def parse_game_markets(
             Computed by compute_rest_days_from_schedule() in odds_fetcher.
             rest_days=0 means B2B. None means only 1 game in window — treated as
             adequate rest. Used for NBA B2B home/road differentiation.
+        wind_mph: Wind speed in mph at the home stadium for NFL games.
+            Computed by weather_feed.get_stadium_wind(). Defaults to 0.0 (stub).
+            Indoor/retractable stadiums should pass 0.0. Used for nfl_kill_switch().
 
     Returns:
         List of BetCandidates passing collar AND minimum edge.
@@ -1390,6 +1394,9 @@ def parse_game_markets(
                     kill_reason=_h2h_kill_reason,
                 ))
 
+    # NFL wind: pre-compute is_nfl flag for totals + spreads blocks below
+    is_nfl = sport.upper() == "NFL"
+
     # --- Totals ---
     for side in ["Over", "Under"]:
         cp, std, n_books = consensus_fair_prob("", "totals", side, bookmakers)
@@ -1398,6 +1405,16 @@ def parse_game_markets(
         best_price, best_line, best_book_name = _best_price_for(side, "totals")
         if best_price is None or not passes_collar(best_price):
             continue
+        # NFL wind kill — fires before edge check so we don't waste time
+        if is_nfl:
+            _nfl_killed, _nfl_reason = nfl_kill_switch(
+                wind_mph=wind_mph,
+                total=best_line or 0.0,
+                market_type="total",
+            )
+            if _nfl_killed and "FORCE_UNDER" not in _nfl_reason:
+                # Hard kill (wind > 20): skip entirely
+                continue
         edge = cp - implied_probability(best_price)
         if edge >= MIN_EDGE:
             kelly = fractional_kelly(cp, best_price)
@@ -1405,6 +1422,12 @@ def parse_game_markets(
             public_on_side = (side == "Over" and best_price < -105)
             rlm_confirmed, _rlm_drift = compute_rlm(event_id, side, best_price, public_on_side)
             score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+            # NFL FORCE_UNDER: keep candidate but mark with kill_reason
+            _totals_kill_reason = ""
+            if is_nfl:
+                _, _totals_kill_reason = nfl_kill_switch(
+                    wind_mph=wind_mph, total=best_line or 0.0, market_type="total"
+                )
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
@@ -1423,6 +1446,7 @@ def parse_game_markets(
                 std_dev=std,
                 sharp_score=score,
                 sharp_breakdown=breakdown,
+                kill_reason=_totals_kill_reason,
             ))
 
     # --- NHL Kill Switch ---

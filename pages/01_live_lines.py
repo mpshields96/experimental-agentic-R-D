@@ -45,6 +45,7 @@ from core.math_engine import (
     sharp_to_size,
 )
 from core.odds_fetcher import fetch_batch_odds, quota, compute_rest_days_from_schedule
+from core.weather_feed import get_stadium_wind
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -115,17 +116,27 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
             except Exception:
                 rest_days_map = None
 
+        is_nfl_sport = sport_key == "NFL"
+
         for game in games:
             try:
                 home = game.get("home_team", "")
                 away = game.get("away_team", "")
                 eff_gap = get_efficiency_gap(home, away)
+                # NFL: fetch live wind forecast for home stadium (cached 1hr)
+                wind = 0.0
+                if is_nfl_sport:
+                    try:
+                        wind = get_stadium_wind(home, game.get("commence_time", ""))
+                    except Exception:
+                        wind = 0.0
                 bets = parse_game_markets(
                     game,
                     sport_label,
                     efficiency_gap=eff_gap,
                     tennis_sport_key=t_sport_key,
                     rest_days=rest_days_map,
+                    wind_mph=wind,
                 )
                 candidates.extend(bets)
             except Exception:
