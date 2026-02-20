@@ -422,6 +422,7 @@ pages = [
     st.Page("pages/03_line_history.py",   title="Line History",  icon="📈"),
     st.Page("pages/04_bet_tracker.py",    title="Bet Tracker",   icon="📋"),
     st.Page("pages/05_rd_output.py",      title="R&D Output",    icon="🔬"),
+    st.Page("pages/06_simulator.py",      title="Simulator",     icon="🎲"),
 ]
 
 pg = st.navigation(pages)

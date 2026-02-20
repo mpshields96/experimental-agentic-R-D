@@ -32,6 +32,11 @@ if str(ROOT) not in sys.path:
 
 from core.line_logger import get_bets, get_movements, get_upcoming_movements, get_pnl_summary, count_snapshots
 from core.math_engine import implied_probability
+from core.originator_engine import (
+    BASE_VOLATILITY,
+    efficiency_gap_to_margin,
+    run_trinity_simulation,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -688,3 +693,113 @@ else:
         <span>ROI: <strong style="color:{profit_color};">{roi_shown:+.1f}%</strong></span>
     </div>
     """)
+
+st.markdown("---")
+
+# ---------------------------------------------------------------------------
+# ⑦ Trinity Model Edge Distribution (Monte Carlo cross-check)
+# ---------------------------------------------------------------------------
+_section_header(
+    "Trinity Model Edge",
+    "Cover probability sweep across efficiency gap range — Monte Carlo cross-validation"
+)
+
+_trinity_sports = ["NBA", "NFL", "NHL", "NCAAB", "MLB", "SOCCER"]
+_trinity_col1, _trinity_col2 = st.columns([3, 2])
+
+with _trinity_col1:
+    _t_sport = st.selectbox("Sport (Trinity)", _trinity_sports, key="an_trinity_sport")
+    _t_line = st.number_input(
+        "Market Spread (neg = home fav)", value=-4.5, step=0.5, key="an_trinity_line"
+    )
+
+with _trinity_col2:
+    _t_home_adv = st.slider(
+        "Home Advantage (pts)", 0.0, 7.0, 2.5, 0.5, key="an_trinity_ha"
+    )
+    _t_show_total = st.toggle("Show Over/Under sweep", value=False, key="an_trinity_total")
+
+# Sweep efficiency gap 0→20 and plot cover probability
+_gaps = [i * 0.5 for i in range(41)]  # 0, 0.5, 1.0, ... 20.0
+_cover_probs = []
+_over_probs = []
+
+for _g in _gaps:
+    _m = efficiency_gap_to_margin(_g, home_advantage_pts=_t_home_adv)
+    _r = run_trinity_simulation(
+        mean=_m,
+        sport=_t_sport,
+        line=_t_line,
+        total_line=LEAGUE_AVG_TOTALS.get(_t_sport, 220.0) if _t_show_total else None,
+        iterations=3_000,
+        seed=42,
+    )
+    _cover_probs.append(_r.cover_probability * 100)
+    _over_probs.append(_r.over_probability * 100)
+
+_fig_trinity = go.Figure()
+_fig_trinity.add_trace(go.Scatter(
+    x=_gaps, y=_cover_probs,
+    mode="lines",
+    name="Cover %",
+    line=dict(color=GREEN, width=2.5),
+    fill="tozeroy",
+    fillcolor="rgba(34,197,94,0.08)",
+    hovertemplate="Gap: %{x}<br>Cover: %{y:.1f}%<extra></extra>",
+))
+
+if _t_show_total:
+    _fig_trinity.add_trace(go.Scatter(
+        x=_gaps, y=_over_probs,
+        mode="lines",
+        name="Over %",
+        line=dict(color=AMBER, width=2, dash="dash"),
+        hovertemplate="Gap: %{x}<br>Over: %{y:.1f}%<extra></extra>",
+    ))
+
+_fig_trinity.add_hline(y=50, line_dash="dot", line_color="#4b5563", line_width=1)
+_fig_trinity.add_hline(y=55, line_dash="dot", line_color="#22c55e", line_width=1,
+    annotation_text="55% edge threshold", annotation_font_color="#22c55e",
+    annotation_font_size=9)
+
+_trinity_layout = dict(PLOTLY_BASE)
+_trinity_layout["title"] = dict(
+    text=f"Trinity Cover Probability — {_t_sport} vs Line {_t_line:+.1f} (3K sims per gap point)",
+    font=dict(size=12, color="#9ca3af"), x=0,
+)
+_trinity_layout["height"] = 300
+_trinity_layout["xaxis"] = dict(**PLOTLY_BASE["xaxis"], title="Efficiency Gap (0=away dominant, 10=neutral, 20=home dominant)")
+_trinity_layout["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="Probability (%)", range=[0, 100])
+_trinity_layout["showlegend"] = True
+_trinity_layout["legend"] = dict(bgcolor="rgba(0,0,0,0)", font=dict(size=10, color="#9ca3af"))
+_fig_trinity.update_layout(**_trinity_layout)
+
+LEAGUE_AVG_TOTALS = {  # local reference for display
+    "NBA": 228.0, "NCAAB": 148.0, "NFL": 45.0,
+    "NHL": 6.0, "MLB": 9.0, "SOCCER": 2.65,
+}
+st.plotly_chart(_fig_trinity, use_container_width=True, config={"displayModeBar": False})
+
+# Volatility comparison across sports
+_vol_sports = list(BASE_VOLATILITY.keys())
+_vol_vals = [BASE_VOLATILITY[s] for s in _vol_sports]
+
+_fig_vol = go.Figure(go.Bar(
+    x=_vol_sports, y=_vol_vals,
+    marker_color=[AMBER if s == _t_sport else "#374151" for s in _vol_sports],
+    text=[f"{v:.1f}" for v in _vol_vals],
+    textposition="outside",
+    textfont=dict(size=10, color="#d1d5db"),
+))
+_vol_layout = dict(PLOTLY_BASE)
+_vol_layout["title"] = dict(
+    text="Base Volatility by Sport (pts/goals std dev)",
+    font=dict(size=11, color="#9ca3af"), x=0,
+)
+_vol_layout["height"] = 200
+_vol_layout["xaxis"] = dict(**PLOTLY_BASE["xaxis"])
+_vol_layout["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="Std Dev (pts)")
+_vol_layout["showlegend"] = False
+_fig_vol.update_layout(**_vol_layout)
+
+st.plotly_chart(_fig_vol, use_container_width=True, config={"displayModeBar": False})

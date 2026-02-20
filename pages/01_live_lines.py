@@ -46,6 +46,10 @@ from core.math_engine import (
 )
 from core.odds_fetcher import fetch_batch_odds, quota, compute_rest_days_from_schedule
 from core.weather_feed import get_stadium_wind
+from core.originator_engine import (
+    efficiency_gap_to_margin,
+    run_trinity_simulation,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -138,6 +142,27 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
                     rest_days=rest_days_map,
                     wind_mph=wind,
                 )
+                # Trinity simulation: attach cover_probability to each candidate
+                # Uses efficiency_gap → projected margin as model input (not market line)
+                sport_upper = sport_label.upper().replace("TENNIS_ATP", "NBA").replace("TENNIS_WTA", "NBA")
+                proj_margin = efficiency_gap_to_margin(eff_gap)
+                for bet in bets:
+                    try:
+                        total_arg = bet.line if bet.market_type == "totals" else None
+                        spread_line = bet.line if bet.market_type == "spreads" else 0.0
+                        sim = run_trinity_simulation(
+                            mean=proj_margin,
+                            sport=sport_upper,
+                            line=spread_line,
+                            total_line=total_arg,
+                            iterations=2_000,  # fast pass for live scan
+                            seed=42,
+                        )
+                        bet.signal = (bet.signal or "") + f" | Trinity cover={sim.cover_probability*100:.0f}%"
+                        if bet.market_type == "totals" and sim.over_probability > 0:
+                            bet.signal = (bet.signal or "") + f" over={sim.over_probability*100:.0f}%"
+                    except Exception:
+                        pass  # Trinity failure never blocks candidate output
                 candidates.extend(bets)
             except Exception:
                 continue  # individual game parse failure doesn't crash the page
@@ -399,7 +424,7 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
 
             # Full math expander — no narrative, numbers only
             with st.expander(f"Math breakdown — {bet.target} {bet.matchup[:30]}", expanded=False):
-                mc1, mc2 = st.columns(2)
+                mc1, mc2, mc3 = st.columns(3)
                 with mc1:
                     st.markdown(
                         f"""
@@ -407,7 +432,7 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
                         - Model win prob: `{bet.win_prob*100:.2f}%`
                         - Market implied: `{bet.market_implied*100:.2f}%`
                         - Fair (no-vig): `{bet.fair_implied*100:.2f}%`
-                        - Edge: `{bet.win_prob*100:.2f}% − {bet.market_implied*100:.2f}% = {bet.edge_pct*100:.2f}%`
+                        - Edge: `{bet.edge_pct*100:.2f}%`
                         """
                     )
                 with mc2:
@@ -418,8 +443,25 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
                         - Price: `{bet.price:+d}` American
                         - Full Kelly: `{bet.kelly_size/0.25:.4f}` → ×0.25 = `{bet.kelly_size:.4f}`
                         - Bet size: `{bet.kelly_size*100:.2f}%` of bankroll
-
+                        """
+                    )
+                with mc3:
+                    # Extract Trinity cover % from signal if present
+                    signal = bet.signal or ""
+                    trinity_str = "—"
+                    if "Trinity cover=" in signal:
+                        try:
+                            trinity_str = signal.split("Trinity cover=")[1].split("%")[0] + "%"
+                        except Exception:
+                            pass
+                    st.markdown(
+                        f"""
                         **Sharp Score: `{bet.sharp_score:.1f}` / 100**
+                        - Edge comp: `{(bet.sharp_breakdown or {}).get('edge', 0):.0f}`
+                        - RLM comp: `{(bet.sharp_breakdown or {}).get('rlm', 0):.0f}`
+                        - Efficiency: `{(bet.sharp_breakdown or {}).get('efficiency', 0):.0f}`
+
+                        **Trinity MC Cover:** `{trinity_str}`
                         """
                     )
 
@@ -427,7 +469,7 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
                     st.warning(f"Kill switch active: {bet.kill_reason}")
 
                 if bet.signal:
-                    st.info(f"Signal: {bet.signal}")
+                    st.caption(f"Signals: {bet.signal}")
 
 
 _render(sport_filter, market_filter, min_sharp)
