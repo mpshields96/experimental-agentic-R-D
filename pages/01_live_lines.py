@@ -44,7 +44,7 @@ from core.math_engine import (
     parse_game_markets,
     sharp_to_size,
 )
-from core.odds_fetcher import fetch_batch_odds, quota
+from core.odds_fetcher import fetch_batch_odds, quota, compute_rest_days_from_schedule
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -107,6 +107,14 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
             sport_label = sport_key
             t_sport_key = ""
 
+        # NBA: derive rest days from schedule timestamps (zero extra API calls)
+        rest_days_map: dict | None = None
+        if sport_key == "NBA" and games:
+            try:
+                rest_days_map = compute_rest_days_from_schedule(games)
+            except Exception:
+                rest_days_map = None
+
         for game in games:
             try:
                 home = game.get("home_team", "")
@@ -117,6 +125,7 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
                     sport_label,
                     efficiency_gap=eff_gap,
                     tennis_sport_key=t_sport_key,
+                    rest_days=rest_days_map,
                 )
                 candidates.extend(bets)
             except Exception:

@@ -323,8 +323,32 @@ class TestNBAKillSwitch:
         assert killed is False
         assert reason == ""
 
-    def test_b2b_flagged_not_killed(self):
-        """B2B is a FLAG (keep bet, surface warning) not a KILL"""
+    def test_home_b2b_flagged_kelly_reduction(self):
+        """Home B2B → FLAG with Kelly reduction message (not road message)"""
+        killed, reason = nba_kill_switch(False, -4.5, b2b=True, is_road_b2b=False, market_type="spread")
+        assert killed is False
+        assert "FLAG" in reason
+        assert "Home B2B" in reason
+        assert "50%" in reason
+
+    def test_road_b2b_flagged_higher_edge_requirement(self):
+        """Road B2B → FLAG with higher edge requirement"""
+        killed, reason = nba_kill_switch(False, -4.5, b2b=True, is_road_b2b=True, market_type="spread")
+        assert killed is False
+        assert "FLAG" in reason
+        assert "Road B2B" in reason
+        assert "8%" in reason
+
+    def test_road_b2b_stricter_than_home(self):
+        """Road B2B flag is semantically stricter than home B2B flag."""
+        _, home_reason = nba_kill_switch(False, 0.0, b2b=True, is_road_b2b=False)
+        _, road_reason = nba_kill_switch(False, 0.0, b2b=True, is_road_b2b=True)
+        assert home_reason != road_reason
+        assert "Home" in home_reason
+        assert "Road" in road_reason
+
+    def test_is_road_b2b_false_default_backward_compat(self):
+        """is_road_b2b=False (default) preserves original flag behavior."""
         killed, reason = nba_kill_switch(False, -4.5, b2b=True, market_type="spread")
         assert killed is False
         assert "FLAG" in reason
@@ -1493,6 +1517,116 @@ class TestNcaafKillSwitch:
             candidates = parse_game_markets(game, "NCAAF")
         spread_cands = [c for c in candidates if c.market_type == "spreads"]
         assert spread_cands == [], f"Expected 0 spread candidates for blowout, got {len(spread_cands)}"
+
+
+# ---------------------------------------------------------------------------
+# NBA B2B Rest Day Integration
+# ---------------------------------------------------------------------------
+
+class TestNBAB2BRestDayIntegration:
+    """Tests for NBA B2B home/road differentiation in parse_game_markets."""
+
+    def _make_nba_game(self, home="Lakers", away="Heat", price_home=-110, price_away=-110, spread=6.5):
+        """Minimal NBA game dict with clear spread edge opportunity."""
+        return {
+            "id": "nba-b2b-test",
+            "home_team": home,
+            "away_team": away,
+            "commence_time": "2026-10-10T23:00:00Z",
+            "bookmakers": [
+                {
+                    "key": "draftkings",
+                    "title": "DraftKings",
+                    "markets": [
+                        {"key": "spreads", "outcomes": [
+                            {"name": home, "price": price_home, "point": -spread},
+                            {"name": away, "price": price_away, "point": spread},
+                        ]},
+                        {"key": "h2h", "outcomes": [
+                            {"name": home, "price": -150},
+                            {"name": away, "price": 130},
+                        ]},
+                    ],
+                },
+                {
+                    "key": "fanduel",
+                    "title": "FanDuel",
+                    "markets": [
+                        {"key": "spreads", "outcomes": [
+                            {"name": home, "price": price_home - 2, "point": -spread},
+                            {"name": away, "price": price_away + 2, "point": spread},
+                        ]},
+                        {"key": "h2h", "outcomes": [
+                            {"name": home, "price": -148},
+                            {"name": away, "price": 128},
+                        ]},
+                    ],
+                },
+                {
+                    "key": "betmgm",
+                    "title": "BetMGM",
+                    "markets": [
+                        {"key": "spreads", "outcomes": [
+                            {"name": home, "price": price_home, "point": -spread},
+                            {"name": away, "price": price_away, "point": spread},
+                        ]},
+                    ],
+                },
+            ],
+        }
+
+    def test_no_rest_days_produces_no_b2b_flag(self):
+        """Without rest_days dict, NBA candidates have no B2B kill_reason."""
+        game = self._make_nba_game()
+        cands = parse_game_markets(game, "NBA", rest_days=None)
+        for c in cands:
+            assert "B2B" not in c.kill_reason
+
+    def test_road_b2b_produces_road_flag(self):
+        """Away team on B2B (rest_days=0) → Road B2B flag on their candidates."""
+        game = self._make_nba_game(home="Lakers", away="Heat")
+        rest = {"Heat": 0, "Lakers": 2}  # Heat on B2B, Lakers rested
+        cands = parse_game_markets(game, "NBA", rest_days=rest)
+        heat_cands = [c for c in cands if "Heat" in c.target]
+        for c in heat_cands:
+            assert "Road B2B" in c.kill_reason, f"Expected Road B2B flag, got: {c.kill_reason!r}"
+
+    def test_home_b2b_produces_home_flag(self):
+        """Home team on B2B (rest_days=0) → Home B2B flag on their candidates."""
+        game = self._make_nba_game(home="Lakers", away="Heat")
+        rest = {"Lakers": 0, "Heat": 2}  # Lakers on B2B at home
+        cands = parse_game_markets(game, "NBA", rest_days=rest)
+        lakers_cands = [c for c in cands if "Lakers" in c.target]
+        for c in lakers_cands:
+            assert "Home B2B" in c.kill_reason, f"Expected Home B2B flag, got: {c.kill_reason!r}"
+
+    def test_road_flag_stricter_than_home_flag(self):
+        """Road B2B flag message differs from home B2B flag message."""
+        game = self._make_nba_game(home="Lakers", away="Heat")
+        # Road B2B
+        road_cands = parse_game_markets(game, "NBA", rest_days={"Heat": 0, "Lakers": 2})
+        heat_road = [c for c in road_cands if "Heat" in c.target]
+        # Home B2B
+        home_cands = parse_game_markets(game, "NBA", rest_days={"Lakers": 0, "Heat": 2})
+        lakers_home = [c for c in home_cands if "Lakers" in c.target]
+        if heat_road and lakers_home:
+            assert heat_road[0].kill_reason != lakers_home[0].kill_reason
+
+    def test_both_rested_no_b2b_flag(self):
+        """Both teams rested (rest_days ≥ 1) → no B2B flag."""
+        game = self._make_nba_game(home="Lakers", away="Heat")
+        rest = {"Lakers": 2, "Heat": 1}
+        cands = parse_game_markets(game, "NBA", rest_days=rest)
+        for c in cands:
+            assert "B2B" not in c.kill_reason
+
+    def test_non_nba_sport_ignores_rest_days(self):
+        """rest_days is ignored for non-NBA sports — no spurious B2B flags."""
+        game = self._make_nba_game()
+        rest = {"Lakers": 0, "Heat": 0}  # both on B2B
+        cands = parse_game_markets(game, "NFL", rest_days=rest)
+        for c in cands:
+            assert "B2B" not in c.kill_reason
 
 
 # ---------------------------------------------------------------------------

@@ -383,6 +383,7 @@ def nba_kill_switch(
     star_absent: bool = False,
     avg_margin: float = 5.0,
     b2b: bool = False,
+    is_road_b2b: bool = False,
     pace_std_dev: float = 0.0,
     market_type: str = "spread",
 ) -> tuple[bool, str]:
@@ -395,19 +396,31 @@ def nba_kill_switch(
     - High pace variance on totals (pace_std_dev > 4)
 
     Flags (killed=False, non-empty reason) when:
-    - b2b: reduce Kelly by 50% (surfaced in UI, not dropped)
+    - is_road_b2b: road team on B2B — require 8%+ edge (harsher than home B2B)
+    - b2b (home): reduce Kelly by 50% only
+
+    Home B2B vs. Road B2B differentiation:
+    - Road B2B compounds fatigue + travel — higher edge requirement (8%+)
+    - Home B2B is partially offset by home court — Kelly reduction only
+    - is_road_b2b=True overrides b2b=True with the stricter flag
 
     >>> nba_kill_switch(True, -3.5, market_type="spread")
     (True, 'KILL: Rest disadvantage with spread inside -4 — abort spread')
     >>> nba_kill_switch(False, -8.5, market_type="spread")
     (False, '')
+    >>> nba_kill_switch(False, 0.0, b2b=True, is_road_b2b=True)
+    (False, 'FLAG: Road B2B — require 8%+ edge (travel + fatigue compound)')
+    >>> nba_kill_switch(False, 0.0, b2b=True, is_road_b2b=False)
+    (False, 'FLAG: Home B2B — reduce Kelly 50%')
     """
     if rest_disadvantage and market_type == "spread" and abs(spread) < 4:
         return True, "KILL: Rest disadvantage with spread inside -4 — abort spread"
     if star_absent and abs(spread) < avg_margin:
         return True, "KILL: Star absence with spread inside average margin"
     if b2b:
-        return False, "FLAG: B2B — reduce Kelly by 50%"
+        if is_road_b2b:
+            return False, "FLAG: Road B2B — require 8%+ edge (travel + fatigue compound)"
+        return False, "FLAG: Home B2B — reduce Kelly 50%"
     if pace_std_dev > 4 and market_type == "total":
         return True, "KILL: High pace variance — skip total"
     return False, ""
@@ -1121,6 +1134,7 @@ def parse_game_markets(
     nhl_goalie_status: Optional[dict] = None,
     efficiency_gap: float = 0.0,
     tennis_sport_key: str = "",
+    rest_days: Optional[dict] = None,
 ) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
@@ -1144,6 +1158,10 @@ def parse_game_markets(
             "tennis_atp_french_open". Used to infer court surface via
             tennis_data.surface_from_sport_key(). Empty string = not a tennis game.
             When non-empty and sport starts with "TENNIS", tennis_kill_switch() fires.
+        rest_days: Optional dict mapping team_name → rest_days (int) or None.
+            Computed by compute_rest_days_from_schedule() in odds_fetcher.
+            rest_days=0 means B2B. None means only 1 game in window — treated as
+            adequate rest. Used for NBA B2B home/road differentiation.
 
     Returns:
         List of BetCandidates passing collar AND minimum edge.
@@ -1201,6 +1219,18 @@ def parse_game_markets(
     is_ncaaf = sport.upper() == "NCAAF"
     _ncaaf_month = datetime.now(timezone.utc).month
 
+    # NBA B2B rest-day lookup (zero extra API calls — derived from schedule timestamps)
+    is_nba = sport.upper() == "NBA"
+    _rd = rest_days or {}
+
+    def _nba_b2b_flags(team_name: str, is_road: bool) -> tuple[bool, bool]:
+        """Return (b2b, is_road_b2b) for a team. False,False if rest data absent."""
+        days = _rd.get(team_name)
+        if days is None:
+            return False, False
+        on_b2b = days == 0
+        return on_b2b, (on_b2b and is_road)
+
     # --- Spreads ---
     for team_name in [home, away]:
         cp, std, n_books = consensus_fair_prob(team_name, "spreads", "team", bookmakers)
@@ -1221,6 +1251,25 @@ def parse_game_markets(
             public_on_side = best_price < -105
             rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
             score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+            # NBA B2B — home/road differentiated flag
+            _kill_reason = ""
+            if is_nba:
+                _is_road = team_name == away
+                _opp = home if _is_road else away
+                _b2b, _is_road_b2b = _nba_b2b_flags(team_name, _is_road)
+                _opp_rest = _rd.get(_opp)
+                _team_rest = _rd.get(team_name)
+                _rest_disadv = (
+                    _team_rest is not None and _opp_rest is not None
+                    and _team_rest < _opp_rest
+                )
+                _, _kill_reason = nba_kill_switch(
+                    rest_disadvantage=_rest_disadv,
+                    spread=best_line or 0.0,
+                    b2b=_b2b,
+                    is_road_b2b=_is_road_b2b,
+                    market_type="spread",
+                )
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
@@ -1239,6 +1288,7 @@ def parse_game_markets(
                 std_dev=std,
                 sharp_score=score,
                 sharp_breakdown=breakdown,
+                kill_reason=_kill_reason,
             ))
 
     # --- Moneylines / Soccer 3-way H2H ---
@@ -1300,6 +1350,25 @@ def parse_game_markets(
                 public_on_side = best_price < -105
                 rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
                 score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+                # NBA B2B — h2h (spread=0 proxy)
+                _h2h_kill_reason = ""
+                if is_nba:
+                    _is_road = team_name == away
+                    _opp = home if _is_road else away
+                    _b2b_h, _is_road_b2b_h = _nba_b2b_flags(team_name, _is_road)
+                    _opp_rest_h = _rd.get(_opp)
+                    _team_rest_h = _rd.get(team_name)
+                    _rest_disadv_h = (
+                        _team_rest_h is not None and _opp_rest_h is not None
+                        and _team_rest_h < _opp_rest_h
+                    )
+                    _, _h2h_kill_reason = nba_kill_switch(
+                        rest_disadvantage=_rest_disadv_h,
+                        spread=0.0,
+                        b2b=_b2b_h,
+                        is_road_b2b=_is_road_b2b_h,
+                        market_type="h2h",
+                    )
                 candidates.append(BetCandidate(
                     sport=sport,
                     matchup=matchup,
@@ -1318,6 +1387,7 @@ def parse_game_markets(
                     std_dev=std,
                     sharp_score=score,
                     sharp_breakdown=breakdown,
+                    kill_reason=_h2h_kill_reason,
                 ))
 
     # --- Totals ---
