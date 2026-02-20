@@ -1,5 +1,20 @@
 # MASTER_ROADMAP.md — Titanium-Agentic Sandbox
-## Last updated: Session 18 (Trinity MC engine + full UI ecosystem), 2026-02-19
+## Last updated: Session 18 continued (Poisson soccer + superiority mandate)
+
+## CORE MANDATE (Permanent)
+**Objective superiority over ~/Projects/titanium-v36/ and ~/Projects/titanium-experimental/ in every measurable dimension.**
+
+Superiority metrics:
+1. Kill switch coverage (sports, thresholds, data sources)
+2. Simulation accuracy (Poisson for soccer, Trinity MC for all)
+3. Test count and coverage depth
+4. Live edge detection quality (Sharp Score, RLM wiring, efficiency feed)
+5. UI completeness (6-page Streamlit app with live simulator)
+6. Zero paid APIs — all data sources free or built in-house
+
+**At session start: always READ titanium-v36/ and titanium-experimental/ for gaps.**
+
+---
 
 This is the canonical task backlog for the agentic-rd-sandbox build.
 It is maintained by the agent and read at the start of each session.

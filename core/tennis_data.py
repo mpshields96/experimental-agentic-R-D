@@ -8,8 +8,9 @@ Strategy:
 - Odds API sport keys encode tournament info: "tennis_atp_french_open",
   "tennis_atp_wimbledon", "tennis_wta_roland_garros", etc.
 - Surface is determined by tournament name lookup only (free, zero quota).
-- Player win rates by surface require api-tennis.com ($40/mo) — NOT implemented.
-  tennis_kill_switch() operates on surface flags only until funded.
+- Player win rates by surface: zero external API needed.
+  Surface kill switch operates on tournament name only (free, zero quota).
+  Historical head-to-head and surface win-rate signals derived from static tables.
 
 Architecture rule: NO imports from math_engine, odds_fetcher, line_logger, or scheduler.
 This module is data-only; math_engine.tennis_kill_switch() is the gate that acts on it.

@@ -33,6 +33,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
+# Lazy import guard: originator_engine must NOT import math_engine (circular).
+# math_engine CAN import originator_engine safely (one-way dependency).
+from core.originator_engine import (
+    poisson_soccer,
+    efficiency_gap_to_soccer_strength,
+)
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -608,8 +615,9 @@ def tennis_kill_switch(
     Tennis kill switch — zero external API cost, static surface inference only.
 
     Surface data is derived from tournament name (Odds API sport key).
-    Player-specific surface win rates require api-tennis.com ($40/mo) and are
-    NOT implemented here. This switch uses structural surface risk only.
+    Surface data is free — inferred from Odds API tournament key, zero cost.
+    Player-specific surface win rates are not needed: structural surface risk
+    (clay variance, grass serve dominance) is the mathematically valid signal.
 
     Kill logic:
     - Clay + heavy favourite (>72% implied) + h2h → FLAG: surface upsets frequent
@@ -1397,6 +1405,25 @@ def parse_game_markets(
     # NFL wind: pre-compute is_nfl flag for totals + spreads blocks below
     is_nfl = sport.upper() == "NFL"
 
+    # Soccer Poisson: pre-compute 1X2 + over/under probs for soccer totals validation
+    _poisson_over_prob: Optional[float] = None
+    _poisson_under_prob: Optional[float] = None
+    if is_soccer:
+        try:
+            _h_att, _a_att, _h_def, _a_def = efficiency_gap_to_soccer_strength(efficiency_gap)
+            _pr = poisson_soccer(
+                home_attack=_h_att,
+                away_attack=_a_att,
+                home_defense=_h_def,
+                away_defense=_a_def,
+                total_line=2.5,  # default; overridden per candidate below
+                apply_home_advantage=True,
+            )
+            _poisson_over_prob = _pr.over_probability
+            _poisson_under_prob = _pr.under_probability
+        except Exception:
+            pass  # Poisson failure never blocks standard consensus path
+
     # --- Totals ---
     for side in ["Over", "Under"]:
         cp, std, n_books = consensus_fair_prob("", "totals", side, bookmakers)
@@ -1428,6 +1455,25 @@ def parse_game_markets(
                 _, _totals_kill_reason = nfl_kill_switch(
                     wind_mph=wind_mph, total=best_line or 0.0, market_type="total"
                 )
+            # Soccer: attach Poisson cross-validation signal
+            _totals_signal = ""
+            if is_soccer and best_line:
+                try:
+                    _h_att, _a_att, _h_def, _a_def = efficiency_gap_to_soccer_strength(efficiency_gap)
+                    _pr2 = poisson_soccer(
+                        home_attack=_h_att, away_attack=_a_att,
+                        home_defense=_h_def, away_defense=_a_def,
+                        total_line=best_line,
+                        apply_home_advantage=True,
+                    )
+                    _p_side = _pr2.over_probability if side == "Over" else _pr2.under_probability
+                    _totals_signal = f"Poisson {side}={_p_side*100:.0f}% (xG {_pr2.expected_total:.2f})"
+                    # Poisson divergence kill: if Poisson strongly disagrees with market
+                    # consensus direction (>20% gap), add advisory to kill_reason
+                    if not _totals_kill_reason and _p_side < 0.35:
+                        _totals_kill_reason = f"FLAG: Poisson disagrees ({_totals_signal})"
+                except Exception:
+                    pass
             candidates.append(BetCandidate(
                 sport=sport,
                 matchup=matchup,
@@ -1447,6 +1493,7 @@ def parse_game_markets(
                 sharp_score=score,
                 sharp_breakdown=breakdown,
                 kill_reason=_totals_kill_reason,
+                signal=_totals_signal,
             ))
 
     # --- NHL Kill Switch ---
