@@ -169,10 +169,10 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
     bd = bet.sharp_breakdown or {}
     breakdown_items = ""
     for label, val in [
-        ("Edge", bd.get("edge_contribution", 0)),
-        ("RLM", bd.get("rlm_contribution", 0)),
-        ("Efficiency", bd.get("efficiency_contribution", 0)),
-        ("Situational", bd.get("situational_contribution", 0)),
+        ("Edge", bd.get("edge", 0)),
+        ("RLM", bd.get("rlm", 0)),
+        ("Efficiency", bd.get("efficiency", 0)),
+        ("Situational", bd.get("situational", 0)),
     ]:
         breakdown_items += f"""
         <span style="margin-right:10px; color:#6b7280;">
