@@ -37,6 +37,11 @@ if str(ROOT) not in sys.path:
 
 from core.efficiency_feed import get_efficiency_gap
 from core.nba_pdo import get_all_pdo_data
+from core.injury_data import (
+    injury_kill_switch,
+    list_high_leverage_positions,
+    evaluate_injury_impact,
+)
 from core.line_logger import log_bet as _log_bet
 from core.math_engine import (
     BetCandidate,
@@ -411,6 +416,25 @@ with col_f4:
 
 st.markdown("---")
 
+# --- Injury Alert (sidebar input — static model, user is data source) ---
+with st.sidebar:
+    st.markdown("### ⚠️ Injury Alert")
+    st.caption("Static model — no live feed. You enter known absences.")
+    with st.expander("Add injury", expanded=False):
+        inj_sport = st.selectbox(
+            "Sport", ["NBA", "NFL", "NHL", "MLB", "Soccer"], key="inj_sport"
+        )
+        # Show high-leverage positions for selected sport
+        _high_lev = list_high_leverage_positions(inj_sport, min_leverage=2.0)
+        _pos_options = [p for p, _, _ in _high_lev] if _high_lev else ["QB", "PG", "G"]
+        inj_position = st.selectbox("Position", _pos_options, key="inj_pos")
+        inj_team_side = st.radio("Injured team", ["home", "away"], key="inj_side")
+        inj_market = st.radio("Bet market", ["spreads", "h2h", "totals"], key="inj_market")
+        inj_active = st.toggle("Apply injury gate", value=False, key="inj_active")
+        if inj_active:
+            _lev = next((l for p, l, _ in _high_lev if p == inj_position), 0.0)
+            st.caption(f"Expected line shift: **{_lev:.1f} pts** · threshold KILL ≥ 3.5 pts")
+
 # --- Fetch & render ---
 fetch_placeholder = st.empty()
 
@@ -422,6 +446,48 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         if error:
             st.error(error)
             return
+
+        # --- Injury gate (applies sidebar injury alert to all candidates) ---
+        # Two effects:
+        #   1. KILL/FLAG — when the injury hurts the bet (e.g. betting WITH injured team)
+        #   2. Score boost — when the injury HELPS the bet (opponent's key player out)
+        #      Boost = min(5.0, signed_impact) added to sharp_score. Capped at 5 pts
+        #      (the situational bucket ceiling). This can push STANDARD → NUCLEAR.
+        if st.session_state.get("inj_active", False):
+            _inj_sport  = st.session_state.get("inj_sport", "NBA")
+            _inj_pos    = st.session_state.get("inj_pos", "")
+            _inj_side   = st.session_state.get("inj_side", "home")
+            _inj_market = st.session_state.get("inj_market", "spreads")
+            if _inj_pos:
+                for c in candidates:
+                    if c.sport.upper() != _inj_sport.upper():
+                        continue
+                    # Bet direction: are we betting on home or away team?
+                    is_home_bet = _inj_side == "away" or (
+                        _inj_side == "home" and "home" not in c.target.lower()
+                    )
+                    bet_dir = "home" if is_home_bet else "away"
+                    report = evaluate_injury_impact(
+                        sport=_inj_sport,
+                        position=_inj_pos,
+                        is_starter=True,
+                        team_side=_inj_side,
+                        bet_market=_inj_market,
+                        bet_direction=bet_dir,
+                    )
+                    if report.kill and not c.kill_reason:
+                        c.kill_reason = f"KILL: {report.advisory}"
+                    elif report.flag and not c.kill_reason:
+                        c.kill_reason = f"FLAG: {report.advisory}"
+                    elif report.signed_impact > 0 and not c.kill_reason:
+                        # Favorable: opponent key player out — boost sharp score
+                        boost = min(5.0, report.signed_impact)
+                        c.sharp_score = round(c.sharp_score + boost, 1)
+                        # Update breakdown situational component
+                        if c.sharp_breakdown:
+                            c.sharp_breakdown["situational"] = round(
+                                c.sharp_breakdown.get("situational", 0.0) + boost, 1
+                            )
 
         # Market filter
         mkt_key_map = {"Spread": "spreads", "Total": "totals", "Moneyline": "h2h"}
