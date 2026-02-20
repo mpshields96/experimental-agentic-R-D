@@ -346,22 +346,27 @@ major endpoints. Key corrections to prior assumptions documented below.
 
 ---
 
-## SECTION 9: Next Session Checklist (Session 18)
+## SECTION 9: Session 18 Log + Session 19 Checklist
 
-**534/534 tests passing. Tennis ✅. Soccer 3-way h2h ✅.**
+### Session 18 Completed (2026-02-19)
+**551/551 tests passing.**
+
+- R&D dashboard (05_rd_output.py): soccer collar tiles, dual collar map, soccer odds in edge surface ✅
+- NCAAF kill switch: off-season gate (Feb–Aug) + blowout spread gate (≥28 pts) ✅
+- Full codebase audit: no additional broken sections found ✅
+- Commits: 6de1e07, ab6021f
 
 ### System Gates (check first)
 - RLM fire count: 0 / 20 — not ready to raise SHARP_THRESHOLD
-- Graded bets: 0 — CLV scatter (4A) deferred
+- Graded bets: 0 — CLV gate deferred
 - NBA B2B: 0 instances in DB — 3D deferred
 - MLB: gate Apr 1, 2026
 
-### Next Build Priorities
-1. **App health + live data accumulation** — start Streamlit app on a port with live API key set, let scheduler poll and accumulate line_history.db data. This unblocks RLM, B2B gate, and graded bet gate.
-2. **3D. NBA Home/Road B2B differentiation** — once 10+ B2B instances in line_history.db. Check via: `SELECT COUNT(*) FROM line_history WHERE sport='NBA'`.
-3. **MLB kill switch (pitcher)** — HOLD until Apr 1, 2026. MLB data from Stats API confirmed via W2.
-4. **SHARP_THRESHOLD raise** — manual action when RLM fire_count ≥ 20 (check sidebar).
-5. **NCAAF kill switch** — currently collar-only. Medium priority; season Oct–Jan.
+### Session 19 Build Priorities
+1. **Live data accumulation** — start app with ODDS_API_KEY set, let scheduler run 30+ polls to seed line_history.db. Unblocks RLM, B2B, and graded bet gates.
+2. **NBA B2B differentiation (3D)** — once 10+ B2B instances in DB.
+3. **MLB pitcher kill switch** — HOLD until Apr 1, 2026.
+4. **SHARP_THRESHOLD raise** — manual action when RLM fire_count ≥ 20 (sidebar).
 
 **Do NOT build NBA B2B diff without 10+ confirmed B2B instances in DB.**
 **Do NOT raise SHARP_THRESHOLD without RLM fire_count ≥ 20.**
