@@ -50,6 +50,12 @@ from core.originator_engine import (
     efficiency_gap_to_margin,
     run_trinity_simulation,
 )
+from core.parlay_builder import (
+    build_parlay_combos,
+    format_parlay_summary,
+    ParlayCombo,
+    PARLAY_MAX_UNITS,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -304,6 +310,66 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Parlay card HTML
+# ---------------------------------------------------------------------------
+def _parlay_card(combo: ParlayCombo, rank: int) -> str:
+    ev_pct = combo.parlay_ev * 100
+    prob_pct = combo.parlay_prob * 100
+    ev_color = "#22c55e" if combo.parlay_ev > 0 else "#ef4444"
+    discount_badge = ""
+    if combo.correlation_discounted:
+        discount_badge = (
+            '<span style="font-size:0.6rem; color:#f59e0b; '
+            'margin-left:6px; letter-spacing:0.08em;">SAME-SPORT DISC</span>'
+        )
+    return f"""
+    <div style="
+        background: #13161d;
+        border: 1px solid #2d3139;
+        border-left: 4px solid #8b5cf6;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 8px;
+    ">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div>
+                <span style="font-size:0.6rem; color:#8b5cf6; letter-spacing:0.1em; font-weight:700;">
+                    PARLAY #{rank}
+                </span>{discount_badge}
+                <div style="font-size:0.9rem; font-weight:700; color:#e5e7eb; margin-top:3px;">
+                    {combo.leg_1.target} &nbsp;+&nbsp; {combo.leg_2.target}
+                </div>
+                <div style="font-size:0.7rem; color:#6b7280; margin-top:1px;">
+                    {combo.leg_1.sport.upper()} · {combo.leg_1.matchup} &nbsp;|&nbsp;
+                    {combo.leg_2.sport.upper()} · {combo.leg_2.matchup}
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:1.1rem; font-weight:800; color:{ev_color};">
+                    EV {ev_pct:+.1f}%
+                </div>
+                <div style="font-size:0.7rem; color:#9ca3af;">{combo.kelly_size:.2f}u</div>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
+                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">JOINT PROB</div>
+                <div style="font-size:0.9rem; font-weight:700; color:#e5e7eb;">{prob_pct:.1f}%</div>
+            </div>
+            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
+                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">PAYOUT</div>
+                <div style="font-size:0.9rem; font-weight:700; color:#e5e7eb;">{combo.parlay_payout:.2f}×</div>
+            </div>
+            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
+                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">SCORE</div>
+                <div style="font-size:0.9rem; font-weight:700; color:#8b5cf6;">{combo.parlay_score:.1f}</div>
+            </div>
+        </div>
+    </div>
+    """
+
+
+# ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
 st.title("🔴 Live Lines")
@@ -470,6 +536,21 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
 
                 if bet.signal:
                     st.caption(f"Signals: {bet.signal}")
+
+        # --- Parlay Combo Section ---
+        # Build combos from all candidates (pre-filter, not post-filter)
+        # so parlay scanner sees full universe even when sharp filter is set.
+        parlay_combos = build_parlay_combos(candidates, max_results=5)
+        if parlay_combos:
+            st.markdown("---")
+            st.markdown(
+                '<span style="font-size:0.85rem; font-weight:700; color:#8b5cf6;">'
+                "PARLAY COMBOS — Positive EV only · Independence verified · Kelly capped 0.5u"
+                "</span>",
+                unsafe_allow_html=True,
+            )
+            for i, combo in enumerate(parlay_combos, start=1):
+                st.html(_parlay_card(combo, i))
 
 
 _render(sport_filter, market_filter, min_sharp)
