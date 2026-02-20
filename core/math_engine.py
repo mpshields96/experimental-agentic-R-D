@@ -1347,6 +1347,7 @@ def parse_game_markets(
     tennis_sport_key: str = "",
     rest_days: Optional[dict] = None,
     wind_mph: float = 0.0,
+    nba_pdo: Optional[dict] = None,
 ) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
@@ -1377,6 +1378,11 @@ def parse_game_markets(
         wind_mph: Wind speed in mph at the home stadium for NFL games.
             Computed by weather_feed.get_stadium_wind(). Defaults to 0.0 (stub).
             Indoor/retractable stadiums should pass 0.0. Used for nfl_kill_switch().
+        nba_pdo: Optional dict mapping canonical team name → PdoResult from nba_pdo module.
+            Format: {"Los Angeles Lakers": PdoResult(...), "Denver Nuggets": PdoResult(...)}
+            Pre-fetched by scheduler/live_lines (once per hour). NOT fetched here.
+            If provided and sport=="NBA", pdo_kill_switch() is evaluated per candidate.
+            Totals candidates are skipped (PDO is directional, not total-relevant).
 
     Returns:
         List of BetCandidates passing collar AND minimum edge.
@@ -1771,6 +1777,37 @@ def parse_game_markets(
                 market_type=c.market_type,
                 favourite_last_name=fav_last,
                 underdog_last_name=dog_last,
+            )
+            if reason:
+                c.kill_reason = reason
+
+    # --- NBA PDO Kill Switch ---
+    # Evaluates luck-regression signal for NBA spreads and h2h.
+    # PDO pre-fetched by scheduler/live_lines — NOT fetched here.
+    # Totals are skipped (PDO is directional; total-direction is ambiguous).
+    if sport == "NBA" and nba_pdo and candidates:
+        from core.nba_pdo import _pdo_cache as _pdo_module_cache
+        # Seed module cache from the passed dict so pdo_kill_switch() can find the data.
+        # This does not overwrite entries that are fresher (fetched_at comparison).
+        for _name, _result in nba_pdo.items():
+            if _name not in _pdo_module_cache or _result.fetched_at >= _pdo_module_cache[_name].fetched_at:
+                _pdo_module_cache[_name] = _result
+        from core.nba_pdo import pdo_kill_switch
+        for c in candidates:
+            if c.kill_reason:
+                continue  # don't overwrite an existing kill reason
+            if c.market_type == "totals":
+                continue
+            # Determine which team this candidate is betting ON
+            is_home_bet = home and c.target.startswith(home)
+            team_name = home if is_home_bet else away
+            if team_name not in nba_pdo:
+                continue
+            pdo_result = nba_pdo[team_name]
+            _killed, reason = pdo_kill_switch(
+                team_name=pdo_result.team_name,
+                bet_direction="with",
+                market_type=c.market_type,
             )
             if reason:
                 c.kill_reason = reason

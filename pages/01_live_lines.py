@@ -36,6 +36,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.efficiency_feed import get_efficiency_gap
+from core.nba_pdo import get_all_pdo_data
 from core.line_logger import log_bet as _log_bet
 from core.math_engine import (
     BetCandidate,
@@ -126,6 +127,15 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
             except Exception:
                 rest_days_map = None
 
+        # NBA: fetch PDO regression signal once per sport_key (cached 1hr)
+        # Uses module-level cache — no repeat network hit within TTL
+        nba_pdo_data: dict | None = None
+        if sport_key == "NBA":
+            try:
+                nba_pdo_data = get_all_pdo_data() or None
+            except Exception:
+                nba_pdo_data = None
+
         is_nfl_sport = sport_key == "NFL"
 
         for game in games:
@@ -133,6 +143,13 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
                 home = game.get("home_team", "")
                 away = game.get("away_team", "")
                 eff_gap = get_efficiency_gap(home, away)
+                # NBA: build per-game PDO dict from sport-level cache
+                game_pdo: dict | None = None
+                if nba_pdo_data and home and away:
+                    game_pdo = {
+                        k: v for k, v in nba_pdo_data.items()
+                        if k in (home, away)
+                    } or None
                 # NFL: fetch live wind forecast for home stadium (cached 1hr)
                 wind = 0.0
                 if is_nfl_sport:
@@ -147,6 +164,7 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
                     tennis_sport_key=t_sport_key,
                     rest_days=rest_days_map,
                     wind_mph=wind,
+                    nba_pdo=game_pdo,
                 )
                 # Trinity simulation: attach cover_probability to each candidate
                 # Uses efficiency_gap → projected margin as model input (not market line)

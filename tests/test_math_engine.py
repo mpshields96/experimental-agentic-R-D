@@ -1860,6 +1860,161 @@ class TestNBAB2BRestDayIntegration:
 
 
 # ---------------------------------------------------------------------------
+# TestNBAPdoIntegration — parse_game_markets() × nba_pdo param
+# ---------------------------------------------------------------------------
+
+class TestNBAPdoIntegration:
+    """Tests for NBA PDO kill switch wire-in inside parse_game_markets()."""
+
+    def _make_nba_game(self, home="Boston Celtics", away="Utah Jazz"):
+        """
+        NBA game producing a clear >3.5% edge on home team h2h.
+
+        Design mirrors _make_game_with_clear_edge():
+          3 consensus books: home -130 / away +110  → home vig-free ≈ 0.5427
+          1 outlier book:    home +140 / away -165  → home vig-free ≈ 0.4009
+          Consensus mean ≈ 0.5073, best available price +140 → edge ≈ 9%
+
+        Also includes totals so we can test PDO does NOT kill them.
+        """
+        return {
+            "id": "pdo-test-001",
+            "home_team": home,
+            "away_team": away,
+            "commence_time": "2026-10-10T23:00:00Z",
+            "bookmakers": [
+                {
+                    "key": "draftkings",
+                    "title": "DraftKings",
+                    "markets": [
+                        {"key": "h2h", "outcomes": [
+                            {"name": home, "price": -130},
+                            {"name": away, "price": 110},
+                        ]},
+                        {"key": "totals", "outcomes": [
+                            {"name": "Over", "price": -110, "point": 221.5},
+                            {"name": "Under", "price": -110, "point": 221.5},
+                        ]},
+                    ],
+                },
+                {
+                    "key": "fanduel",
+                    "title": "FanDuel",
+                    "markets": [
+                        {"key": "h2h", "outcomes": [
+                            {"name": home, "price": -130},
+                            {"name": away, "price": 110},
+                        ]},
+                        {"key": "totals", "outcomes": [
+                            {"name": "Over", "price": -110, "point": 221.5},
+                            {"name": "Under", "price": -110, "point": 221.5},
+                        ]},
+                    ],
+                },
+                {
+                    "key": "betmgm",
+                    "title": "BetMGM",
+                    "markets": [
+                        {"key": "h2h", "outcomes": [
+                            {"name": home, "price": -130},
+                            {"name": away, "price": 110},
+                        ]},
+                    ],
+                },
+                {
+                    # Outlier book — prices home as underdog (consensus disagrees)
+                    "key": "betrivers",
+                    "title": "BetRivers",
+                    "markets": [
+                        {"key": "h2h", "outcomes": [
+                            {"name": home, "price": 140},    # best price for home
+                            {"name": away, "price": -165},
+                        ]},
+                    ],
+                },
+            ],
+        }
+
+    def _make_pdo(self, team_name, pdo, signal):
+        import time as _time
+        from core.nba_pdo import PdoResult
+        return PdoResult(
+            team_name=team_name,
+            shoot_pct=0.490,
+            opp_save_pct=0.530 if signal == "REGRESS" else 0.470,
+            pdo=pdo,
+            signal=signal,
+            games_played=45,
+            fetched_at=_time.time(),
+        )
+
+    def test_regress_team_h2h_candidate_gets_kill_reason(self):
+        """Home team with REGRESS PDO: h2h candidate gets KILL reason."""
+        home = "Boston Celtics"
+        away = "Utah Jazz"
+        game = self._make_nba_game(home=home, away=away)
+        pdo_data = {home: self._make_pdo(home, 103.5, "REGRESS")}
+        cands = parse_game_markets(game, "NBA", nba_pdo=pdo_data)
+        home_h2h = [c for c in cands if home in c.target and c.market_type == "h2h"]
+        assert home_h2h, "Expected at least one home h2h candidate"
+        for c in home_h2h:
+            assert "KILL" in c.kill_reason, f"Expected KILL reason, got: {c.kill_reason!r}"
+
+    def test_regress_team_totals_not_killed(self):
+        """PDO is directional — totals candidates must NOT be killed by PDO."""
+        home = "Boston Celtics"
+        away = "Utah Jazz"
+        game = self._make_nba_game(home=home, away=away)
+        pdo_data = {home: self._make_pdo(home, 104.0, "REGRESS")}
+        cands = parse_game_markets(game, "NBA", nba_pdo=pdo_data)
+        totals = [c for c in cands if c.market_type == "totals"]
+        for c in totals:
+            assert "PDO" not in c.kill_reason, (
+                f"Totals should not be killed by PDO, got: {c.kill_reason!r}"
+            )
+
+    def test_nba_pdo_none_no_effect(self):
+        """nba_pdo=None produces same candidates as without it (no crash, no change)."""
+        game = self._make_nba_game()
+        cands_no_pdo = parse_game_markets(game, "NBA", nba_pdo=None)
+        cands_with_none = parse_game_markets(game, "NBA", nba_pdo=None)
+        assert len(cands_no_pdo) == len(cands_with_none)
+
+    def test_non_nba_sport_ignores_pdo(self):
+        """nba_pdo passed for an NFL game must have zero effect."""
+        home = "Boston Celtics"
+        away = "Utah Jazz"
+        game = self._make_nba_game(home=home, away=away)
+        pdo_data = {home: self._make_pdo(home, 104.0, "REGRESS")}
+        cands = parse_game_markets(game, "NFL", nba_pdo=pdo_data)
+        for c in cands:
+            assert "PDO" not in c.kill_reason
+
+    def test_recover_team_does_not_get_hard_kill(self):
+        """RECOVER signal betting WITH the team → FLAG reason, not KILL."""
+        home = "Utah Jazz"
+        away = "Boston Celtics"
+        # Use Utah Jazz as home (outlier book prices them as value candidate)
+        game = self._make_nba_game(home=home, away=away)
+        pdo_data = {home: self._make_pdo(home, 96.5, "RECOVER")}
+        cands = parse_game_markets(game, "NBA", nba_pdo=pdo_data)
+        home_cands = [c for c in cands if home in c.target and c.market_type == "h2h"]
+        for c in home_cands:
+            # FLAG reason should be present but must not start with KILL
+            if c.kill_reason:
+                assert not c.kill_reason.startswith("KILL:"), (
+                    f"RECOVER+with should not KILL: {c.kill_reason!r}"
+                )
+
+    def test_empty_pdo_dict_no_effect(self):
+        """Empty nba_pdo dict → no kill reasons added."""
+        game = self._make_nba_game()
+        cands = parse_game_markets(game, "NBA", nba_pdo={})
+        for c in cands:
+            assert "PDO" not in c.kill_reason
+
+
+# ---------------------------------------------------------------------------
 # Run standalone self-test
 # ---------------------------------------------------------------------------
 
