@@ -1,5 +1,5 @@
 # MASTER_ROADMAP.md — Titanium-Agentic Sandbox
-## Last updated: Session 17 (Tennis complete + Soccer 3-way h2h), 2026-02-19
+## Last updated: Session 18 (Trinity MC engine + full UI ecosystem), 2026-02-19
 
 This is the canonical task backlog for the agentic-rd-sandbox build.
 It is maintained by the agent and read at the start of each session.
@@ -26,11 +26,14 @@ It is maintained by the agent and read at the start of each session.
 | core/scheduler.py | ✅ | S2, S10, S11 |
 | app.py (Streamlit entry) | ✅ | S2, S10, S11 |
 | core/efficiency_feed.py | ✅ | S14 |
-| pages/01_live_lines.py | ✅ | S2, S3, S14 |
-| pages/02_analysis.py | ✅ | S4 |
+| core/weather_feed.py | ✅ | S18 |
+| core/originator_engine.py | ✅ | S18 |
+| pages/01_live_lines.py | ✅ | S2, S3, S14, S18 |
+| pages/02_analysis.py | ✅ | S4, S18 |
 | pages/03_line_history.py | ✅ | S2 |
 | pages/04_bet_tracker.py | ✅ | S3 |
-| pages/05_rd_output.py | ✅ | S5, S8, S9 |
+| pages/05_rd_output.py | ✅ | S5, S8, S9, S18 |
+| pages/06_simulator.py | ✅ | S18 |
 | core/price_history_store.py | ✅ | S8 |
 | core/clv_tracker.py | ✅ | S7 |
 | core/probe_logger.py | ✅ | S9 |
@@ -38,7 +41,7 @@ It is maintained by the agent and read at the start of each session.
 | Weekly purge scheduler job | ✅ | S10 |
 | SYSTEM HEALTH sidebar | ✅ | S10, S11 |
 
-**Test suite: 418/418 passing as of S14**
+**Test suite: 617/617 passing as of S18**
 
 ---
 
@@ -343,32 +346,54 @@ major endpoints. Key corrections to prior assumptions documented below.
 | S15 | tennis_data.py + tennis_kill_switch() + parse_game_markets extension | 491 |
 | S16 | fetch_active_tennis_keys() + fetch_batch_odds tennis routing + live lines Tennis filter | 506 |
 | S17 | Soccer 3-way h2h: passes_collar_soccer, no_vig_probability_3way, consensus_fair_prob_3way, SOCCER_SPORTS routing in parse_game_markets | 534 |
+| S18 | NCAAF kill switch, NBA B2B home/road, NFL live wind (weather_feed), Trinity MC engine (originator_engine), 06_simulator.py, Trinity in analysis + live lines | 617 |
 
 ---
 
 ## SECTION 9: Session 18 Log + Session 19 Checklist
 
 ### Session 18 Completed (2026-02-19)
-**551/551 tests passing.**
+**617/617 tests passing.**
 
+**Part A: Architecture & kill switches**
 - R&D dashboard (05_rd_output.py): soccer collar tiles, dual collar map, soccer odds in edge surface ✅
 - NCAAF kill switch: off-season gate (Feb–Aug) + blowout spread gate (≥28 pts) ✅
-- Full codebase audit: no additional broken sections found ✅
-- Commits: 6de1e07, ab6021f
+- NBA B2B home/road differentiation: road B2B → 8%+ edge req; home B2B → Kelly ×50% ✅
+- NFL live wind feed: core/weather_feed.py (Open-Meteo API, 32-team stadium dict, 1hr cache) ✅
+  - nfl_kill_switch() wired with live wind_mph in parse_game_markets()
+  - 01_live_lines.py: get_stadium_wind() called per NFL game
+- Trinity Monte Carlo engine: core/originator_engine.py ✅
+  - efficiency_gap_to_margin() — converts efficiency feed to projected margin
+  - run_trinity_simulation() — 20% Ceiling / 20% Floor / 60% Median weighting
+  - V36 caller bug fixed: callers use efficiency_gap_to_margin(), not market line
+  - 33 tests
+
+**Part B: UI Ecosystem expansion**
+- pages/06_simulator.py (NEW): interactive Trinity game simulator ✅
+  - Efficiency gap + situational sliders → full margin distribution + cover/over probabilities
+  - Sensitivity analysis chart (gap shift ±4 pts)
+  - Over/Under toggle + volatility comparison bar chart
+- pages/01_live_lines.py: Trinity cover_probability in math breakdown expander ✅
+- pages/02_analysis.py: Section ⑦ Trinity Edge Distribution (sweep + volatility chart) ✅
+- app.py: 06_simulator.py registered with 🎲 icon ✅
+
+**Commits this session**: 6de1e07, ab6021f, 5a3ace0, be12e22, 404ea38, 63addca, 1f7c1d7
+**All commits unpushed** — need GitHub token (Contents: Read+Write scope)
 
 ### System Gates (check first)
 - RLM fire count: 0 / 20 — not ready to raise SHARP_THRESHOLD
 - Graded bets: 0 — CLV gate deferred
-- NBA B2B: 0 instances in DB — 3D deferred
+- NBA B2B: 0 instances in DB — data accumulation phase
 - MLB: gate Apr 1, 2026
 
 ### Session 19 Build Priorities
 1. **Live data accumulation** — start app with ODDS_API_KEY set, let scheduler run 30+ polls to seed line_history.db. Unblocks RLM, B2B, and graded bet gates.
-2. **NBA B2B differentiation (3D)** — once 10+ B2B instances in DB.
-3. **MLB pitcher kill switch** — HOLD until Apr 1, 2026.
-4. **SHARP_THRESHOLD raise** — manual action when RLM fire_count ≥ 20 (sidebar).
+2. **Grade logged bets** — use Bet Tracker once bets complete, log close prices for CLV pipeline.
+3. **Push all pending commits** — need GitHub token with Contents: Read+Write scope.
+4. **MLB pitcher kill switch** — HOLD until Apr 1, 2026.
+5. **SHARP_THRESHOLD raise** — manual action when RLM fire_count ≥ 20 (sidebar).
 
-**Do NOT build NBA B2B diff without 10+ confirmed B2B instances in DB.**
+**Do NOT build MLB pitcher kill without live season data (Apr 1, 2026).**
 **Do NOT raise SHARP_THRESHOLD without RLM fire_count ≥ 20.**
 
 ---
