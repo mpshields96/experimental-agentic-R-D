@@ -837,34 +837,212 @@ class TestParseGameMarkets:
 
 
 # ---------------------------------------------------------------------------
-# Nemesis (display-only)
+# Nemesis — math-condition-driven (not narrative probability assignment)
 # ---------------------------------------------------------------------------
 
 class TestRunNemesis:
-    def _make_bet(self, sport: str, market_type: str) -> BetCandidate:
-        return BetCandidate(
-            sport=sport, matchup="A @ B", market_type=market_type,
-            target="A -4.5", line=-4.5, price=-110, edge_pct=0.05,
-            win_prob=0.55, market_implied=0.5238, fair_implied=0.55,
-            kelly_size=0.25,
-        )
+    """
+    Nemesis v2: every case fires only when a quantifiable condition is present.
+    Tests verify condition detection, not static probability lookup.
+    """
 
-    def test_returns_dict_with_required_keys(self):
-        bet = self._make_bet("NBA", "spread")
+    def _make_bet(
+        self,
+        sport: str,
+        market_type: str,
+        line: float = -4.5,
+        price: int = -110,
+        edge_pct: float = 0.06,
+        signal: str = "",
+        kill_reason: str = "",
+        rest_days: int | None = None,
+        sharp_breakdown: dict | None = None,
+    ) -> BetCandidate:
+        bet = BetCandidate(
+            sport=sport, matchup="A @ B", market_type=market_type,
+            target="A -4.5", line=line, price=price, edge_pct=edge_pct,
+            win_prob=0.55, market_implied=0.5238, fair_implied=0.55,
+            kelly_size=0.25, signal=signal, kill_reason=kill_reason,
+        )
+        bet.rest_days = rest_days
+        if sharp_breakdown is not None:
+            bet.sharp_breakdown = sharp_breakdown
+        return bet
+
+    # --- V36-compat keys always present ---
+    def test_compat_keys_present_no_conditions(self):
+        """Clean bet with no conditions → compat keys present, zero probability."""
+        bet = self._make_bet("NBA", "h2h", line=0.0, edge_pct=0.10)
         result = run_nemesis(bet, "NBA")
         assert all(k in result for k in ["counter", "probability", "adjustment", "remove"])
 
-    def test_probability_in_range(self):
-        for sport in ["NBA", "NCAAB", "NFL", "NHL", "SOCCER"]:
-            bet = self._make_bet(sport, "moneyline")
-            result = run_nemesis(bet, sport)
-            assert 0 < result["probability"] <= 1.0
-
-    def test_remove_only_for_high_probability(self):
-        bet = self._make_bet("NBA", "spread")
+    def test_no_conditions_returns_zero_probability(self):
+        """Strong bet with no detectable conditions → worst_prob=0."""
+        bet = self._make_bet("NBA", "h2h", line=0.0, edge_pct=0.10)
         result = run_nemesis(bet, "NBA")
-        # All current nemesis cases have prob <= 0.30, so remove should be False
-        assert result["remove"] is False  # 0.30 is not > 0.40
+        assert result["worst_prob"] == 0.0
+        assert result["n_flags"] == 0
+        assert result["remove"] is False
+
+    # --- Universal: thin edge ---
+    def test_thin_edge_fires(self):
+        bet = self._make_bet("NBA", "h2h", edge_pct=0.03)
+        result = run_nemesis(bet, "NBA")
+        assert result["n_flags"] >= 1
+        assert result["worst_prob"] > 0.0
+        assert "edge thin" in result["worst_case"].lower() or "edge" in result["worst_case"].lower()
+
+    def test_thin_edge_probability_scales_with_edge(self):
+        """Smaller edge → higher nemesis probability."""
+        bet_borderline = self._make_bet("NBA", "h2h", edge_pct=0.049)
+        bet_thin = self._make_bet("NBA", "h2h", edge_pct=0.01)
+        r_border = run_nemesis(bet_borderline, "NBA")
+        r_thin = run_nemesis(bet_thin, "NBA")
+        assert r_thin["worst_prob"] >= r_border["worst_prob"]
+
+    def test_adequate_edge_no_thin_flag(self):
+        """Edge ≥ 5% does not trigger thin-edge condition."""
+        bet = self._make_bet("NBA", "h2h", edge_pct=0.07)
+        result = run_nemesis(bet, "NBA")
+        thin_flags = [t for t, _ in result.get("fired_cases", []) if "thin" in t.lower() or "edge thin" in t.lower()]
+        assert len(thin_flags) == 0
+
+    # --- Universal: RLM absent on large spread ---
+    def test_large_spread_no_rlm_fires(self):
+        bet = self._make_bet("NBA", "spreads", line=-9.5, sharp_breakdown={"rlm": 0})
+        result = run_nemesis(bet, "NBA")
+        assert any("rlm" in t.lower() or "no rlm" in t.lower() for t, _ in result.get("fired_cases", []))
+
+    def test_large_spread_with_rlm_no_flag(self):
+        bet = self._make_bet("NBA", "spreads", line=-9.5, sharp_breakdown={"rlm": 25})
+        result = run_nemesis(bet, "NBA")
+        no_rlm_flags = [t for t, _ in result.get("fired_cases", []) if "no rlm" in t.lower()]
+        assert len(no_rlm_flags) == 0
+
+    # --- Universal: collar proximity ---
+    def test_collar_proximity_negative_price_fires(self):
+        """Price at -182 (2 within collar ceiling) → proximity flag."""
+        bet = self._make_bet("NFL", "spreads", price=-182, line=-3.5)
+        result = run_nemesis(bet, "NFL")
+        assert any("collar" in t.lower() for t, _ in result.get("fired_cases", []))
+
+    def test_collar_proximity_positive_price_fires(self):
+        """Price at +148 (2 within collar floor) → proximity flag."""
+        bet = self._make_bet("NFL", "h2h", price=148)
+        result = run_nemesis(bet, "NFL")
+        assert any("collar" in t.lower() for t, _ in result.get("fired_cases", []))
+
+    def test_no_collar_flag_for_center_price(self):
+        """Price -130 (far from boundaries) → no collar flag."""
+        bet = self._make_bet("NBA", "h2h", price=-130)
+        result = run_nemesis(bet, "NBA")
+        collar_flags = [t for t, _ in result.get("fired_cases", []) if "collar" in t.lower()]
+        assert len(collar_flags) == 0
+
+    # --- NFL key numbers ---
+    def test_nfl_spread_at_key_3_fires(self):
+        bet = self._make_bet("NFL", "spreads", line=-3.0, edge_pct=0.07)
+        result = run_nemesis(bet, "NFL")
+        assert any("key number" in t.lower() or "3" in t for t, _ in result.get("fired_cases", []))
+
+    def test_nfl_spread_at_key_7_fires(self):
+        bet = self._make_bet("NFL", "spreads", line=-7.0, edge_pct=0.07)
+        result = run_nemesis(bet, "NFL")
+        assert any("key number" in t.lower() or "7" in t for t, _ in result.get("fired_cases", []))
+
+    def test_nfl_key_number_thin_edge_triggers_kill(self):
+        """Key number at 3 + thin edge → probability > 0.40 → remove=True."""
+        bet = self._make_bet("NFL", "spreads", line=-3.0, edge_pct=0.03)
+        result = run_nemesis(bet, "NFL")
+        assert result["remove"] is True
+
+    def test_nfl_key_number_good_edge_no_kill(self):
+        """Key number at 3 + adequate edge → flag, not kill."""
+        bet = self._make_bet("NFL", "spreads", line=-3.0, edge_pct=0.08)
+        result = run_nemesis(bet, "NFL")
+        assert result["remove"] is False
+
+    def test_nfl_non_key_spread_no_key_flag(self):
+        """Spread -8.5 is not a key number → no key number condition."""
+        bet = self._make_bet("NFL", "spreads", line=-8.5, edge_pct=0.08)
+        result = run_nemesis(bet, "NFL")
+        key_flags = [t for t, _ in result.get("fired_cases", []) if "key number" in t.lower()]
+        assert len(key_flags) == 0
+
+    # --- NHL goalie ---
+    def test_nhl_no_goalie_signal_fires_on_h2h(self):
+        bet = self._make_bet("NHL", "h2h", signal="", kill_reason="")
+        result = run_nemesis(bet, "NHL")
+        assert any("goalie" in t.lower() for t, _ in result.get("fired_cases", []))
+
+    def test_nhl_goalie_confirmed_in_signal_reduces_flags(self):
+        """If goalie appears in signal, condition does not fire."""
+        bet = self._make_bet("NHL", "h2h", signal="goalie: Vasilevskiy confirmed")
+        result = run_nemesis(bet, "NHL")
+        goalie_flags = [t for t, _ in result.get("fired_cases", []) if "no goalie" in t.lower()]
+        assert len(goalie_flags) == 0
+
+    def test_nhl_totals_always_flags_shot_quality(self):
+        bet = self._make_bet("NHL", "totals")
+        result = run_nemesis(bet, "NHL")
+        assert any("shot" in t.lower() or "goalie matchup" in t.lower() for t, _ in result.get("fired_cases", []))
+
+    # --- Soccer ---
+    def test_soccer_h2h_high_draw_kills(self):
+        """Draw=35% in signal → Poisson draw > 33% → remove=True."""
+        bet = self._make_bet("SOCCER", "h2h", signal="Draw=35%")
+        result = run_nemesis(bet, "SOCCER")
+        assert result["remove"] is True
+
+    def test_soccer_h2h_moderate_draw_flags(self):
+        """Draw=29% → elevated, but not kill."""
+        bet = self._make_bet("SOCCER", "h2h", signal="Draw=29%")
+        result = run_nemesis(bet, "SOCCER")
+        assert result["worst_prob"] > 0.0
+        assert result["remove"] is False
+
+    def test_soccer_h2h_low_draw_no_kill(self):
+        """Draw=20% → below elevated threshold."""
+        bet = self._make_bet("SOCCER", "h2h", signal="Draw=20%")
+        result = run_nemesis(bet, "SOCCER")
+        # Draw=20% is below 27% threshold, should not fire high-prob draw case
+        draw_kills = [p for t, p in result.get("fired_cases", []) if "draw" in t.lower() and p > 0.33]
+        assert len(draw_kills) == 0
+
+    def test_soccer_totals_low_poisson_kills(self):
+        """Poisson side < 30% in signal → remove=True."""
+        bet = self._make_bet("SOCCER", "totals", signal="Poisson Over=28% (xG 2.20)")
+        result = run_nemesis(bet, "SOCCER")
+        assert result["remove"] is True
+
+    def test_soccer_totals_marginal_poisson_flags(self):
+        """Poisson side 35% → flag but not kill."""
+        bet = self._make_bet("SOCCER", "totals", signal="Poisson Over=35% (xG 2.50)")
+        result = run_nemesis(bet, "SOCCER")
+        assert result["worst_prob"] > 0.0
+        assert result["remove"] is False
+
+    def test_soccer_totals_strong_poisson_no_kill(self):
+        """Poisson side 55% → no divergence flag."""
+        bet = self._make_bet("SOCCER", "totals", signal="Poisson Over=55% (xG 2.80)")
+        result = run_nemesis(bet, "SOCCER")
+        poisson_kills = [p for t, p in result.get("fired_cases", []) if "poisson" in t.lower() and p > 0.25]
+        assert len(poisson_kills) == 0
+
+    # --- Return structure ---
+    def test_fired_cases_is_list_of_tuples(self):
+        bet = self._make_bet("NFL", "spreads", line=-3.0, edge_pct=0.07)
+        result = run_nemesis(bet, "NFL")
+        assert isinstance(result["fired_cases"], list)
+        for item in result["fired_cases"]:
+            assert isinstance(item, tuple) and len(item) == 2
+
+    def test_remove_true_iff_worst_prob_above_threshold(self):
+        for sport in ["NBA", "NCAAB", "NHL", "SOCCER"]:
+            bet = self._make_bet(sport, "h2h")
+            result = run_nemesis(bet, sport)
+            expected_remove = result["worst_prob"] > 0.40
+            assert result["remove"] == expected_remove
 
 
 # ---------------------------------------------------------------------------

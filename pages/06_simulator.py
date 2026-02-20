@@ -32,6 +32,8 @@ from core.originator_engine import (
     LEAGUE_AVG_TOTALS,
     SimulationResult,
     efficiency_gap_to_margin,
+    efficiency_gap_to_soccer_strength,
+    poisson_soccer,
     run_trinity_simulation,
 )
 
@@ -308,6 +310,166 @@ def _build_total_card(over_prob: float, total_line: float, league_avg: float) ->
 
 
 # ---------------------------------------------------------------------------
+# Poisson soccer chart builders
+# ---------------------------------------------------------------------------
+
+def _build_poisson_goal_heatmap(h_att: float, a_att: float, h_def: float, a_def: float) -> go.Figure:
+    """
+    Poisson goal probability matrix heatmap — P(home=i, away=j) for i,j in [0,7].
+
+    Cells show the joint probability of each exact scoreline.
+    Win cells (top-left triangle) = amber, draw diagonal = white, away-win (bottom-right) = red.
+    """
+    from core.originator_engine import _poisson_pmf, SOCCER_LEAGUE_AVG_GOALS_HOME, SOCCER_LEAGUE_AVG_GOALS_AWAY, SOCCER_HOME_GOAL_BOOST
+    max_g = 7
+
+    lam_home = SOCCER_LEAGUE_AVG_GOALS_HOME * h_att * a_def * (1 + SOCCER_HOME_GOAL_BOOST)
+    lam_away = SOCCER_LEAGUE_AVG_GOALS_AWAY * a_att * h_def
+    lam_home = max(0.1, min(lam_home, 6.0))
+    lam_away = max(0.1, min(lam_away, 6.0))
+
+    home_pmf = [_poisson_pmf(k, lam_home) for k in range(max_g + 1)]
+    away_pmf = [_poisson_pmf(k, lam_away) for k in range(max_g + 1)]
+
+    z = [[home_pmf[h] * away_pmf[a] * 100 for a in range(max_g + 1)] for h in range(max_g + 1)]
+    x_labels = [str(a) for a in range(max_g + 1)]
+    y_labels = [str(h) for h in range(max_g + 1)]
+
+    # Text labels for each cell
+    text = [[f"{z[h][a]:.1f}%" for a in range(max_g + 1)] for h in range(max_g + 1)]
+
+    fig = go.Figure(go.Heatmap(
+        z=z,
+        x=x_labels,
+        y=y_labels,
+        text=text,
+        texttemplate="%{text}",
+        colorscale=[
+            [0.0, "#0e1117"],
+            [0.02, "#1e2a3a"],
+            [0.10, "#1e3a5f"],
+            [0.25, "#f59e0b"],
+            [1.0, "#fef3c7"],
+        ],
+        showscale=True,
+        colorbar=dict(
+            title="P(%)",
+            titlefont=dict(color="#9ca3af", size=10),
+            tickfont=dict(color="#9ca3af", size=9),
+            bgcolor="#1a1d23",
+            bordercolor="#2d3139",
+            thickness=12,
+            len=0.8,
+        ),
+        hovertemplate="Home %{y} – Away %{x}: %{text}<extra></extra>",
+        textfont=dict(size=9),
+    ))
+
+    layout = dict(PLOTLY_BASE)
+    layout["title"] = dict(
+        text=f"Scoreline Probability Matrix (λH={lam_home:.2f}, λA={lam_away:.2f})",
+        font=dict(size=12, color="#9ca3af"),
+        x=0,
+    )
+    layout["height"] = 360
+    layout["xaxis"] = dict(**PLOTLY_BASE["xaxis"], title="Away Goals", side="top")
+    layout["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="Home Goals", autorange="reversed")
+    fig.update_layout(**layout)
+    return fig
+
+
+def _build_poisson_1x2_bar(result) -> go.Figure:
+    """Horizontal stacked bar: home_win / draw / away_win probabilities."""
+    fig = go.Figure()
+
+    hw = result.home_win * 100
+    dr = result.draw * 100
+    aw = result.away_win * 100
+
+    for label, val, color in [
+        ("Home Win", hw, "#22c55e"),
+        ("Draw", dr, "#f59e0b"),
+        ("Away Win", aw, "#ef4444"),
+    ]:
+        fig.add_trace(go.Bar(
+            x=[val],
+            y=["1X2"],
+            name=f"{label} {val:.1f}%",
+            orientation="h",
+            marker_color=color,
+            text=f"{label}<br>{val:.1f}%",
+            textposition="inside",
+            insidetextanchor="middle",
+            textfont=dict(size=11, color="#fff"),
+        ))
+
+    layout = dict(PLOTLY_BASE)
+    layout["title"] = dict(
+        text="Poisson 1X2 Outcome Probabilities",
+        font=dict(size=12, color="#9ca3af"),
+        x=0,
+    )
+    layout["height"] = 110
+    layout["barmode"] = "stack"
+    layout["showlegend"] = False
+    layout["margin"] = dict(l=45, r=20, t=35, b=10)
+    layout["xaxis"] = dict(**PLOTLY_BASE["xaxis"], title="", range=[0, 100], ticksuffix="%")
+    layout["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="", showticklabels=False)
+    fig.update_layout(**layout)
+    return fig
+
+
+def _poisson_summary_card(result, total_line: float) -> str:
+    """HTML summary card for Poisson xG and 1X2."""
+    hw = result.home_win * 100
+    dr = result.draw * 100
+    aw = result.away_win * 100
+    ov = result.over_probability * 100
+    un = result.under_probability * 100
+    xg_h = result.expected_home_goals
+    xg_a = result.expected_away_goals
+
+    hw_col = "#22c55e" if hw > aw and hw > dr else "#9ca3af"
+    aw_col = "#ef4444" if aw > hw and aw > dr else "#9ca3af"
+    dr_col = "#f59e0b" if dr > hw and dr > aw else "#9ca3af"
+    ov_col = "#22c55e" if ov > 52 else ("#ef4444" if ov < 48 else "#9ca3af")
+
+    return f"""
+    <div style="
+        background:#1a1d23; border:1px solid #2d3139; border-radius:8px;
+        padding:16px 20px; font-family:monospace;
+    ">
+        <div style="font-size:0.6rem; color:#6b7280; letter-spacing:0.1em; font-weight:600; margin-bottom:10px;">
+            POISSON MODEL — xG SUMMARY
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div>
+                <div style="font-size:0.55rem; color:#6b7280;">HOME WIN</div>
+                <div style="font-size:1.6rem; font-weight:800; color:{hw_col};">{hw:.1f}%</div>
+            </div>
+            <div>
+                <div style="font-size:0.55rem; color:#6b7280;">DRAW</div>
+                <div style="font-size:1.6rem; font-weight:800; color:{dr_col};">{dr:.1f}%</div>
+            </div>
+            <div>
+                <div style="font-size:0.55rem; color:#6b7280;">AWAY WIN</div>
+                <div style="font-size:1.6rem; font-weight:800; color:{aw_col};">{aw:.1f}%</div>
+            </div>
+            <div>
+                <div style="font-size:0.55rem; color:#6b7280;">O/U {total_line:.1f}</div>
+                <div style="font-size:1.6rem; font-weight:800; color:{ov_col};">{ov:.1f}% / {un:.1f}%</div>
+            </div>
+        </div>
+        <div style="display:flex; gap:24px; font-size:0.7rem; color:#9ca3af; border-top:1px solid #2d3139; padding-top:8px;">
+            <span>xG Home: <strong style="color:#e5e7eb;">{xg_h:.2f}</strong></span>
+            <span>xG Away: <strong style="color:#e5e7eb;">{xg_a:.2f}</strong></span>
+            <span>xG Total: <strong style="color:#f59e0b;">{xg_h+xg_a:.2f}</strong></span>
+        </div>
+    </div>
+    """
+
+
+# ---------------------------------------------------------------------------
 # Page layout
 # ---------------------------------------------------------------------------
 st.title("🎲 Game Simulator")
@@ -483,6 +645,100 @@ with st.spinner("Running sensitivity sweep..."):
         total_line=total_line_val,
     )
 st.plotly_chart(fig_sens, use_container_width=True, config={"displayModeBar": False})
+
+# ---------------------------------------------------------------------------
+# Soccer: Poisson goal matrix (only visible when SOCCER selected)
+# ---------------------------------------------------------------------------
+if sport == "SOCCER":
+    st.markdown("---")
+    st.subheader("⚽ Poisson Goal Matrix")
+    st.markdown(
+        '<span style="font-size:0.75rem; color:#6b7280;">'
+        "Discrete Poisson model — independent Poisson processes for home/away goals · "
+        "Superior to normal distribution for low-scoring discrete outcomes. "
+        "Derived from 2020–2025 top-5 league aggregate goal rates."
+        "</span>",
+        unsafe_allow_html=True,
+    )
+
+    # Soccer total line input (separate from spread total_line_val)
+    soccer_total_line = st.slider(
+        "Soccer Over/Under Total",
+        min_value=1.5, max_value=5.5, value=2.5, step=0.5,
+        key="sim_soccer_total",
+        help="Typical range: 2.5 (low-scoring) to 3.5 (high-scoring match)",
+    )
+
+    h_att, a_att, h_def, a_def = efficiency_gap_to_soccer_strength(efficiency_gap)
+
+    with st.spinner("Running Poisson matrix..."):
+        pois_result = poisson_soccer(
+            home_attack=h_att,
+            away_attack=a_att,
+            home_defense=h_def,
+            away_defense=a_def,
+            total_line=soccer_total_line,
+            apply_home_advantage=True,
+        )
+
+    # Summary card
+    st.html(_poisson_summary_card(pois_result, soccer_total_line))
+
+    st.markdown("")
+
+    # 1X2 bar + heatmap
+    bar_col, heat_col = st.columns([1, 2])
+    with bar_col:
+        fig_1x2 = _build_poisson_1x2_bar(pois_result)
+        st.plotly_chart(fig_1x2, use_container_width=True, config={"displayModeBar": False})
+
+        # Attack/defense strength factors from efficiency gap
+        st.html(
+            f"""
+            <div style="
+                background:#1a1d23; border:1px solid #2d3139;
+                border-radius:6px; padding:12px 14px;
+                font-size:0.65rem; color:#6b7280; line-height:1.8;
+                font-family:monospace;
+            ">
+                <div style="font-size:0.55rem; color:#4b5563; letter-spacing:0.08em; margin-bottom:4px;">
+                    INPUT FACTORS (from eff. gap={efficiency_gap:.1f})
+                </div>
+                <div>Home attack: <strong style="color:#f59e0b;">{h_att:.3f}</strong></div>
+                <div>Away attack: <strong style="color:#f59e0b;">{a_att:.3f}</strong></div>
+                <div>Home defense: <strong style="color:#9ca3af;">{h_def:.3f}</strong></div>
+                <div>Away defense: <strong style="color:#9ca3af;">{a_def:.3f}</strong></div>
+            </div>
+            """
+        )
+
+    with heat_col:
+        fig_heat = _build_poisson_goal_heatmap(h_att, a_att, h_def, a_def)
+        st.plotly_chart(fig_heat, use_container_width=True, config={"displayModeBar": False})
+
+    # Trinity vs Poisson alignment note
+    trinity_cp = result.cover_probability * 100
+    poisson_hw = pois_result.home_win * 100
+    delta_pct = abs(trinity_cp - poisson_hw)
+    alignment_color = "#22c55e" if delta_pct < 8 else ("#f59e0b" if delta_pct < 15 else "#ef4444")
+    alignment_label = "ALIGNED" if delta_pct < 8 else ("MODERATE DIVERGENCE" if delta_pct < 15 else "HIGH DIVERGENCE")
+    st.html(
+        f"""
+        <div style="
+            background:#1a1d23; border:1px solid #2d3139;
+            border-left:3px solid {alignment_color}; border-radius:6px;
+            padding:10px 14px; font-size:0.7rem; color:#9ca3af;
+        ">
+            Trinity home cover: <strong style="color:#d1d5db;">{trinity_cp:.1f}%</strong> ·
+            Poisson home win: <strong style="color:#d1d5db;">{poisson_hw:.1f}%</strong> ·
+            Δ={delta_pct:.1f}pp ·
+            <strong style="color:{alignment_color};">{alignment_label}</strong>
+            <span style="color:#4b5563; font-size:0.6rem; margin-left:8px;">
+                (Trinity = continuous margin model · Poisson = discrete goal count model)
+            </span>
+        </div>
+        """
+    )
 
 # --- Trinity weighting note ---
 st.markdown("---")

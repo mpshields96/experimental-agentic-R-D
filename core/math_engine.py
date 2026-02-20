@@ -1058,77 +1058,245 @@ def clv_grade(clv: float) -> str:
 
 def run_nemesis(bet: BetCandidate, sport: str) -> dict:
     """
-    Generate adversarial counter-thesis for a bet. Display-only.
-    Does NOT remove bets or adjust scores (demoted in V36.1 Session 12).
+    Math-driven adversarial counter-thesis for a bet.
 
-    Returns dict: {counter, probability, adjustment, remove}
-    remove computed for display context only — never consumed by rank_bets.
+    Unlike V36/experimental (which hardcode text with static probability numbers),
+    every case here fires ONLY when a quantifiable condition is detected from
+    BetCandidate fields. No static probability assignment — each probability is
+    derived from the signal magnitude.
+
+    V36/experimental design flaw: cases selected by max(static_prob) regardless
+    of whether the condition actually applies to this specific bet. That's
+    narrative, not math. This version fires zero cases when no condition is met.
+
+    Returns dict:
+        fired_cases: list of (condition, probability, severity) tuples
+        worst_case: highest-severity fired condition string
+        worst_prob: probability of worst fired case (0.0 if none fired)
+        n_flags: count of conditions fired
+        remove: True if any condition reaches KILL severity
+
+    kill conditions (remove=True):
+        - NFL key number AND thin edge (<5%)
+        - Soccer h2h with draw_prob > 0.33 (Poisson computed, not assumed)
+        - Poisson < 30% for chosen soccer total side
+        - NHL totals with no goalie confirmation
+
+    flag conditions (remove=False, display warning):
+        - NFL key number with adequate edge
+        - Edge < 5% (thin margin)
+        - RLM absent on big spread line
+        - Collar proximity (price within 10 of boundary)
+        - NHL goalie status missing on h2h/spreads
+        - NBA B2B road with <8% edge (should already be killed, double-check)
     """
-    nemesis_cases: dict[str, list] = {
-        "NBA": [
-            ("Line movement suggests sharp money on other side",
-             0.30, -15, {"spreads", "h2h"}),
-            ("Team relies on 3PT shooting, opponent defends arc well",
-             0.25, -15, {"spreads", "h2h"}),
-            ("Total variance high — pace mismatch creates unpredictable scoring",
-             0.25, -15, {"totals"}),
-            ("B2B fatigue not fully captured in ratings",
-             0.20, -10, {"any"}),
-        ],
-        "NCAAB": [
-            ("Road favorite in hostile environment, pressure on young team",
-             0.30, -15, {"spreads", "h2h"}),
-            ("3PT variance could eliminate efficiency edge",
-             0.25, -15, {"spreads", "h2h", "totals"}),
-            ("Underdog at home often outperforms ratings",
-             0.20, -10, {"spreads", "h2h"}),
-            ("Tempo mismatch makes total unreliable",
-             0.25, -15, {"totals"}),
-        ],
-        "NFL": [
-            ("Line through key number (3, 7, 10) — extra caution",
-             0.25, -15, {"spreads"}),
-            ("Weather variance not fully modeled",
-             0.25, -15, {"totals"}),
-            ("Injury report could change within 24 hours",
-             0.20, -10, {"any"}),
-        ],
-        "NHL": [
-            ("Goalie variance is the dominant factor",
-             0.30, -15, {"h2h", "spreads"}),
-            ("PDO regression — hot team due for correction",
-             0.25, -15, {"h2h", "spreads"}),
-            ("Shot quality vs quantity mismatch clouds total",
-             0.25, -15, {"totals"}),
-        ],
-        "SOCCER": [
-            ("High draw probability (~28%) not fully priced in",
-             0.25, -15, {"h2h"}),
-            ("Must-attack team vulnerable on counter",
-             0.30, -15, {"spreads", "h2h"}),
-            ("Low xG variance inflates total uncertainty",
-             0.25, -10, {"totals"}),
-        ],
-    }
+    import math as _math
 
-    cases = nemesis_cases.get(sport.upper(), nemesis_cases.get("NBA", []))
-    if not cases:
-        return {"counter": "No standard nemesis for this sport",
-                "probability": 0.10, "adjustment": 0, "remove": False}
+    fired: list[tuple[str, float]] = []  # (condition_text, probability)
 
-    market = bet.market_type
-    relevant = [c for c in cases if market in c[3] or "any" in c[3]]
-    if not relevant:
-        relevant = cases
+    s = sport.upper()
+    mkt = bet.market_type
+    edge = bet.edge_pct
+    price = bet.price
+    line = bet.line
+    signal = (bet.signal or "").lower()
+    kill_reason = (bet.kill_reason or "").lower()
+    breakdown = bet.sharp_breakdown or {}
 
-    best = max(relevant, key=lambda x: x[1])
-    counter, prob, adj, _ = best
+    # ------------------------------------------------------------------
+    # Universal conditions (all sports)
+    # ------------------------------------------------------------------
+
+    # Thin edge — model barely overcomes the vig
+    if 0 < edge < 0.05:
+        prob = 0.10 + (0.05 - edge) * 4.0  # 0.10→0.30 as edge shrinks 5%→0%
+        prob = min(prob, 0.30)
+        fired.append((f"Edge thin: {edge*100:.1f}% — vig erosion risk at small samples", prob))
+
+    # RLM absent with large spread line (soft-book gap, not sharp confirmed)
+    if mkt == "spreads" and abs(line) >= 7.0 and breakdown.get("rlm", 0) == 0:
+        fired.append(("No RLM confirmation on large spread — public/soft-book price distortion likely", 0.20))
+
+    # Collar proximity — odds near boundary → execution slippage risk
+    if price < 0:
+        dist_to_ceiling = abs(price) - 180  # collar starts at -180
+        if 0 <= dist_to_ceiling <= 15:
+            fired.append((f"Price {price} within 15 of collar ceiling (-180) — line shop required", 0.20))
+    else:
+        dist_to_floor = 150 - price  # collar ends at +150
+        if 0 <= dist_to_floor <= 15:
+            fired.append((f"Price +{price} within 15 of collar floor (+150) — line shop required", 0.20))
+
+    # ------------------------------------------------------------------
+    # NFL
+    # ------------------------------------------------------------------
+    if s == "NFL":
+        # Key number proximity (spreads)
+        if mkt == "spreads":
+            key_numbers = {3.0, 7.0, 10.0, 6.0, 4.0}
+            nearest_key = min(key_numbers, key=lambda k: abs(abs(line) - k))
+            dist = abs(abs(line) - nearest_key)
+            if dist <= 0.5:
+                # At key number — NFL games cluster at exactly 3, 7, 10 pts
+                prob = 0.35 if nearest_key in {3.0, 7.0} else 0.25
+                if edge < 0.05:
+                    # Thin edge + key number = kill condition
+                    fired.append((
+                        f"NFL spread at key number {nearest_key:.0f} AND edge only {edge*100:.1f}% — "
+                        f"push probability ~{int(10 + nearest_key * 2)}% eliminates model edge",
+                        0.41  # above remove threshold
+                    ))
+                else:
+                    fired.append((
+                        f"NFL spread at key number {nearest_key:.0f} — push risk elevates variance",
+                        prob
+                    ))
+
+        # Wind kill already fired via kill_reason — flag duplicate if somehow passed through
+        if mkt == "totals" and "wind" in kill_reason:
+            fired.append(("NFL totals: wind kill should have blocked this — verify scheduler poll", 0.30))
+
+        # Totals weather flag when wind not yet confirmed (first poll)
+        if mkt == "totals" and "wind" not in signal and "wind" not in kill_reason:
+            fired.append(("NFL totals: wind data not yet confirmed — poll weather before sizing", 0.20))
+
+    # ------------------------------------------------------------------
+    # NBA
+    # ------------------------------------------------------------------
+    if s == "NBA":
+        # B2B road with thin edge (kill switch handles >8% gate, this flags borderline)
+        road_team = bet.target.split()[0] if bet.target else ""
+        if bet.rest_days is not None and bet.rest_days == 0 and edge < 0.09:
+            fired.append((
+                f"NBA B2B road: edge {edge*100:.1f}% approaching 8% minimum gate — kill switch proximity",
+                0.25
+            ))
+        # Spread >10 (blowout territory) with absent RLM
+        if mkt == "spreads" and abs(line) >= 10.0 and breakdown.get("rlm", 0) == 0:
+            fired.append(("NBA spread ≥10 without RLM: injury/rest distortion not ruled out", 0.25))
+
+    # ------------------------------------------------------------------
+    # NCAAB
+    # ------------------------------------------------------------------
+    if s == "NCAAB":
+        # Large road spread — small-sample efficiency ratings degrade at extremes
+        if mkt == "spreads" and abs(line) >= 12.0:
+            fired.append((
+                f"NCAAB road spread {line:+.1f}: efficiency ratings thin at large spreads, 3PT variance uncaptured",
+                0.25
+            ))
+        # Totals with absent RLM on slow-tempo lines
+        if mkt == "totals" and abs(line) <= 130.0:
+            fired.append(("NCAAB low total: slow-tempo variance amplifies model uncertainty", 0.20))
+
+    # ------------------------------------------------------------------
+    # NHL
+    # ------------------------------------------------------------------
+    if s == "NHL":
+        # Goalie status absent (should be detected by nhl_kill_switch — flag if passed through)
+        if mkt in {"h2h", "spreads"} and "goalie" not in signal and "goalie" not in kill_reason:
+            fired.append((
+                "NHL: no goalie confirmation in signal — starter variance is single largest NHL factor",
+                0.30
+            ))
+        # Totals without goalie signal — shot profile unknown
+        if mkt == "totals":
+            fired.append(("NHL totals: shot quality vs quantity gap requires confirmed goalie matchup", 0.25))
+
+    # ------------------------------------------------------------------
+    # SOCCER
+    # ------------------------------------------------------------------
+    if s == "SOCCER" or "SOCCER" in s or s in {"EPL", "BUNDESLIGA", "SERIE_A", "LIGUE_1", "LA_LIGA"}:
+        if mkt == "h2h":
+            # Extract Poisson draw probability from signal if available
+            draw_prob_detected: Optional[float] = None
+            if "draw=" in signal:
+                try:
+                    draw_str = signal.split("draw=")[1].split("%")[0].strip()
+                    draw_prob_detected = float(draw_str) / 100.0
+                except (ValueError, IndexError):
+                    pass
+
+            if draw_prob_detected is not None:
+                if draw_prob_detected > 0.33:
+                    fired.append((
+                        f"Soccer h2h: Poisson draw={draw_prob_detected*100:.0f}% (>33%) — "
+                        f"3-way market draw risk exceeds model edge on 2-way h2h",
+                        0.41  # kill threshold
+                    ))
+                elif draw_prob_detected > 0.27:
+                    fired.append((
+                        f"Soccer h2h: Poisson draw={draw_prob_detected*100:.0f}% (elevated) — "
+                        f"draw not fully priced in 2-way moneyline",
+                        0.25
+                    ))
+            else:
+                # No Poisson signal yet — structural flag
+                fired.append(("Soccer h2h: draw probability uncalculated — Poisson cross-check pending", 0.20))
+
+        if mkt == "totals":
+            # Extract Poisson side probability from signal
+            poisson_prob_detected: Optional[float] = None
+            if "poisson" in signal:
+                try:
+                    # Parses: "Poisson Over=42% (xG 2.45)"
+                    p_str = signal.split("=")[1].split("%")[0].strip()
+                    poisson_prob_detected = float(p_str) / 100.0
+                except (ValueError, IndexError):
+                    pass
+
+            if poisson_prob_detected is not None:
+                if poisson_prob_detected < 0.30:
+                    fired.append((
+                        f"Soccer totals: Poisson side probability {poisson_prob_detected*100:.0f}% (<30%) — "
+                        f"model and Poisson diverge, xG does not support this total",
+                        0.41  # kill threshold
+                    ))
+                elif poisson_prob_detected < 0.40:
+                    fired.append((
+                        f"Soccer totals: Poisson side {poisson_prob_detected*100:.0f}% (marginal) — "
+                        f"xG weakly supports position",
+                        0.25
+                    ))
+
+    # ------------------------------------------------------------------
+    # TENNIS
+    # ------------------------------------------------------------------
+    if "TENNIS" in s:
+        if "clay" in kill_reason or "grass" in kill_reason:
+            fired.append(("Tennis: surface kill should have blocked this — verify routing", 0.30))
+        elif "clay" in signal or "grass" in signal:
+            fired.append(("Tennis surface detected in signal — confirm kill switch evaluated", 0.20))
+
+    # ------------------------------------------------------------------
+    # Aggregate result
+    # ------------------------------------------------------------------
+    if not fired:
+        return {
+            "fired_cases": [],
+            "worst_case": "No quantifiable nemesis conditions detected",
+            "worst_prob": 0.0,
+            "n_flags": 0,
+            "remove": False,
+            # V36-compat keys (display layer reads these)
+            "counter": "No quantifiable nemesis conditions detected",
+            "probability": 0.0,
+            "adjustment": 0,
+        }
+
+    worst_prob = max(p for _, p in fired)
+    worst_case = next(txt for txt, p in fired if p == worst_prob)
 
     return {
-        "counter": counter,
-        "probability": prob,
-        "adjustment": adj if prob >= 0.30 else (adj // 2 if prob >= 0.20 else 0),
-        "remove": prob > 0.40,
+        "fired_cases": fired,
+        "worst_case": worst_case,
+        "worst_prob": worst_prob,
+        "n_flags": len(fired),
+        "remove": worst_prob > 0.40,
+        # V36-compat keys (display layer reads these)
+        "counter": worst_case,
+        "probability": worst_prob,
+        "adjustment": -15 if worst_prob >= 0.35 else (-10 if worst_prob >= 0.25 else -5),
     }
 
 

@@ -1,0 +1,776 @@
+[
+  {
+    "timestamp": "2026-02-19T15:51:42.967256+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T15:51:42.969677+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T15:52:37.576966+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T15:52:37.578631+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T15:58:32.371525+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T15:58:32.373211+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:09:32.751052+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:09:32.752899+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:12:48.805133+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:12:48.807046+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:13:12.343302+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:13:12.345228+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:38:01.568857+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:38:01.570893+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:43:25.006071+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T16:43:25.007772+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:31:03.228043+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:31:03.230022+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:35:28.255578+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:35:28.257997+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:35:32.760928+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:35:32.763154+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:36:06.092709+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:36:06.094754+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:36:17.970196+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:36:17.972090+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:40:41.340385+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:40:41.342144+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:57:35.471754+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T17:57:35.473538+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T18:40:04.907868+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T18:40:04.909733+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T18:49:23.317817+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T18:49:23.319858+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T18:49:50.857954+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T18:49:50.859763+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T18:55:15.887098+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T18:55:15.889100+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T19:57:27.336732+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T19:57:27.338832+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:03:51.829616+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:03:51.832293+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:10:51.285328+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:10:51.287296+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:21:36.498867+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:21:36.500896+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:35:54.326510+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:35:54.328613+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:37:35.043870+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:37:35.046039+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:51:25.209142+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:51:25.211250+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:56:03.853485+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-19T20:56:03.855557+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:15:18.261390+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:15:18.263515+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:16:43.777809+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:16:43.779926+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:23:11.726988+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:23:11.729109+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:38:55.317828+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:38:55.321723+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:42:04.284615+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:42:04.286869+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:46:50.319903+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:46:50.322171+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:47:41.929347+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:47:41.931568+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:52:13.893006+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:52:13.895707+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:53:10.996942+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:53:10.999668+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:57:27.318855+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T02:57:27.321362+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:01:19.337605+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:01:19.339757+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:11:10.013763+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:11:10.015829+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:12:34.498908+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:12:34.500997+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:13:23.882058+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:13:23.884028+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:26:37.310349+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:26:37.312975+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:27:59.847617+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 2,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  },
+  {
+    "timestamp": "2026-02-20T03:27:59.849782+00:00",
+    "sport": "NBA",
+    "n_games_sampled": 1,
+    "pinnacle_present": false,
+    "all_keys": [],
+    "preferred_found": [],
+    "n_books": 0
+  }
+]
