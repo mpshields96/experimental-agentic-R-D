@@ -193,6 +193,8 @@ ONE FILE = ONE JOB:
   probe_logger.py    — Probe JSON. Rolling 200. No other modules.
   nhl_data.py        — NHL goalie starter detection. Free NHL API. Zero quota cost.
   efficiency_feed.py — Team efficiency data. 250+ teams, 10 leagues. NO imports from core.
+  nba_pdo.py         — NBA PDO regression signal. nba_api (free, no key). 1hr TTL cache.
+                       _endpoint_factory injection for tests (NOT requests.Session pattern).
 
 IMPORT RULES (enforce strictly — circular imports kill this codebase):
   math_engine       ← imports nothing from core/
@@ -203,6 +205,7 @@ IMPORT RULES (enforce strictly — circular imports kill this codebase):
   probe_logger      ← nothing from core
   nhl_data          ← nothing from core (data-only module)
   efficiency_feed   ← nothing from core (data-only module)
+  nba_pdo           ← nothing from core (data-only module; math_engine imports it lazily)
   scheduler         ← imports all (orchestrator — only place this is allowed)
   pages/*           ← from core.* only
 
@@ -286,6 +289,10 @@ AVOID: rainbow palettes, excessive expanders, st.metric for everything,
 15. **Edge diagnostic pattern**: When few candidates surface, check: (1) collar failures via `passes_collar()` on raw prices, (2) book count failures (< MIN_BOOKS), (3) edge distribution vs MIN_EDGE. Collar is usually the dominant filter (75%+ of games).
 16. **ODDS_API_KEY in scripts**: Must set env var explicitly: `ODDS_API_KEY=xxx python3 script.py`. Key is NOT auto-loaded from any config file.
 17. **Tennis sport keys are dynamic**: Tennis keys like `tennis_atp_qatar_open` change weekly. Do NOT add to SPORT_KEYS. Use `fetch_active_tennis_keys()` at runtime. Tennis h2h is 2-way (no draw) — uses standard collar and consensus_fair_prob().
+18. **nba_api mock pattern**: nba_api's `LeagueDashTeamStats` doesn't accept a `requests.Session`. Use `_endpoint_factory: Optional[Callable] = None` injection instead — tests pass a lambda, production defaults to `LeagueDashTeamStats`. Do NOT use `unittest.mock.patch` for nba_api tests; the factory injection is cleaner and fully deterministic.
+19. **nba_api "LA Clippers" edge case**: nba_api returns `"LA Clippers"` not `"Los Angeles Clippers"`. Always run through `normalize_nba_team_name()` before matching to `efficiency_feed._TEAM_DATA`. The normalization table in `nba_pdo.py` is the source of truth for all 30 NBA teams.
+20. **Passing external data into kill switches**: When a data module (e.g. nba_pdo) maintains a module-level cache, and parse_game_markets() receives that data as a dict param, seed the module cache from the dict BEFORE calling the kill switch. Pattern: `from core.nba_pdo import _pdo_cache as _cache; _cache[name] = result; then call pdo_kill_switch()`. This avoids duplicating kill logic inline.
+21. **Edge generation test fixtures**: Tight spread prices (-108/-112 across 3 books) do NOT produce >3.5% edge candidates. The outlier-book pattern is required: 3 consensus books at one price + 1 outlier at significantly different price. See `_make_game_with_clear_edge()` in test_math_engine.py as the canonical template.
 
 ---
 
