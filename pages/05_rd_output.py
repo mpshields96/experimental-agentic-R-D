@@ -28,6 +28,8 @@ if str(ROOT) not in sys.path:
 from core.math_engine import (
     COLLAR_MAX,
     COLLAR_MIN,
+    COLLAR_MAX_SOCCER,
+    COLLAR_MIN_SOCCER,
     KELLY_FRACTION,
     MIN_BOOKS,
     MIN_EDGE,
@@ -36,6 +38,7 @@ from core.math_engine import (
     fractional_kelly,
     implied_probability,
     passes_collar,
+    passes_collar_soccer,
     sharp_to_size,
 )
 from core.clv_tracker import CLV_GATE, clv_summary, read_clv_log
@@ -201,7 +204,7 @@ def _build_kelly_frontier():
     layout["height"] = 280
     layout["xaxis"] = {
         **PLOTLY_BASE["xaxis"],
-        "title": "American odds (collar: −180 to +150)",
+        "title": "American odds (std collar: −180→+150 · soccer: −250→+400)",
         "tickangle": -45,
         "tickfont": dict(size=9),
     }
@@ -214,42 +217,66 @@ def _build_kelly_frontier():
 # Panel 4: Collar boundary pass/fail
 # ---------------------------------------------------------------------------
 def _build_collar_map():
-    """Bar chart: pass/fail rate across the full American odds spectrum."""
-    test_range = list(range(-300, 300, 5))
-    pass_odds = [o for o in test_range if passes_collar(o)]
-    fail_low = [o for o in test_range if o < COLLAR_MIN]
-    fail_high = [o for o in test_range if o > COLLAR_MAX]
+    """Scatter: pass/fail zones for standard collar (row 1) and soccer collar (row 2)."""
+    test_range = list(range(-500, 500, 5))
+
+    # Standard collar zones
+    std_pass = [o for o in test_range if passes_collar(o)]
+    std_fail = [o for o in test_range if not passes_collar(o)]
+
+    # Soccer collar zones
+    soc_pass = [o for o in test_range if passes_collar_soccer(o)]
+    soc_fail = [o for o in test_range if not passes_collar_soccer(o)]
 
     fig = go.Figure()
-    # Pass zone
-    fig.add_trace(go.Scatter(
-        x=pass_odds, y=[1] * len(pass_odds),
-        mode="markers", name="PASS",
-        marker=dict(color=GREEN, size=5, symbol="square"),
-        hovertemplate="Odds: %{x}<br>Status: PASS<extra></extra>",
-    ))
-    # Fail zones
-    for label, fail_list, color in [("FAIL (< −180)", fail_low, RED), ("FAIL (> +150)", fail_high, RED)]:
-        fig.add_trace(go.Scatter(
-            x=fail_list, y=[1] * len(fail_list),
-            mode="markers", name=label,
-            marker=dict(color=color, size=5, symbol="x"),
-            hovertemplate="Odds: %{x}<br>Status: BLOCKED<extra></extra>",
-        ))
 
-    # Collar boundaries
+    # Row 1: standard collar
+    fig.add_trace(go.Scatter(
+        x=std_pass, y=[2] * len(std_pass), mode="markers", name="STD PASS",
+        marker=dict(color=GREEN, size=5, symbol="square"),
+        hovertemplate="Odds: %{x}<br>Standard: PASS<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=std_fail, y=[2] * len(std_fail), mode="markers", name="STD FAIL",
+        marker=dict(color=RED, size=5, symbol="x"),
+        hovertemplate="Odds: %{x}<br>Standard: BLOCKED<extra></extra>",
+    ))
+
+    # Row 2: soccer collar
+    fig.add_trace(go.Scatter(
+        x=soc_pass, y=[1] * len(soc_pass), mode="markers", name="SOCCER PASS",
+        marker=dict(color="#60a5fa", size=5, symbol="square"),
+        hovertemplate="Odds: %{x}<br>Soccer: PASS<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=soc_fail, y=[1] * len(soc_fail), mode="markers", name="SOCCER FAIL",
+        marker=dict(color=RED, size=5, symbol="x"),
+        hovertemplate="Odds: %{x}<br>Soccer: BLOCKED<extra></extra>",
+    ))
+
+    # Standard collar boundaries
     for val in [COLLAR_MIN, COLLAR_MAX]:
         fig.add_vline(x=val, line_color=AMBER, line_width=1.5, line_dash="dash",
-                      annotation_text=f"{val:+d}",
-                      annotation_font=dict(color=AMBER, size=10))
+                      annotation_text=f"std {val:+d}",
+                      annotation_font=dict(color=AMBER, size=9))
+    # Soccer collar boundaries
+    for val in [COLLAR_MIN_SOCCER, COLLAR_MAX_SOCCER]:
+        fig.add_vline(x=val, line_color="#60a5fa", line_width=1, line_dash="dot",
+                      annotation_text=f"soc {val:+d}",
+                      annotation_font=dict(color="#60a5fa", size=9))
 
     layout = dict(PLOTLY_BASE)
-    layout["title"] = dict(text=f"Collar: {COLLAR_MIN:+d} to {COLLAR_MAX:+d} — pass zone only",
-                           font=dict(size=12, color="#9ca3af"), x=0)
-    layout["height"] = 160
-    layout["yaxis"] = dict(**PLOTLY_BASE["yaxis"], showticklabels=False, showgrid=False, title="")
-    layout["xaxis"] = dict(**PLOTLY_BASE["xaxis"], title="American odds", dtick=50)
-    layout["showlegend"] = False
+    layout["title"] = dict(
+        text=f"Collar boundaries — std ({COLLAR_MIN:+d}→{COLLAR_MAX:+d}) · soccer ({COLLAR_MIN_SOCCER:+d}→{COLLAR_MAX_SOCCER:+d})",
+        font=dict(size=12, color="#9ca3af"), x=0,
+    )
+    layout["height"] = 200
+    layout["yaxis"] = dict(**PLOTLY_BASE["yaxis"], showticklabels=False, showgrid=False,
+                           title="", tickvals=[1, 2], ticktext=["Soccer", "Standard"])
+    layout["xaxis"] = dict(**PLOTLY_BASE["xaxis"], title="American odds", dtick=100, range=[-450, 450])
+    layout["showlegend"] = True
+    layout["legend"] = dict(font=dict(size=9, color="#9ca3af"), bgcolor="rgba(0,0,0,0)",
+                            orientation="h", yanchor="bottom", y=1.02, x=0)
     fig.update_layout(**layout)
     return fig
 
@@ -316,24 +343,31 @@ def _build_threshold_analysis():
 # ---------------------------------------------------------------------------
 def _build_edge_surface():
     """Line chart: edge% as function of win_prob at key market odds lines."""
-    key_odds = [-130, -110, -105, 100, 110, 130, 150]
-    win_probs = [i / 100 for i in range(45, 73, 1)]
+    # Standard collar odds + soccer-range values (marked with soccer flag)
+    std_odds = [-130, -110, -105, 100, 110, 130, 150]
+    soccer_odds = [200, 250, 290, 350]  # typical soccer dog/draw range
+    key_odds = std_odds + soccer_odds
+    win_probs = [i / 100 for i in range(30, 73, 1)]
 
     fig = go.Figure()
-    colors = [RED, "#f97316", AMBER, "#84cc16", GREEN, BLUE, "#a78bfa"]
+    std_colors = [RED, "#f97316", AMBER, "#84cc16", GREEN, BLUE, "#a78bfa"]
+    soccer_colors = ["#93c5fd", "#60a5fa", "#3b82f6", "#1d4ed8"]
 
-    for odds, color in zip(key_odds, colors):
-        if not passes_collar(odds):
+    for odds, color in zip(key_odds, std_colors + soccer_colors):
+        is_soccer_range = odds in soccer_odds
+        passes = passes_collar_soccer(odds) if is_soccer_range else passes_collar(odds)
+        if not passes:
             continue
         ip = implied_probability(odds)
         edges = [(wp - ip) * 100 for wp in win_probs]
+        label = f"{odds:+d} (⚽)" if is_soccer_range else f"{odds:+d}"
         fig.add_trace(go.Scatter(
             x=[wp * 100 for wp in win_probs],
             y=edges,
             mode="lines",
-            name=f"{odds:+d}",
-            line=dict(color=color, width=1.5),
-            hovertemplate=f"Odds {odds:+d}<br>Win prob: %{{x:.0f}}%<br>Edge: %{{y:.1f}}%<extra></extra>",
+            name=label,
+            line=dict(color=color, width=1.5, dash="dot" if is_soccer_range else "solid"),
+            hovertemplate=f"Odds {odds:+d}{'  soccer' if is_soccer_range else ''}<br>Win prob: %{{x:.0f}}%<br>Edge: %{{y:.1f}}%<extra></extra>",
         ))
 
     # Min edge floor
@@ -378,7 +412,8 @@ _section_header("Math Constraints", "Non-negotiable rules (inherited from V36.1)
 
 constraint_cols = st.columns(3)
 constraints = [
-    ("Collar", f"{COLLAR_MIN:+d} → {COLLAR_MAX:+d}", "American odds range"),
+    ("Collar (std)", f"{COLLAR_MIN:+d} → {COLLAR_MAX:+d}", "2-way markets (NBA/NFL/NHL…)"),
+    ("Collar (soccer)", f"{COLLAR_MIN_SOCCER:+d} → {COLLAR_MAX_SOCCER:+d}", "Soccer 3-way h2h (dogs/draws)"),
     ("Min Edge", f"{MIN_EDGE*100:.1f}%", "Minimum to pass filter"),
     ("Min Books", str(MIN_BOOKS), "For consensus fair prob"),
     ("Kelly Fraction", f"{KELLY_FRACTION:.2f}×", "Fractional multiplier"),
