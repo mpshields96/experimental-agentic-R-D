@@ -30,7 +30,10 @@ from core.math_engine import (
     ncaab_kill_switch,
     soccer_kill_switch,
     nhl_kill_switch,
+    ncaaf_kill_switch,
     tennis_kill_switch,
+    NCAAF_SPREAD_KILL_THRESHOLD,
+    NCAAF_SEASON_MONTHS,
     consensus_fair_prob,
     consensus_fair_prob_3way,
     compute_rlm,
@@ -1304,6 +1307,192 @@ class TestParseGameMarketsSoccer3Way:
     def test_soccer_sports_constant_covers_all_leagues(self):
         for league in ["EPL", "LIGUE1", "BUNDESLIGA", "SERIE_A", "LA_LIGA", "MLS"]:
             assert league in SOCCER_SPORTS
+
+
+# ---------------------------------------------------------------------------
+# NCAAF Kill Switch
+# ---------------------------------------------------------------------------
+
+class TestNcaafKillSwitch:
+    """Tests for ncaaf_kill_switch() — blowout spread filter + off-season gate."""
+
+    # --- Off-season gate ---
+
+    def test_off_season_month_killed(self):
+        """February is off-season → kill."""
+        killed, reason = ncaaf_kill_switch(14.5, 2)
+        assert killed is True
+        assert "off-season" in reason
+        assert "2" in reason
+
+    def test_april_off_season_killed(self):
+        """April is off-season → kill."""
+        killed, reason = ncaaf_kill_switch(7.0, 4)
+        assert killed is True
+        assert "off-season" in reason
+
+    def test_august_off_season_killed(self):
+        """August (preseason hype, no reliable data) → kill."""
+        killed, reason = ncaaf_kill_switch(3.5, 8)
+        assert killed is True
+        assert "off-season" in reason
+
+    def test_september_in_season(self):
+        """September is in-season → not killed by date gate."""
+        killed, reason = ncaaf_kill_switch(14.5, 9)
+        assert killed is False
+
+    def test_october_in_season(self):
+        """October is in-season → not killed."""
+        killed, reason = ncaaf_kill_switch(10.0, 10)
+        assert killed is False
+
+    def test_november_in_season(self):
+        """November is in-season."""
+        killed, reason = ncaaf_kill_switch(21.5, 11)
+        assert killed is False
+
+    def test_december_in_season(self):
+        """December (bowl games) is in-season."""
+        killed, reason = ncaaf_kill_switch(14.0, 12)
+        assert killed is False
+
+    def test_january_in_season(self):
+        """January (CFP) is in-season."""
+        killed, reason = ncaaf_kill_switch(3.5, 1)
+        assert killed is False
+
+    # --- Blowout spread filter ---
+
+    def test_spread_exactly_at_threshold_killed(self):
+        """Spread == 28.0 → kill."""
+        killed, reason = ncaaf_kill_switch(28.0, 10)
+        assert killed is True
+        assert "28" in reason
+        assert "blowout" in reason.lower()
+
+    def test_spread_above_threshold_killed(self):
+        """Spread 35.0 → kill."""
+        killed, reason = ncaaf_kill_switch(35.0, 10)
+        assert killed is True
+
+    def test_spread_just_below_threshold_ok(self):
+        """Spread 27.9 → not killed."""
+        killed, reason = ncaaf_kill_switch(27.9, 10)
+        assert killed is False
+        assert reason == ""
+
+    def test_normal_spread_not_killed(self):
+        """Typical NCAAF spread 14.5 → not killed."""
+        killed, reason = ncaaf_kill_switch(14.5, 11)
+        assert killed is False
+        assert reason == ""
+
+    def test_zero_spread_not_killed(self):
+        """Pick'em (0.0) spread is not a blowout."""
+        killed, reason = ncaaf_kill_switch(0.0, 10)
+        assert killed is False
+
+    # --- Constants ---
+
+    def test_season_months_constant(self):
+        """NCAAF_SEASON_MONTHS covers Sep–Jan."""
+        assert 9 in NCAAF_SEASON_MONTHS
+        assert 10 in NCAAF_SEASON_MONTHS
+        assert 11 in NCAAF_SEASON_MONTHS
+        assert 12 in NCAAF_SEASON_MONTHS
+        assert 1 in NCAAF_SEASON_MONTHS
+        assert 2 not in NCAAF_SEASON_MONTHS
+        assert 8 not in NCAAF_SEASON_MONTHS
+
+    def test_spread_threshold_constant(self):
+        """Threshold is 28.0."""
+        assert NCAAF_SPREAD_KILL_THRESHOLD == 28.0
+
+    # --- Parse integration ---
+
+    def test_parse_game_markets_ncaaf_offseason_blocked(self):
+        """NCAAF game in off-season month (Feb) should produce zero candidates."""
+        from unittest.mock import patch
+        from datetime import datetime, timezone
+
+        # Patch now() to return February
+        fixed_now = datetime(2026, 2, 15, 12, 0, tzinfo=timezone.utc)
+        game = {
+            "id": "ncaaf-offseason",
+            "home_team": "Alabama",
+            "away_team": "Georgia",
+            "commence_time": "2026-02-15T20:00:00Z",
+            "bookmakers": [
+                {
+                    "key": "draftkings",
+                    "title": "DraftKings",
+                    "markets": [
+                        {"key": "spreads", "outcomes": [
+                            {"name": "Alabama", "price": -110, "point": -14.5},
+                            {"name": "Georgia", "price": -110, "point": 14.5},
+                        ]},
+                    ],
+                },
+                {
+                    "key": "fanduel",
+                    "title": "FanDuel",
+                    "markets": [
+                        {"key": "spreads", "outcomes": [
+                            {"name": "Alabama", "price": -112, "point": -14.5},
+                            {"name": "Georgia", "price": -108, "point": 14.5},
+                        ]},
+                    ],
+                },
+            ],
+        }
+        with patch("core.math_engine.datetime") as mock_dt:
+            mock_dt.now.return_value = fixed_now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            candidates = parse_game_markets(game, "NCAAF")
+        assert candidates == [], f"Expected 0 candidates in off-season, got {len(candidates)}"
+
+    def test_parse_game_markets_ncaaf_blowout_spread_blocked(self):
+        """NCAAF blowout spread (≥28) should produce zero spread candidates."""
+        from unittest.mock import patch
+        from datetime import datetime, timezone
+
+        # Patch to October (in-season), but spread is 35.0
+        fixed_now = datetime(2026, 10, 10, 12, 0, tzinfo=timezone.utc)
+        game = {
+            "id": "ncaaf-blowout",
+            "home_team": "Alabama",
+            "away_team": "ULM",
+            "commence_time": "2026-10-10T20:00:00Z",
+            "bookmakers": [
+                {
+                    "key": "draftkings",
+                    "title": "DraftKings",
+                    "markets": [
+                        {"key": "spreads", "outcomes": [
+                            {"name": "Alabama", "price": -110, "point": -35.0},
+                            {"name": "ULM", "price": -110, "point": 35.0},
+                        ]},
+                    ],
+                },
+                {
+                    "key": "fanduel",
+                    "title": "FanDuel",
+                    "markets": [
+                        {"key": "spreads", "outcomes": [
+                            {"name": "Alabama", "price": -112, "point": -35.0},
+                            {"name": "ULM", "price": -108, "point": 35.0},
+                        ]},
+                    ],
+                },
+            ],
+        }
+        with patch("core.math_engine.datetime") as mock_dt:
+            mock_dt.now.return_value = fixed_now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            candidates = parse_game_markets(game, "NCAAF")
+        spread_cands = [c for c in candidates if c.market_type == "spreads"]
+        assert spread_cands == [], f"Expected 0 spread candidates for blowout, got {len(spread_cands)}"
 
 
 # ---------------------------------------------------------------------------

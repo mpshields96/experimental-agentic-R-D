@@ -9,7 +9,7 @@ Responsibilities:
 - Edge percentage calculation
 - Fractional Kelly sizing
 - Sharp Score composite ranking (0-100)
-- Kill switch logic (NBA, NFL, NCAAB, Soccer)
+- Kill switch logic (NBA, NFL, NCAAB, NCAAF, Soccer, NHL, Tennis)
 - Multi-book consensus fair probability
 - RLM (Reverse Line Movement) passive tracker
 - CLV (Closing Line Value) calculation
@@ -30,6 +30,7 @@ DO NOT add API calls, Streamlit calls, or file I/O to this file.
 
 import math
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -538,6 +539,49 @@ def nhl_kill_switch(
         return False, "FLAG: B2B — reduce Kelly 50%"
     if not goalie_confirmed:
         return False, "FLAG: Goalie not yet confirmed — require 8%+ edge"
+    return False, ""
+
+
+NCAAF_SPREAD_KILL_THRESHOLD: float = 28.0   # spreads ≥ this are noise-dominated blowouts
+NCAAF_SEASON_MONTHS: frozenset = frozenset({9, 10, 11, 12, 1})  # Sep–Jan inclusive
+
+
+def ncaaf_kill_switch(
+    spread_line: float,
+    current_month: int,
+) -> tuple[bool, str]:
+    """
+    NCAAF kill switch — blowout spread filter + off-season gate.
+
+    NCAAF spreads regularly reach -35 or more for elite teams vs. inferior opponents.
+    These "blowout" spreads exhibit high book-to-book variance that creates false
+    consensus signals: the noise in agreeing on -33 vs -36 is structural, not sharp.
+
+    Kill logic:
+    - Off-season (Feb–Aug): kill all NCAAF markets — no reliable data.
+    - Spread ≥ 28 pts (either side): kill — blowout noise zone.
+
+    Args:
+        spread_line: The absolute value of the spread (e.g. 14.5, 28.0, 35.0).
+                     Pass abs(point) from the bookmaker outcome.
+        current_month: Integer month (1–12). Use datetime.now().month.
+
+    Returns:
+        (killed: bool, reason: str)
+
+    >>> ncaaf_kill_switch(14.5, 10)
+    (False, '')
+    >>> ncaaf_kill_switch(28.0, 10)
+    (True, 'KILL: NCAAF spread 28.0 ≥ 28 pts — blowout noise zone')
+    >>> ncaaf_kill_switch(14.5, 4)
+    (True, 'KILL: NCAAF off-season (month 4) — no reliable model data')
+    >>> ncaaf_kill_switch(35.0, 11)
+    (True, 'KILL: NCAAF spread 35.0 ≥ 28 pts — blowout noise zone')
+    """
+    if current_month not in NCAAF_SEASON_MONTHS:
+        return True, f"KILL: NCAAF off-season (month {current_month}) — no reliable model data"
+    if spread_line >= NCAAF_SPREAD_KILL_THRESHOLD:
+        return True, f"KILL: NCAAF spread {spread_line} ≥ {NCAAF_SPREAD_KILL_THRESHOLD:.0f} pts — blowout noise zone"
     return False, ""
 
 
@@ -1153,6 +1197,10 @@ def parse_game_markets(
         # Only include outcomes seen in at least MIN_BOOKS books
         return [name for name, count in seen.items() if count >= MIN_BOOKS]
 
+    # NCAAF off-season + blowout gate (fired once per game, before inner loop)
+    is_ncaaf = sport.upper() == "NCAAF"
+    _ncaaf_month = datetime.now(timezone.utc).month
+
     # --- Spreads ---
     for team_name in [home, away]:
         cp, std, n_books = consensus_fair_prob(team_name, "spreads", "team", bookmakers)
@@ -1161,6 +1209,12 @@ def parse_game_markets(
         best_price, best_line, best_book_name = _best_price_for(team_name, "spreads")
         if best_price is None or not passes_collar(best_price):
             continue
+        # NCAAF: blowout filter + off-season gate
+        if is_ncaaf:
+            _spread_abs = abs(best_line) if best_line is not None else 0.0
+            _ncaaf_killed, _ = ncaaf_kill_switch(_spread_abs, _ncaaf_month)
+            if _ncaaf_killed:
+                continue
         edge = cp - implied_probability(best_price)
         if edge >= MIN_EDGE:
             kelly = fractional_kelly(cp, best_price)
@@ -1235,6 +1289,11 @@ def parse_game_markets(
             best_price, _, best_book_name = _best_price_for(team_name, "h2h")
             if best_price is None or not passes_collar(best_price):
                 continue
+            # NCAAF: off-season gate applies to h2h too (no spread line to filter by here)
+            if is_ncaaf:
+                _ncaaf_killed_h2h, _ = ncaaf_kill_switch(0.0, _ncaaf_month)
+                if _ncaaf_killed_h2h:
+                    continue
             edge = cp - implied_probability(best_price)
             if edge >= MIN_EDGE:
                 kelly = fractional_kelly(cp, best_price)
