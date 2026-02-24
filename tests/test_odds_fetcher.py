@@ -15,6 +15,7 @@ from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import core.odds_fetcher as _of_module
 from core.odds_fetcher import (
     QuotaTracker,
     get_api_key,
@@ -29,7 +30,18 @@ from core.odds_fetcher import (
     MARKETS,
     TENNIS_MARKETS,
     PREFERRED_BOOKS,
+    SESSION_CREDIT_SOFT_LIMIT,
+    SESSION_CREDIT_HARD_STOP,
+    BILLING_RESERVE,
 )
+
+
+def _reset_quota() -> None:
+    """Reset module-level quota tracker to pristine state between tests."""
+    _of_module.quota.used = 0
+    _of_module.quota.remaining = 10_000   # safe remaining — won't trigger billing reserve
+    _of_module.quota.last_cost = 0
+    _of_module.quota.session_used = 0
 
 
 # ---------------------------------------------------------------------------
@@ -64,8 +76,35 @@ class TestQuotaTracker:
         qt = QuotaTracker()
         qt.update({"x-requests-remaining": "400", "x-requests-used": "100", "x-requests-last": "8"})
         report = qt.report()
-        assert "400" in report
-        assert "100" in report
+        assert "400" in report    # remaining
+        assert "100" in report    # used (billing period)
+        assert "session=" in report
+
+    def test_session_soft_limit(self):
+        qt = QuotaTracker()
+        qt.remaining = 5000
+        qt.session_used = SESSION_CREDIT_SOFT_LIMIT - 1
+        assert qt.is_session_soft_limit() is False
+        qt.session_used = SESSION_CREDIT_SOFT_LIMIT
+        assert qt.is_session_soft_limit() is True
+
+    def test_session_hard_stop_from_session_count(self):
+        qt = QuotaTracker()
+        qt.remaining = 5000
+        qt.session_used = SESSION_CREDIT_HARD_STOP
+        assert qt.is_session_hard_stop() is True
+
+    def test_session_hard_stop_from_billing_reserve(self):
+        qt = QuotaTracker()
+        qt.remaining = BILLING_RESERVE - 1   # below global floor
+        qt.session_used = 0
+        assert qt.is_session_hard_stop() is True
+
+    def test_session_hard_stop_false_when_safe(self):
+        qt = QuotaTracker()
+        qt.remaining = 5000
+        qt.session_used = 50
+        assert qt.is_session_hard_stop() is False
 
     def test_is_low_when_below_threshold(self):
         qt = QuotaTracker()
@@ -171,6 +210,9 @@ class TestFetchGameLines:
 # ---------------------------------------------------------------------------
 
 class TestFetchBatchOdds:
+    def setup_method(self):
+        _reset_quota()
+
     def test_returns_dict_keyed_by_sport(self):
         fake_nba = [{"id": "nba_1"}]
         fake_ncaab = [{"id": "ncaab_1"}, {"id": "ncaab_2"}]
@@ -453,6 +495,8 @@ class TestFetchActiveTennisKeys:
 
 
 class TestFetchBatchOddsTennis:
+    def setup_method(self):
+        _reset_quota()
 
     def test_tennis_keys_included_in_batch_result(self):
         """When include_tennis=True, tennis sport keys appear in results dict."""

@@ -1,5 +1,5 @@
 # PROJECT_INDEX.md — Titanium-Agentic
-## Generated: sc:index-repo | 2026-02-24 | 1007/1007 tests passing
+## Generated: sc:index-repo | 2026-02-24 | 1011/1011 tests passing
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
@@ -37,7 +37,9 @@ agentic-rd-sandbox/
 │   ├── price_history_store.py      # SQLite open-price store, 14-day purge, multi-session RLM
 │   ├── probe_logger.py             # Bookmaker probe log (JSON)
 │   └── data/__init__.py
-├── tests/                          # 1007 unit tests across 17 test files
+├── scripts/
+│   └── backup.sh                   # Session-end backup: sandbox + V36 → .backups/ (keep last 5)
+├── tests/                          # 1011 unit tests across 17 test files
 ├── data/
 │   └── (probe_log.json — gitignored)
 ├── logs/

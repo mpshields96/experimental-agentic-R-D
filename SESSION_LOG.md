@@ -2,6 +2,42 @@
 
 ---
 
+## Session 24 — 2026-02-24
+
+### Objective
+Establish permanent automated workflow protocols, safety rails, backup system, and Two-AI accountability infrastructure.
+
+### What Was Built
+- **CLAUDE.md** — major update (Session 24):
+  - Access rules: titanium-v36 now R+W for this chat (coordination/specs only); Macbook system files permanently forbidden
+  - Skills mandate: sc:index-repo, sc:save, sc:analyze, sc:brainstorm, sc:research, frontend-design, claude-md-management, verification-before-completion — all REQUIRED
+  - Two-AI access rules: V37 = R-only to sandbox, this chat = R+W to sandbox + V36
+  - Credit budget section: 300/500/1000 constants documented
+  - Backup system section documented
+  - Loading screen tips required on every response
+- **scripts/backup.sh** (new): timestamped .tar.gz of sandbox + V36, keeps last 5, max 200MB cap, storage guard
+- **.gitignore**: .backups/ excluded from commits
+- **core/odds_fetcher.py**: SESSION_CREDIT_SOFT_LIMIT=300, SESSION_CREDIT_HARD_STOP=500, BILLING_RESERVE=1000
+  - QuotaTracker: session_used tracking, is_session_hard_stop(), is_session_soft_limit()
+  - report() updated with session usage display
+  - fetch_batch_odds() uses is_session_hard_stop() (replaces is_low(20))
+- **tests/test_odds_fetcher.py**: +4 quota tests, setup_method() added to batch test classes, _reset_quota() helper
+
+### Tests
+1007 → 1011 (+4), 1011/1011 passing ✅
+
+### Architectural Decisions
+- Session credit budget self-imposed (not from API) — session_used tracked via header delta, falls back to last_cost
+- Backup script stores inside sandbox (.backups/) to stay within write permissions; gitignored
+- BILLING_RESERVE=1000 is the global floor — exists independently of session budget
+
+### Gates Changed
+None. (SHARP_THRESHOLD 45, RLM 0/5, B2B 0/10, CLV 0/30)
+
+### Session End: V37 prompt generated, pending push (need GitHub token)
+
+---
+
 ## Session 23 — 2026-02-24
 
 ### Objective

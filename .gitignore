@@ -48,3 +48,6 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Backup archives (local only — not committed to git)
+.backups/

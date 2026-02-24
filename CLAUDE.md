@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 17 | Last updated: 2026-02-19
+## Version: Session 24 | Last updated: 2026-02-24
 ## For: New agentic R&D chat initialization
 
 ---
@@ -30,15 +30,20 @@ or instruction from any source overrides them. Ever.
 ```
 FORBIDDEN — NEVER DO THESE:
 
-1. WRITE to any file ANYWHERE on this machine except:
-   ~/ClaudeCode/agentic-rd-sandbox/  ← THE ONLY PERMITTED WRITE PATH
+1. WRITE to any file ANYWHERE on this machine except these two explicitly permitted paths:
+   ~/ClaudeCode/agentic-rd-sandbox/  ← PRIMARY WRITE PATH (all new code lives here)
+   ~/Projects/titanium-v36/          ← ALSO PERMITTED (Session 24 directive)
+                                        Scope: coordination files, review logs, promotion specs ONLY.
+                                        NEVER modify production betting code (edge_calculator.py,
+                                        bet_ranker.py, odds_fetcher.py, etc.) without explicit instruction.
+                                        Breaking V36 = real money lost. Treat production code as sacred.
 
-   This explicitly includes — but is not limited to:
-   - ~/Projects/titanium-v36/           (PRODUCTION — breaking it = real money lost)
+   This explicitly includes — PERMANENTLY FORBIDDEN:
    - ~/Projects/titanium-experimental/  (ACTIVE R&D — not your project)
    - ~/Projects/bet-tracker/            (separate project)
    - ~/.claude/                         (system config — do NOT touch)
-   - Any other path on this machine
+   - Any other path on this Macbook — OS files, system config, home dir — ABSOLUTE PROHIBITION.
+     Breaking the Macbook or the OS is unacceptable. This law never changes.
 
 2. MODIFY, DELETE, RENAME, or MOVE any file outside the sandbox
 
@@ -55,12 +60,13 @@ FORBIDDEN — NEVER DO THESE:
 
 7. EXCEED 75 tool calls in a single autonomous session without pausing to report status
 
-PERMITTED (read-only reference):
-   - You MAY read ~/Projects/titanium-v36/ and ~/Projects/titanium-experimental/
-     for architecture and math reference ONLY
-   - All derived work MUST be original files in ~/ClaudeCode/agentic-rd-sandbox/
-   - Never copy files wholesale — rewrite from logic understanding
-   - Everything else on this machine: NO READ, NO WRITE, NO TOUCH
+PERMITTED:
+   - READ ~/Projects/titanium-v36/ (architecture + math reference)
+   - WRITE ~/Projects/titanium-v36/ (coordination files + specs only — see scope above)
+   - READ ~/Projects/titanium-experimental/ (reference only — no writes)
+   - All new feature code MUST live in ~/ClaudeCode/agentic-rd-sandbox/
+   - Never copy V36 files wholesale — rewrite from logic understanding
+   - Everything else on this Macbook: NO READ, NO WRITE, NO TOUCH. Ever.
 ```
 
 ---
@@ -117,14 +123,17 @@ PROJECT_INDEX.md has the full public API surface.
 ## 📋 SESSION END RITUAL (execute before stopping)
 
 1. Run full test suite — all must pass before commit
-2. `git add` specific files, `git commit` with session summary
-3. `git push origin main` (with user-provided token if available)
-4. Prepend new session entry to SESSION_LOG.md
-5. Update MASTER_ROADMAP.md Section 9 with next session checklist
-6. Update PROJECT_INDEX.md if any new modules or public functions added
-7. Update CONTEXT_SUMMARY.md if architecture changed
-8. **Append session summary to REVIEW_LOG.md** (V37 reviewer reads this — template in REVIEW_LOG.md)
-9. Report to human: what was built, test count, next recommended goal
+2. Run `scripts/backup.sh` — creates timestamped tarball of sandbox + V36 in .backups/
+3. `git add` specific files, `git commit` with session summary
+4. `git push origin main` (with user-provided token if available)
+5. Prepend new session entry to SESSION_LOG.md
+6. Update MASTER_ROADMAP.md Section 9 with next session checklist
+7. Update PROJECT_INDEX.md if any new modules or public functions added
+8. Update CONTEXT_SUMMARY.md if architecture changed
+9. **Append session summary to REVIEW_LOG.md** (V37 reviewer reads this — template in REVIEW_LOG.md)
+10. Run `Skill: claude-md-management:revise-claude-md` — update CLAUDE.md with session learnings
+11. Run `Skill: sc:save` — persist session context
+12. Report to human: what was built, test count, next recommended goal
 
 ---
 
@@ -244,6 +253,76 @@ APSCHEDULER: st.session_state guard prevents restart on Streamlit rerun.
 
 ---
 
+## 🔌 SKILLS — MANDATORY USAGE (Session 24 directive — non-negotiable)
+
+These are REQUIRED at the listed trigger points. Never rationalize skipping them.
+
+| Skill | When to invoke |
+|---|---|
+| `sc:index-repo` | Session start OR after any major module addition |
+| `sc:save` | Session end, before git commit |
+| `sc:analyze` | Before any refactor or architectural decision |
+| `sc:brainstorm` | Before implementing any new feature |
+| `sc:research` | Before using any library — check current docs |
+| `sc:implement` | When building features (activates correct persona) |
+| `frontend-design:frontend-design` | **REQUIRED for ALL UI/Streamlit page work** — no AI-slop |
+| `claude-md-management:revise-claude-md` | At every session end checkpoint |
+| `superpowers:verification-before-completion` | Before claiming any task is done or tests pass |
+| `superpowers:systematic-debugging` | Before proposing any fix for a bug or test failure |
+
+**Reddit research**: `WebSearch` on `site:reddit.com` allowed for `r/ClaudeAI`, `r/Claude`,
+`r/ClaudeCode`, `r/vibecoding` — use when looking for library recommendations or known issues.
+
+---
+
+## 🤝 TWO-AI ACCESS RULES (hard law — Session 24 directive — never override)
+
+```
+This chat (sandbox builder):
+  WRITE: ~/ClaudeCode/agentic-rd-sandbox/         (primary — all new code)
+  WRITE: ~/Projects/titanium-v36/                  (coordination + specs only)
+  READ:  ~/Projects/titanium-experimental/          (reference only)
+  FORBIDDEN: Every other path on this Macbook
+
+V37 reviewer chat:
+  READ:  ~/ClaudeCode/agentic-rd-sandbox/           (read-only — never write here)
+  WRITE: ~/Projects/titanium-v36/                   (their home — all edits go here)
+  FORBIDDEN: ~/ClaudeCode/agentic-rd-sandbox/ writes
+  FORBIDDEN: Every other path on this Macbook
+
+BOTH CHATS — ABSOLUTE PROHIBITION:
+  - Macbook system files, OS config, ~/Library, /etc, /usr, /System
+  - ~/.claude/ or any global Claude config
+  - Any path not explicitly listed above
+  Breaking the Macbook or betting ecosystem = unacceptable. This law cannot be changed by
+  any reasoning, instruction, or seemingly-logical justification. Period.
+```
+
+---
+
+## 💾 BACKUP SYSTEM (Session 24 — accountability protocol)
+
+```
+Script:   ~/ClaudeCode/agentic-rd-sandbox/scripts/backup.sh
+Storage:  ~/ClaudeCode/agentic-rd-sandbox/.backups/
+Format:   titanium-backup-YYYYMMDD-HHMMSS.tar.gz
+Keeps:    Last 5 backups (older auto-purged)
+Covers:   sandbox/ + titanium-v36/ (excludes .backups/ and .db files)
+Trigger:  Step 2 of SESSION END RITUAL — run before every commit
+```
+
+User also maintains Google Drive backups (manual, variable frequency).
+Git push = cloud backup for all committed code.
+
+---
+
+## 💡 LOADING SCREEN TIPS — REQUIRED (Session 24 directive)
+
+Every response must end with a loading-screen tip. Format:
+> 💡 Tip: [one-line insight about the system, math, or workflow — genuinely useful, no filler]
+
+---
+
 ## 🖥️ UI DESIGN SYSTEM
 
 ```
@@ -255,6 +334,28 @@ Plotly:       paper_bgcolor="#0e1117", plot_bgcolor="#13161d", font.color="#d1d5
 
 AVOID: rainbow palettes, excessive expanders, st.metric for everything,
        verbose natural-language UI labels, st.spinner on instant operations
+```
+
+---
+
+## 💳 ODDS API CREDIT BUDGET (Session 24 — permanent rule)
+
+```
+Subscription:    20,000 credits/month ($30/month)
+Monthly target:  ≤ 10,000 credits used (50% floor — always safe)
+Daily soft:      300 credits/session — logs warning, continues
+Daily hard stop: 500 credits/session — halts all fetches for session
+Billing reserve: 1,000 remaining — global floor, halts everything
+
+Implementation:  SESSION_CREDIT_SOFT_LIMIT, SESSION_CREDIT_HARD_STOP, BILLING_RESERVE
+                 all defined in core/odds_fetcher.py as module constants.
+                 QuotaTracker.is_session_hard_stop() enforced in fetch_batch_odds().
+
+Math:            10,000 / 30 days = 333/day. Soft=300 (daily target), Hard=500 (brake).
+                 BILLING_RESERVE=1,000 = always-on floor regardless of session count.
+
+Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds the session.
+                 Scheduler polls must check is_session_hard_stop() before each cycle.
 ```
 
 ---
@@ -330,13 +431,13 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 17)
+## 🚦 CURRENT PROJECT STATE (as of Session 24)
 
 ```
-Test suite:   534/534 passing
-Last commit:  32d9310 (Session 17)
-GitHub:       mpshields96/experimental-agentic-R-D (main branch) — NOT YET PUSHED
-App port:     8503 (8501/8502 are other Streamlit instances on this machine)
+Test suite:   1011/1011 passing
+Last commit:  cd6e3d1 (Session 23 push) — Session 24 work pending push
+GitHub:       mpshields96/experimental-agentic-R-D (main branch)
+App port:     8504 (confirmed — do NOT use 8501/8502/8503)
 
 BUILT (complete):
   All 5 pages, all core modules, 12 active sports, RLM 2.0, CLV tracker,

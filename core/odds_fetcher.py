@@ -31,6 +31,24 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
+# ---------------------------------------------------------------------------
+# Quota budget constants (Session 24 — user directive)
+#
+# Subscription: 20,000 credits/month ($30/month plan)
+# Monthly target: ≤ 10,000 credits/month (50% = always safe)
+# Daily/session self-imposed limits to prevent accidental over-burn:
+#
+#   SESSION_CREDIT_SOFT_LIMIT  — warn in logs when session usage hits this
+#   SESSION_CREDIT_HARD_STOP   — stop ALL fetches for the session when hit
+#   BILLING_RESERVE            — global floor: never let remaining drop below this
+#
+# Math: 10,000 / 30 days = ~333/day. Soft=300 (safe), Hard=500 (emergency brake).
+# BILLING_RESERVE=1,000 ensures we always have a buffer regardless of session count.
+# ---------------------------------------------------------------------------
+SESSION_CREDIT_SOFT_LIMIT: int = 300   # Warn when session uses this many credits
+SESSION_CREDIT_HARD_STOP: int = 500    # Stop fetching for the session at this count
+BILLING_RESERVE: int = 1_000          # Never let remaining drop below this
+
 # Book preference order — DraftKings first, then fallbacks
 PREFERRED_BOOKS = ["draftkings", "fanduel", "betmgm", "betrivers", "caesars"]
 
@@ -84,33 +102,66 @@ ACTIVE_SPORTS = list(SPORT_KEYS.keys())
 # ---------------------------------------------------------------------------
 
 class QuotaTracker:
-    """Track API usage across the session."""
+    """Track API usage across the session and enforce credit budget limits.
+
+    Two independent guards:
+      1. session_used >= SESSION_CREDIT_HARD_STOP  → stop ALL fetches this session
+      2. remaining < BILLING_RESERVE               → stop ALL fetches (global floor)
+
+    session_used resets to 0 on process restart (not persisted — intentional).
+    """
 
     def __init__(self) -> None:
-        self.used: int = 0
-        self.remaining: Optional[int] = None
-        self.last_cost: int = 0
+        self.used: int = 0          # cumulative used across billing period (from API)
+        self.remaining: Optional[int] = None   # remaining in billing period (from API)
+        self.last_cost: int = 0     # cost of last single call
+        self.session_used: int = 0  # credits consumed THIS session (resets on restart)
 
     def update(self, headers: dict) -> None:
         try:
+            prev_remaining = self.remaining
             self.remaining = int(headers.get("x-requests-remaining", self.remaining or 0))
             self.used = int(headers.get("x-requests-used", self.used))
             self.last_cost = int(headers.get("x-requests-last", 0))
+            # Track session spend from delta in remaining (robust to API gaps)
+            if prev_remaining is not None and self.remaining is not None:
+                delta = prev_remaining - self.remaining
+                if delta > 0:
+                    self.session_used += delta
+            elif self.last_cost > 0:
+                self.session_used += self.last_cost
         except (ValueError, TypeError):
             pass
 
     def report(self) -> str:
+        soft_warn = " SOFT_LIMIT" if self.session_used >= SESSION_CREDIT_SOFT_LIMIT else ""
+        hard_stop = " HARD_STOP" if self.is_session_hard_stop() else ""
         return (
             f"API quota | used={self.used} "
+            f"session={self.session_used}(/{SESSION_CREDIT_HARD_STOP}){soft_warn}{hard_stop} "
             f"remaining={self.remaining} "
             f"last_call={self.last_cost}"
         )
 
-    def is_low(self, threshold: int = 50) -> bool:
-        """Return True if remaining quota is below threshold."""
+    def is_low(self, threshold: int = BILLING_RESERVE) -> bool:
+        """Return True if billing-period remaining is below threshold.
+
+        Default threshold is BILLING_RESERVE (1,000) — the global floor.
+        Pass a smaller threshold for intermediate checks.
+        """
         if self.remaining is None:
             return False
         return self.remaining < threshold
+
+    def is_session_soft_limit(self) -> bool:
+        """Return True if session has consumed >= SESSION_CREDIT_SOFT_LIMIT credits."""
+        return self.session_used >= SESSION_CREDIT_SOFT_LIMIT
+
+    def is_session_hard_stop(self) -> bool:
+        """Return True if session must stop all fetches (hard limit or global floor)."""
+        if self.session_used >= SESSION_CREDIT_HARD_STOP:
+            return True
+        return self.is_low(BILLING_RESERVE)
 
 
 # Module-level tracker — imported by app.py for display
@@ -344,8 +395,9 @@ def fetch_batch_odds(
     """
     Fetch odds for multiple sports in sequence. Returns a dict keyed by sport name.
 
-    Used by the APScheduler every 5 minutes and by the Live Lines tab.
-    Stops early if quota is critically low (< 20 remaining).
+    Used by the APScheduler and by the Live Lines tab.
+    Stops early if session hard stop is reached (SESSION_CREDIT_HARD_STOP) or
+    billing reserve floor is hit (BILLING_RESERVE).
 
     Tennis handling: tennis sport keys change weekly (tournament-specific).
     When include_tennis=True, calls fetch_active_tennis_keys() to discover
@@ -384,23 +436,29 @@ def fetch_batch_odds(
             results[sport_name] = []
             continue
 
-        if quota.is_low(threshold=20):
+        if quota.is_session_hard_stop():
             logger.warning(
-                "Quota critically low (%s remaining) — stopping batch after %s",
-                quota.remaining, sport_name
+                "Credit hard stop — session=%d/%d remaining=%s — halting batch at %s",
+                quota.session_used, SESSION_CREDIT_HARD_STOP, quota.remaining, sport_name,
             )
             results[sport_name] = []
             break
+
+        if quota.is_session_soft_limit():
+            logger.warning(
+                "Credit soft limit reached (session=%d/%d) — continuing but check usage",
+                quota.session_used, SESSION_CREDIT_SOFT_LIMIT,
+            )
 
         games = fetch_game_lines(sport_key)
         results[sport_name] = games
 
     # Fetch tennis dynamically (active tournament keys change weekly)
-    if include_tennis and not quota.is_low(threshold=20):
+    if include_tennis and not quota.is_session_hard_stop():
         tennis_keys = fetch_active_tennis_keys()
         for tennis_key in tennis_keys:
-            if quota.is_low(threshold=20):
-                logger.warning("Quota critically low — skipping remaining tennis keys")
+            if quota.is_session_hard_stop():
+                logger.warning("Credit hard stop — skipping remaining tennis keys")
                 break
             games = fetch_game_lines(tennis_key)
             # Keyed by the raw sport key so callers can pass it to tennis_kill_switch
