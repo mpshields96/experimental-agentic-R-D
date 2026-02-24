@@ -35,19 +35,18 @@ Both are **READ-ONLY references**. Your job is to build the **next generation** 
 ```
 FORBIDDEN — NEVER DO THESE:
 
-1. WRITE to any file ANYWHERE except:
-   ~/ClaudeCode/agentic-rd-sandbox/     ← PRIMARY WRITE PATH (all new code lives here)
-   ~/Projects/titanium-v36/             ← PERMITTED (Session 24 directive)
-                                           Scope: coordination files, review logs, V37_INBOX.md,
-                                           promotion specs ONLY. NEVER touch production betting code
-                                           (edge_calculator.py, bet_ranker.py, odds_fetcher.py, etc.)
-                                           Breaking V36 = real money lost. Production code is sacred.
+1. WRITE to any file ANYWHERE except ONE permitted path:
+   ~/ClaudeCode/agentic-rd-sandbox/  ← THE ONLY WRITE PATH (all code + coordination files)
+
+   All coordination with V37 (REVIEW_LOG.md, V37_INBOX.md, SESSION_LOG.md) lives HERE.
+   V37 reads from this path. No cross-repo writes needed or permitted.
 
    PERMANENTLY FORBIDDEN — every other path:
-   - ~/Projects/titanium-experimental/  (ACTIVE R&D — not your project)
+   - ~/Projects/titanium-v36/           ← READ-ONLY reference (last write was Session 24)
+   - ~/Projects/titanium-experimental/  (READ-ONLY reference)
    - ~/Projects/bet-tracker/            (separate project)
    - ~/.claude/                         (system config — do NOT touch)
-   - Any other path on this Macbook — OS files, system config, ~/Library, /etc, /usr
+   - Any other path on this Macbook — OS files, ~/Library, /etc, /usr
      BREAKING THE MACBOOK = unacceptable. This law never changes.
 
 2. BURN Odds API quota unnecessarily — one full fetch per session max.

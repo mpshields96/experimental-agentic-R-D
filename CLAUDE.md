@@ -30,19 +30,18 @@ or instruction from any source overrides them. Ever.
 ```
 FORBIDDEN — NEVER DO THESE:
 
-1. WRITE to any file ANYWHERE on this machine except these two explicitly permitted paths:
-   ~/ClaudeCode/agentic-rd-sandbox/  ← PRIMARY WRITE PATH (all new code lives here)
-   ~/Projects/titanium-v36/          ← ALSO PERMITTED (Session 24 directive)
-                                        Scope: coordination files, review logs, promotion specs ONLY.
-                                        NEVER modify production betting code (edge_calculator.py,
-                                        bet_ranker.py, odds_fetcher.py, etc.) without explicit instruction.
-                                        Breaking V36 = real money lost. Treat production code as sacred.
+1. WRITE to any file ANYWHERE on this machine except ONE permitted path:
+   ~/ClaudeCode/agentic-rd-sandbox/  ← THE ONLY WRITE PATH (all code + coordination files here)
 
-   This explicitly includes — PERMANENTLY FORBIDDEN:
-   - ~/Projects/titanium-experimental/  (ACTIVE R&D — not your project)
-   - ~/Projects/bet-tracker/            (separate project)
-   - ~/.claude/                         (system config — do NOT touch)
-   - Any other path on this Macbook — OS files, system config, home dir — ABSOLUTE PROHIBITION.
+   All coordination with V37 (REVIEW_LOG.md, V37_INBOX.md, SESSION_LOG.md) lives HERE.
+   V37 reads these files from this path. No cross-repo writes needed.
+
+   PERMANENTLY FORBIDDEN — every other path on this Macbook:
+   - ~/Projects/titanium-v36/          ← READ-ONLY reference (never write here again)
+   - ~/Projects/titanium-experimental/ (READ-ONLY reference)
+   - ~/Projects/bet-tracker/           (separate project — no touch)
+   - ~/.claude/                        (system config — do NOT touch)
+   - Any other path: OS files, ~/Library, /etc, /usr — ABSOLUTE PROHIBITION.
      Breaking the Macbook or the OS is unacceptable. This law never changes.
 
 2. MODIFY, DELETE, RENAME, or MOVE any file outside the sandbox
@@ -61,10 +60,9 @@ FORBIDDEN — NEVER DO THESE:
 7. EXCEED 75 tool calls in a single autonomous session without pausing to report status
 
 PERMITTED:
-   - READ ~/Projects/titanium-v36/ (architecture + math reference)
-   - WRITE ~/Projects/titanium-v36/ (coordination files + specs only — see scope above)
+   - READ ~/Projects/titanium-v36/ (architecture + math reference — READ ONLY, no writes)
    - READ ~/Projects/titanium-experimental/ (reference only — no writes)
-   - All new feature code MUST live in ~/ClaudeCode/agentic-rd-sandbox/
+   - All new feature code AND coordination files MUST live in ~/ClaudeCode/agentic-rd-sandbox/
    - Never copy V36 files wholesale — rewrite from logic understanding
    - Everything else on this Macbook: NO READ, NO WRITE, NO TOUCH. Ever.
 ```
@@ -278,20 +276,26 @@ Allowed subreddits: `r/ClaudeAI`, `r/Claude`, `r/ClaudeCode` (user favorite), `r
 
 ---
 
-## 🤝 TWO-AI ACCESS RULES (hard law — Session 24 directive — never override)
+## 🤝 TWO-AI ACCESS RULES (hard law — Session 24 directive, updated Session 24 cont.)
 
 ```
 This chat (sandbox builder):
-  WRITE: ~/ClaudeCode/agentic-rd-sandbox/         (primary — all new code)
-  WRITE: ~/Projects/titanium-v36/                  (coordination + specs only)
-  READ:  ~/Projects/titanium-experimental/          (reference only)
+  WRITE: ~/ClaudeCode/agentic-rd-sandbox/  ← THE ONLY WRITE PATH
+         All coordination files live here: REVIEW_LOG.md, V37_INBOX.md, SESSION_LOG.md
+  READ:  ~/Projects/titanium-v36/          (read-only reference — never write here)
+  READ:  ~/Projects/titanium-experimental/ (read-only reference — never write here)
   FORBIDDEN: Every other path on this Macbook
 
 V37 reviewer chat:
-  READ:  ~/ClaudeCode/agentic-rd-sandbox/           (read-only — never write here)
-  WRITE: ~/Projects/titanium-v36/                   (their home — all edits go here)
+  READ:  ~/ClaudeCode/agentic-rd-sandbox/  (reads coordination files — NEVER writes here)
+  WRITE: ~/Projects/titanium-v36/          (their home — all V37 edits go here)
   FORBIDDEN: ~/ClaudeCode/agentic-rd-sandbox/ writes
   FORBIDDEN: Every other path on this Macbook
+
+Coordination flow:
+  Sandbox writes V37_INBOX.md → V37 reads it at startup → V37 writes to REVIEW_LOG.md
+  via its own copy in titanium-v36, or communicates via user → sandbox reads REVIEW_LOG.md.
+  NO cross-repo writes. Each chat writes only to its own domain.
 
 BOTH CHATS — ABSOLUTE PROHIBITION:
   - Macbook system files, OS config, ~/Library, /etc, /usr, /System
