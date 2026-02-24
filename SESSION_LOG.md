@@ -34,7 +34,22 @@ Establish permanent automated workflow protocols, safety rails, backup system, a
 ### Gates Changed
 None. (SHARP_THRESHOLD 45, RLM 0/5, B2B 0/10, CLV 0/30)
 
-### Session End: V37 prompt generated, pending push (need GitHub token)
+### Session 24 (continued) — 2026-02-24 — V37 Auto-Coordination + Access Architecture
+
+**What was built:**
+- **V37_INBOX.md** (new, in sandbox root): auto-relay from sandbox to V37 reviewer. V37 reads at startup via updated CLAUDE.md. Eliminates user relay entirely.
+- **memory/ORIGINAL_PROMPT.md**: session transition template. Always updated before opening new sandbox chat.
+- **memory/REVIEWER_PROMPT.md**: V37 reviewer startup prompt (copy-paste to start new V37 session). Maintained here in sandbox.
+- **CLAUDE.md updates**: titanium-v36 demoted to READ-ONLY forever. Sandbox = single write domain. 2-session save hard rule added. Lessons #22-25 added.
+- **MEMORY.md**: updated with Session 24 complete state + session transition protocol section.
+
+**Access architecture finalized (permanent):**
+- Sandbox writes: ~/ClaudeCode/agentic-rd-sandbox/ ONLY
+- V37 writes: ~/Projects/titanium-v36/ ONLY
+- Each chat reads from the other — no cross-repo writes
+
+**Commits:** d85a1f2, 7f9994a, 0395926 (sandbox) | c464bfe, 0c18e27 (titanium-v36)
+**Pending push:** 7f9994a + 0395926 to sandbox GitHub (needs token)
 
 ---
 

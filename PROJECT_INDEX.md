@@ -1,5 +1,5 @@
 # PROJECT_INDEX.md — Titanium-Agentic
-## Generated: sc:index-repo | 2026-02-24 | 1011/1011 tests passing
+## Generated: sc:index-repo | 2026-02-24 (updated Session 24 cont.) | 1011/1011 tests passing
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
@@ -43,10 +43,17 @@ agentic-rd-sandbox/
 ├── data/
 │   └── (probe_log.json — gitignored)
 ├── logs/
+├── V37_INBOX.md                    # Auto-relay inbox for V37 reviewer (sandbox writes, V37 reads at startup)
 ├── CLAUDE.md                       # Session rules, tool call limits, stop mechanism
 ├── MASTER_ROADMAP.md               # Feature backlog by phase/gate
 ├── SESSION_LOG.md                  # Per-session changelog
-└── CONTEXT_SUMMARY.md              # Condensed project context
+├── REVIEW_LOG.md                   # Two-AI audit log (both chats read/write)
+├── CONTEXT_SUMMARY.md              # Condensed project context
+└── memory/
+    ├── ORIGINAL_PROMPT.md          # Session transition template for new sandbox chats
+    ├── REVIEWER_PROMPT.md          # V37 reviewer startup prompt (copy to new V37 chat)
+    ├── RESUME_PROMPT.md            # Legacy resume prompt
+    └── NEW_CHAT_INIT_PROMPT.md     # Legacy (superseded by ORIGINAL_PROMPT.md)
 ```
 
 ---
@@ -54,7 +61,7 @@ agentic-rd-sandbox/
 ## Entry Points
 
 - **App**: `app.py` — `streamlit run app.py --server.port 8504`
-- **Tests**: `python3 -m pytest tests/ -q` — 1007 tests, ~1.5s
+- **Tests**: `python3 -m pytest tests/ -q` — 1011 tests, ~1.4s
 - **Scheduler**: auto-starts via `app.py` session_state guard on first Streamlit load
 
 ---
@@ -186,7 +193,7 @@ agentic-rd-sandbox/
 | injury_data | test_injury_data.py | 59 |
 | efficiency_feed | test_efficiency_feed.py | 51 |
 | parlay_builder | test_parlay_builder.py | 47 |
-| odds_fetcher | test_odds_fetcher.py | 47 |
+| odds_fetcher | test_odds_fetcher.py | 51 |
 | clv_tracker | test_clv_tracker.py | 46 |
 | calibration | test_calibration.py | 46 |
 | probe_logger | test_probe_logger.py | 36 |
@@ -195,7 +202,7 @@ agentic-rd-sandbox/
 | nhl_data | test_nhl_data.py | 34 |
 | line_logger | test_line_logger.py | 31 |
 | weather_feed | test_weather_feed.py | 24 |
-| **Total** | | **1007 / 1007 passing** |
+| **Total** | | **1011 / 1011 passing** |
 
 ---
 
@@ -234,7 +241,7 @@ agentic-rd-sandbox/
 - Collar: -180 to +150 (soccer expanded: -250 to +400)
 - Min edge: 3.5% | Min books for consensus: 2
 - Kelly: 0.25x fraction; >60% → 2.0u NUCLEAR, >54% → 1.0u STANDARD, else 0.5u LEAN
-- SHARP_THRESHOLD = 45 (raise to 50-55 after RLM fires ≥20 times live)
+- SHARP_THRESHOLD = 45 (raise to 50 MANUALLY after RLM fires ≥5 live sessions — currently 0/5)
 - NUCLEAR requires ≥90 sharp score. Max base = 85 (edge 40 + RLM 25 + eff 20). Injury boost = up to +5.
 - RLM trigger: 3% implied prob shift; passive (cold cache) → active on 2nd fetch
 
