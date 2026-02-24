@@ -2,6 +2,81 @@
 
 ---
 
+## Session 23 — 2026-02-24
+
+### Objective
+KOTC side mission (DraftKings King of the Court promo) + build long-term KOTC module + workflow change announcement.
+
+### KOTC Side Mission Deliverable (Tonight Feb 24, 2026)
+- Slate: 11 games, 22 teams
+- **#1 Pick: Luka Doncic (LAL vs ORL, 10:30 PM ET)** — proj PRA ~48, triple-double machine, 53.73 DFS, proven KOTC winner
+- **#2 Pick: Jalen Johnson (ATL vs WAS, 7:30 PM ET)** — proj PRA ~42, GREAT matchup (WAS bottom-5 defense), reliable floor
+- **#3 Pick: Tyrese Maxey (PHI vs IND, 7:00 PM ET)** — proj PRA ~36-47; ceiling unlocks if Embiid (questionable) sits
+- **Eliminated:** Jaylen Brown (BOS) confirmed OUT — bruised right knee (DK Network's primary pick)
+- **Value pick:** Kevin Porter Jr. (MIL vs MIA) — proj PRA ~39, career-high reb/ast, low public ownership
+
+### Key Research Findings
+- DK Network's pre-injury pick was Jaylen Brown; article published before injury confirmed
+- Luka Doncic traded to LAL (2025-26 season); Kevin Porter Jr. on MIL (career year)
+- Embiid is questionable — if he sits, Maxey virtual profile activates (47.7 raw PRA)
+
+### What Was Built
+
+#### 1. `core/king_of_the_court.py` — NEW MODULE (74 tests)
+PRA-ranked KOTC analyzer. Zero API cost — static 2025-26 season averages.
+
+**Key components:**
+- `_PlayerProfile`: 55 player profiles (name, team, pts/reb/ast/ceil_mult/min_pg)
+- `_TEAM_DEF_RATING`: 30-team defensive ratings (108-122 scale), lower = harder matchup
+- `_matchup_multiplier()`: opponent quality → PRA scale factor (0.90-1.18)
+- `_kotc_score()`: 0-100 composite = 60% proj + 30% ceiling + 10% TD threat + matchup bonus
+- `rank_kotc_candidates()`: accepts injury_outs (set), star_outs (dict), opponent_map
+- Virtual Maxey-Embiid-out profile: activates automatically when Embiid in injury_outs
+- `is_kotc_eligible_day()`: Tuesday gate (weekday==1)
+
+**KOTC Score formula reference points:**
+- Jokic (50 PRA, 62.5 ceiling, TD): base=54.5, ceil=26.8, TD=10 → 91.3
+- Luka Doncic (47.4 PRA, 57.8 ceiling, TD): → ~86.5
+- Jalen Johnson (42.3 PRA, 48.6 ceiling, TD): → ~73
+- Maxey w/Embiid out (47.7 PRA, 58.3 ceiling): → ~77
+
+#### 2. `pages/01_live_lines.py` — KOTC sidebar widget
+- Renders only on Tuesdays (`is_kotc_eligible_day()`)
+- Top-3 candidate cards with KOTC score, projected PRA, ceiling, matchup grade
+- DNP text input → live re-rank via injury_outs
+- Star-out input ("Player Name (TEAM)") → role_expansion boost
+- Virtual Maxey profile upgrade shown with ↑ badge
+
+#### 3. `PROJECT_INDEX.md` — updated (sc:index-repo)
+- Reflects all 17 modules, 1007 tests
+- Added: nba_pdo, king_of_the_court, calibration, injury_data, parlay_builder, originator_engine, weather_feed, 06_simulator
+
+### Test Count
+- 1007 / 1007 passing (+74 new KOTC tests)
+
+### Commits This Session
+- 60d83e2 — injury leverage sidebar + NUCLEAR score boost
+- 85926af — KOTC module (core/king_of_the_court.py + tests + UI)
+- ff4f3e6 — PROJECT_INDEX.md update
+
+### Pending Pushes (need GitHub token: Contents Read+Write)
+- 583621f (NBA PDO) + 60d83e2 + 85926af + ff4f3e6 + any SESSION_LOG commit
+
+### Workflow Change Announced
+- V36 chat confirmed sandbox superior; transitioning to reviewer role
+- This chat = frontier development; V36 = code reviewer
+- titanium-experimental on sabbatical
+- Two-AI bridge: shared REVIEW_LOG.md + future reviewer_bridge.py
+- Documented in MEMORY.md under "Workflow Change" and "Two-AI Bridge Plan"
+
+### Architecture Lessons
+- KOTC uses `_endpoint_factory`-free design (static data only — no network)
+- Virtual profile pattern for conditional player upgrades (Embiid-out → Maxey boost)
+- Pairing assumption for opponent_map: teams[0]↔teams[1], teams[2]↔teams[3], etc.
+- DFS FPTS ≠ raw PRA: DK scoring = 1pt/1.25reb/1.5ast; KOTC uses raw P+R+A only
+
+---
+
 ## Session 14 — 2026-02-19
 
 ### Objective
