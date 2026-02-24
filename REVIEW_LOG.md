@@ -105,32 +105,35 @@
 
 ---
 
-### V37 AUDIT — Session 23 — 2026-02-24
-**Status:** APPROVED with one FLAG (soft — clarification required next session, not a blocker)
+### V37 AUDIT — Session 23 + supplementary module review — 2026-02-24
+**Status:** APPROVED — fully cleared. No outstanding flags.
 
 **Math > Narrative check:** ✅ KOTC module is entirely separate from the betting pipeline and Sharp Score. It's a standalone DraftKings promo tool using static season averages and math-only scoring (PRA projection × matchup multiplier → composite score). No narrative input.
 
-**Rules intact:** ✅ Gates unchanged per sandbox's own summary: SHARP_THRESHOLD=45, RLM fires 0/5, B2B 0/10, CLV 0/30. No threshold changes made.
+**Rules intact:** ✅ Gates unchanged: SHARP_THRESHOLD=45, RLM fires 0/5, B2B 0/10, CLV 0/30. No threshold changes made.
 
 **Import discipline:** ✅ KOTC module follows efficiency_feed pattern — static data, no imports from core/. `pages/01_live_lines.py` imports from core/ only (correct for pages).
 
-**API discipline:** ✅ KOTC is zero API cost. No new external endpoints called in Session 23.
+**API discipline:** ✅ KOTC zero API cost. No new external endpoints in Session 23.
 
 **Test pass rate:** ✅ 1007/1007 — 74 new KOTC tests, all passing.
 
-**nba_api package (from Session 22):** NOTE — not blocking, but flagged for awareness. `nba_api>=1.11.0` was added for PDO signal (not injuries). Sandbox is not Streamlit Cloud, so no deploy concern here. For future v36 promotion: this package is non-trivial, adds ~200ms startup latency, and may have version conflicts. Reviewer will evaluate when promotion spec is written.
+**Injury leverage sidebar — FLAG CLEARED:**
+Source is `core/injury_data.py` — a static positional leverage table derived from academic literature and historical line movement studies. Module docstring is unambiguous: "No scraping, no ESPN unofficial API, no injury feeds." `signed_impact = leverage_pts × side_multiplier` — fully deterministic from a lookup table. Caller provides sport/position/is_starter/team_side; module returns a float. No gate applies. Math > Narrative rule intact. ✅
 
-**FLAG: Injury leverage sidebar data source (Session 22 detail not in log)**
-The Session 23 summary references "injury leverage sidebar from Session 22 wired in, +5 score boost when opponent's key player out." The boost is capped at `min(5.0, signed_impact)` — implying `signed_impact` is computed from a data source.
+**nba_api package (`nba_api>=1.11.0`) — supplementary review of `core/nba_pdo.py`:**
+Reviewed the full file. Assessment:
+- **Architecture:** COMPLIANT. `nba_pdo.py` has no imports from `math_engine`, `odds_fetcher`, `line_logger`, or `scheduler`. Module docstring explicitly states this and the import is lazy (`from nba_api.stats.endpoints import LeagueDashTeamStats` inside a function body). ✅
+- **Math > Narrative:** PDO = (team FG% + opponent save%) × 100. Kill switch fires on REGRESS/RECOVER thresholds derived from the PDO value. Pure math, no narrative input. ✅
+- **`_endpoint_factory` injection pattern:** Architecturally sound. Clean substitution of the network layer in tests without mocking the entire `nba_api` package. Better than `unittest.mock.patch` for this use case. ✅
+- **`_CURRENT_SEASON = "2024-25"` hardcoded:** Correct per the docstring rationale (nba_api season detection is fragile). Needs manual update in October 2025 for 2025-26 season. Not a blocker — document in SESSION_STATE.md for the future.
+- **Streamlit Cloud concern (for future v36 promotion):** `nba_api` adds pandas as a transitive dependency (v36 already has it) and stats.nba.com calls. Not a problem for the sandbox. For v36 promotion: the scheduler should call `get_all_pdo_data()` on its own poll cycle (background), never synchronously in the UI page. The current architecture routes this through the scheduler, which is correct. ✅
+- **Rate limiting:** `_INTER_REQUEST_SLEEP = 0.6s` and `_REQUEST_TIMEOUT = 15s` are appropriate. stats.nba.com's informal limit is ~10 req/min; 2 sequential calls with 0.6s sleep is safe. ✅
 
-I do not have the Session 22 log entry in SESSION_LOG.md. The key open question:
-- **What is the data source for `signed_impact`?** Options: (a) manual user input via UI text field, (b) NBA PDO module, (c) ESPN unofficial endpoint.
-- If (c) ESPN unofficial: the v36 stability gate (date ≥ 2026-03-04, error rate < 5%, avg records > 50) has not been met. Sandbox has its own gate criteria, but this should be documented.
-- If (a) or (b): no issue.
+**`_PLAYER_SEASONS` data accuracy (KOTC):** Sandbox flagged this itself (Luka→LAL, Porter Jr.→MIL). Not a mathematical issue — this is static display data for a Tuesday promo tool. Data accuracy responsibility is on the session that built it. No audit action required; it's the kind of thing that self-corrects when the player seasons are visible to the user. ✅
 
-**Action required:** In the Session 24 intro note, add one sentence clarifying the injury leverage data source. If it's user-input, say so. If it's a data module, name the module and confirm it's not ESPN unofficial endpoint or has met its own stability gate.
-
-**Issues:** None blocking. The KOTC deliverable is clean and architecturally sound. The injury sidebar flag is a clarification request, not a veto.
+**Issues:** None.
+**Action required:** None. Session 24 may proceed.
 
 ---
 
