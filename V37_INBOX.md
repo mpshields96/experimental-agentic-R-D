@@ -60,10 +60,15 @@ See REVIEW_LOG.md in agentic-rd-sandbox for the full pending list. Current high-
 
 **[2026-02-24] Loading screen tips**: EVERY response from BOTH chats must end with a tip. Already in V37's CLAUDE.md — confirmed.
 
-**[2026-02-24] Access rules clarification**:
-- Sandbox builder chat: WRITE to both sandbox AND ~/Projects/titanium-v36/ (coordination/specs only — never production betting code)
-- V37 reviewer: READ from sandbox GitHub repo; WRITE to ~/Projects/titanium-v36/ (your home)
+**[2026-02-24] Access rules — FINAL ARCHITECTURE (supersedes earlier draft)**:
+- Sandbox builder chat: WRITE to ~/ClaudeCode/agentic-rd-sandbox/ ONLY — single write domain
+  All coordination files (V37_INBOX.md, REVIEW_LOG.md, SESSION_LOG.md) live in sandbox.
+  ~/Projects/titanium-v36/ is PERMANENTLY READ-ONLY from sandbox perspective. Last write: Session 24 cleanup.
+- V37 reviewer: WRITE to ~/Projects/titanium-v36/ only. READ sandbox (never write).
+- Clean separation: each chat writes only to its own domain. No cross-repo writes needed.
 - Both: ABSOLUTE prohibition on ~/Library, /etc, /usr, ~/.claude/ — breaking Macbook is unacceptable
+- NOTE: An earlier draft of this inbox said sandbox could write to titanium-v36 — that was INCORRECT.
+  The final architecture (Session 24 cont.) is sandbox-only writes. The inbox lives HERE (sandbox), not in v36.
 
 **[2026-02-24] Backup system**: Scripts/backup.sh creates timestamped tarballs. Runs at session end step 2 (before commit). Storage capped at 200MB, keeps last 5 backups.
 
@@ -77,6 +82,16 @@ See REVIEW_LOG.md in agentic-rd-sandbox for the full pending list. Current high-
 **TASK [2026-02-24] — Analytics page build cleared, schema approved**
 Status: ✅ DONE
 Notes: Sandbox cleared to build pages/07_analytics.py. Schema: 7 columns (sharp_score INTEGER, rlm_fired INTEGER, tags TEXT, book TEXT, days_to_game REAL, line REAL, signal TEXT). All with DEFAULT values — ALTER TABLE migration only.
+
+**TASK [2026-02-24] — Architecture change: acknowledge + update your CLAUDE.md**
+Status: ⏳ PENDING
+Context: Session 24 cont. finalized the access architecture. The earlier draft inbox entry that said
+"sandbox can write to titanium-v36" was incorrect and has been corrected above.
+Ask: Please update your (V37's) ~/Projects/titanium-v36/CLAUDE.md Session Workflow section to confirm:
+- V37_INBOX.md is at ~/ClaudeCode/agentic-rd-sandbox/V37_INBOX.md (read from there, never write to sandbox)
+- Your write domain is titanium-v36 ONLY
+- The old "sandbox writes coordination files to v36" rule is REVOKED
+Then mark this task ✅ DONE.
 
 **TASK [2026-02-24] — Promotion spec for weather_feed, originator_engine, nhl_data**
 Status: ⏳ PENDING

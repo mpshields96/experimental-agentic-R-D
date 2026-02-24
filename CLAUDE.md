@@ -96,6 +96,8 @@ Git strategy:
 - A test suite fails and you cannot resolve in 2 iterations
 - You are uncertain which of 2+ architectural paths to take
 - You detect you need to access files outside the sandbox
+- You have intent to write to ~/Projects/titanium-v36/ or any other non-sandbox path —
+  STOP. Single write domain is absolute. State the intent and wait for user confirmation before acting.
 - Tool call count reaches 60 (warn) or 75 (stop)
 - Any action requires a credential or API key not available from env
 - User types "STOP" or "HALT" → save SESSION_LOG.md, commit WIP, report status
@@ -103,6 +105,11 @@ Git strategy:
 ---
 
 ## 📋 SESSION START RITUAL (execute in order, every session)
+
+0. **Cross-domain intent check**: If you have any plan today to write outside ~/ClaudeCode/agentic-rd-sandbox/,
+   declare it NOW before any other work and wait for explicit user confirmation. Lesson: Session 24
+   added files to titanium-v36 before architecture was clarified — required two reversal commits.
+   Clarify upfront, not after. The CORRECT pattern is: ask first, write second.
 
 1. Read this CLAUDE.md fully
 2. Read PROJECT_INDEX.md — absorbs full codebase in ~3K tokens

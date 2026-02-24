@@ -7,7 +7,7 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 24 — 2026-02-24
+# Last updated: Session 24 (complete) — 2026-02-24
 # Maintained by: sandbox builder chat
 
 ---
@@ -72,6 +72,10 @@ FORBIDDEN — NEVER DO THESE:
 
 ## 📋 SESSION START RITUAL (execute in this exact order every session)
 
+0. **Cross-domain intent check**: If you have ANY plan today to write outside ~/ClaudeCode/agentic-rd-sandbox/,
+   state it NOW and wait for user confirmation before proceeding. Lesson (Session 24): writing to
+   titanium-v36 before the architecture was clarified required two reversal commits. Clarify upfront.
+
 1. Read `~/ClaudeCode/agentic-rd-sandbox/CLAUDE.md` (rules, math, architecture)
 2. Read `~/ClaudeCode/agentic-rd-sandbox/PROJECT_INDEX.md` (full codebase map — ~3K tokens)
 3. Read `~/ClaudeCode/agentic-rd-sandbox/REVIEW_LOG.md` — check for V37 FLAGS. If FLAG present, address before new work.
@@ -99,7 +103,7 @@ Do NOT read individual source files unless debugging requires it.
 10. Update `memory/ORIGINAL_PROMPT.md` — expand with current state (REQUIRED if approaching context limit)
 11. **Run `Skill: claude-md-management:revise-claude-md`** — update CLAUDE.md with session learnings
 12. **Run `Skill: sc:save`** — persist session context
-13. Write pending V37 tasks to `~/Projects/titanium-v36/V37_INBOX.md`
+13. Write pending V37 tasks to `~/ClaudeCode/agentic-rd-sandbox/V37_INBOX.md` (lives in sandbox — V37 reads from here)
 14. Report to human: what was built, test count, next recommended goal
 
 **2-session save rule (HARD)**: Steps 11-12 MUST run at minimum every 2 sessions. Never fall behind.
@@ -158,16 +162,26 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      streamlit run app.py --server.port 8504
 Tests:    1011 / 1011 passing ✅
-GitHub:   mpshields96/experimental-agentic-R-D (main) — PUSHED
-Latest:   d85a1f2 (Session 24: governance, backup system, credit guards)
+GitHub:   mpshields96/experimental-agentic-R-D (main) — FULLY PUSHED (Session 24 cont.)
+Latest:   97eaa44 (sc:save + sc:index-repo — index + session log updated)
+Prior:    0395926 (clean access architecture + REVIEWER_PROMPT.md)
+          7f9994a (V37 auto-coordination + ORIGINAL_PROMPT.md)
+          d85a1f2 (Session 24: governance, backup system, credit guards)
 ```
+
+### Access architecture (final — permanent)
+- Sandbox writes: ~/ClaudeCode/agentic-rd-sandbox/ ONLY — single write domain
+- V37 reads sandbox, writes titanium-v36 — no cross-domain writes from either side
+- V37_INBOX.md lives in sandbox root (not titanium-v36)
+- memory/REVIEWER_PROMPT.md = copy-paste to start new V37 chat
+- memory/ORIGINAL_PROMPT.md = copy-paste to start new sandbox chat (this file)
 
 ### Core Modules (17 modules, all tested)
 
 | Module | Purpose | Tests |
 |--------|---------|-------|
 | `math_engine.py` | ALL math — collar, edge, Kelly, sharp score, RLM, CLV, Nemesis | 217 |
-| `odds_fetcher.py` | Odds API wrapper, quota tracking, rest days, tennis discovery | 47 |
+| `odds_fetcher.py` | Odds API wrapper, quota tracking, rest days, tennis discovery | 51 |
 | `line_logger.py` | SQLite WAL: lines, snapshots, bets, movements | 31 |
 | `scheduler.py` | APScheduler: poll loop, NHL goalie hook, purge | 35 |
 | `nhl_data.py` | Free NHL API: goalie starter detection, zero quota | 34 |
