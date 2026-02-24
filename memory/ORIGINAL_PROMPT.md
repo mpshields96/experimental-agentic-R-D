@@ -166,17 +166,12 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      streamlit run app.py --server.port 8504
 Tests:    1011 / 1011 passing ✅
-GitHub:   mpshields96/experimental-agentic-R-D (main) — FULLY PUSHED (Session 24 cont.)
-Latest:   3bce41d (Session 24 final: cross-repo write fix + ORIGINAL_PROMPT.md ready)
-Prior:    97eaa44 (sc:save + sc:index-repo — index + session log updated)
+GitHub:   mpshields96/experimental-agentic-R-D (main) — committed, PUSH PENDING (need token)
+Latest:   5fb88c2 (Session 24 final cont.: V37 inbox completions + REVIEW_LOG two-way rule)
+Prior:    3bce41d (Session 24 final: cross-repo write fix + ORIGINAL_PROMPT.md ready)
+          97eaa44 (sc:save + sc:index-repo — index + session log updated)
           0395926 (clean access architecture + REVIEWER_PROMPT.md)
-          7f9994a (V37 auto-coordination + ORIGINAL_PROMPT.md)
           d85a1f2 (Session 24: governance, backup system, credit guards)
-
-Unstaged (pending commit):
-  REVIEW_LOG.md    — V37 appended FLAG NOTE: promotion spec ready
-  V37_INBOX.md     — V37 marked two pending tasks ✅ DONE
-  memory/ORIGINAL_PROMPT.md — this file (Session 24 cont. updates)
 ```
 
 ### Access architecture (final — permanent)
