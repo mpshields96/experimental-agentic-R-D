@@ -102,11 +102,12 @@ Git strategy:
 
 1. Read this CLAUDE.md fully
 2. Read PROJECT_INDEX.md — absorbs full codebase in ~3K tokens
-3. Read MASTER_ROADMAP.md Section 9 — today's priority checklist
-4. Run: `python3 -m pytest tests/ -q` — confirm test count and all passing
-5. Run: `git status` — confirm clean sandbox
-6. State session objective in SESSION_LOG.md
-7. Begin work
+3. **Read REVIEW_LOG.md** — check for any V37 reviewer FLAGS. If FLAG present, address before new work.
+4. Read MASTER_ROADMAP.md Section 9 — today's priority checklist
+5. Run: `python3 -m pytest tests/ -q` — confirm test count and all passing
+6. Run: `git status` — confirm clean sandbox
+7. State session objective in SESSION_LOG.md
+8. Begin work
 
 Do NOT read individual source files unless debugging requires it —
 PROJECT_INDEX.md has the full public API surface.
@@ -122,7 +123,8 @@ PROJECT_INDEX.md has the full public API surface.
 5. Update MASTER_ROADMAP.md Section 9 with next session checklist
 6. Update PROJECT_INDEX.md if any new modules or public functions added
 7. Update CONTEXT_SUMMARY.md if architecture changed
-8. Report to human: what was built, test count, next recommended goal
+8. **Append session summary to REVIEW_LOG.md** (V37 reviewer reads this — template in REVIEW_LOG.md)
+9. Report to human: what was built, test count, next recommended goal
 
 ---
 
