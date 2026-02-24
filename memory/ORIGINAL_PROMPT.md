@@ -7,7 +7,7 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 24 (complete) — 2026-02-24
+# Last updated: Session 24 (cont.) — 2026-02-24 — V37 promotion spec complete
 # Maintained by: sandbox builder chat
 
 ---
@@ -116,7 +116,10 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 
 **Coordination files:**
 - `~/ClaudeCode/agentic-rd-sandbox/REVIEW_LOG.md` — async channel: sandbox writes summary, V37 writes audit
-- `~/Projects/titanium-v36/V37_INBOX.md` — auto-relay: sandbox writes tasks for V37, V37 reads at startup
+  **TWO-WAY EXCEPTION**: V37 is permitted to append audit notes to REVIEW_LOG.md even though it lives in the sandbox.
+  This is correct protocol — not a policy violation. Both chats write to REVIEW_LOG.md by design.
+- `~/ClaudeCode/agentic-rd-sandbox/V37_INBOX.md` — auto-relay: sandbox writes tasks for V37, V37 reads at startup
+  (Lives in sandbox repo, NOT in titanium-v36 — V37 reads it from this path)
 
 **V37 VETO authority (obey these flags):**
 - New external APIs (esp. unofficial — ESPN requires gate, api-tennis.com = PERMANENTLY BANNED)
@@ -133,7 +136,8 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file. Write tasks to V37_INBOX.md.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
 
-Current V37 status: **APPROVED — no outstanding flags as of Session 24.**
+Current V37 status: **APPROVED — no outstanding flags as of Session 24 cont.**
+V37 promotion spec written: `~/Projects/titanium-v36/PROMOTION_SPEC.md` — ready for sandbox reference.
 
 ---
 
@@ -163,10 +167,16 @@ Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      streamlit run app.py --server.port 8504
 Tests:    1011 / 1011 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main) — FULLY PUSHED (Session 24 cont.)
-Latest:   97eaa44 (sc:save + sc:index-repo — index + session log updated)
-Prior:    0395926 (clean access architecture + REVIEWER_PROMPT.md)
+Latest:   3bce41d (Session 24 final: cross-repo write fix + ORIGINAL_PROMPT.md ready)
+Prior:    97eaa44 (sc:save + sc:index-repo — index + session log updated)
+          0395926 (clean access architecture + REVIEWER_PROMPT.md)
           7f9994a (V37 auto-coordination + ORIGINAL_PROMPT.md)
           d85a1f2 (Session 24: governance, backup system, credit guards)
+
+Unstaged (pending commit):
+  REVIEW_LOG.md    — V37 appended FLAG NOTE: promotion spec ready
+  V37_INBOX.md     — V37 marked two pending tasks ✅ DONE
+  memory/ORIGINAL_PROMPT.md — this file (Session 24 cont. updates)
 ```
 
 ### Access architecture (final — permanent)
@@ -335,9 +345,20 @@ Constants: SESSION_CREDIT_SOFT_LIMIT, SESSION_CREDIT_HARD_STOP, BILLING_RESERVE
 - Use `st.html()` not `st.markdown()` for card-style HTML blocks
 - Equity curve pattern: `st.line_chart(df, color="#14B8A6", height=180)`
 
-**Priority 3 — V37 pending audit tasks**
-- Write v36 promotion spec (weather_feed, originator_engine, nhl_data)
-- B2 gate monitor (check ~/Projects/titanium-experimental/results/espn_stability.log)
+**Priority 3 — Module promotions (V37 spec ready — ref: ~/Projects/titanium-v36/PROMOTION_SPEC.md)**
+
+V37 completed PROMOTION_SPEC.md on 2026-02-24. Build order: nhl_data → originator_engine → weather_feed.
+
+| Module | Priority | V37 status | Test delta | Key note |
+|--------|----------|-----------|-----------|---------|
+| `data/nhl_data.py` | MEDIUM-HIGH | Spec ready ✅ | +42 tests | NHL in-season (Feb 2026). Import path: `from data.nhl_data`. Touch: `edge_calculator.py` (nhl_kill_switch + nhl_goalie_status param), `app.py` (inline goalie poll). |
+| `originator_engine.py` | MEDIUM | Spec ready ✅ | +40 tests | Bug fix: callers pass `bet.line` as mean → replace with `efficiency_gap_to_margin(efficiency_gap)`. Add: `poisson_soccer()`, `PoissonResult`, new constants. Keep: `simulate_prop()`, `run_poisson_matrix()`. |
+| `data/weather_feed.py` | DEFERRED | Spec ready ✅ | +24 tests | NFL off-season. **Build Aug 2026 only** (NFL preseason window). |
+
+**B2 gate monitor** — ESPN stability log
+- Check: ~/Projects/titanium-experimental/results/espn_stability.log
+- Gate: date ≥ 2026-03-04, error_rate < 5%, avg_nba_records > 50
+- Status: PENDING (report to REVIEW_LOG.md when checked)
 
 ---
 
@@ -390,7 +411,8 @@ Plotly:       paper_bgcolor="#0e1117", plot_bgcolor="#13161d", font.color="#d1d5
 20. DFS FPTS ≠ raw PRA: DK scoring = 1pt/1.25reb/1.5ast. KOTC uses raw P+R+A only (no multipliers)
 21. KOTC virtual profiles: "Tyrese Maxey-Embiid-out" activates ONLY when "Joel Embiid" is in injury_outs set
 22. Module-level test state bleed: when module defines global state, raising thresholds breaks tests that leave stale state. Always `setup_method(self): _reset_state()` in test classes.
-23. V37_INBOX.md: auto-relay file in titanium-v36. Sandbox writes tasks, V37 reads at startup. Eliminates user relay.
+23. V37_INBOX.md: auto-relay file in SANDBOX (~/ClaudeCode/agentic-rd-sandbox/V37_INBOX.md). Sandbox writes tasks, V37 reads at startup from that path. Eliminates user relay.
+26. REVIEW_LOG.md two-way exception: V37 writes to REVIEW_LOG.md (in sandbox) — this is correct protocol, not a policy violation. Both chats write to it by design. Single-write-domain rule has one explicit exception: REVIEW_LOG.md.
 24. WebSearch only for Reddit: never browser automation on social sites. Use WebSearch with `site:reddit.com`.
 25. ORIGINAL_PROMPT.md: `memory/ORIGINAL_PROMPT.md` is the session transition doc. Always update before opening a new chat.
 

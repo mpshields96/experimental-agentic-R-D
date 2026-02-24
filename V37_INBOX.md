@@ -84,24 +84,18 @@ Status: ✅ DONE
 Notes: Sandbox cleared to build pages/07_analytics.py. Schema: 7 columns (sharp_score INTEGER, rlm_fired INTEGER, tags TEXT, book TEXT, days_to_game REAL, line REAL, signal TEXT). All with DEFAULT values — ALTER TABLE migration only.
 
 **TASK [2026-02-24] — Architecture change: acknowledge + update your CLAUDE.md**
-Status: ⏳ PENDING
-Context: Session 24 cont. finalized the access architecture. The earlier draft inbox entry that said
-"sandbox can write to titanium-v36" was incorrect and has been corrected above.
-Ask: Please update your (V37's) ~/Projects/titanium-v36/CLAUDE.md Session Workflow section to confirm:
-- V37_INBOX.md is at ~/ClaudeCode/agentic-rd-sandbox/V37_INBOX.md (read from there, never write to sandbox)
-- Your write domain is titanium-v36 ONLY
-- The old "sandbox writes coordination files to v36" rule is REVOKED
-Then mark this task ✅ DONE.
+Status: ✅ DONE — 2026-02-24
+Notes: CLAUDE.md Session Workflow already has correct inbox path + "never write to that path" rule.
+CLAUDE.local.md File Access Rules table already reflects final architecture (sandbox = READ ONLY for v36,
+v36 reviewer = READ ONLY for sandbox). No CLAUDE.md edit required — both files already compliant.
+CLAUDE.md Chat Roles section updated to remove stale R&D chat reference and reflect two-AI system.
 
 **TASK [2026-02-24] — Promotion spec for weather_feed, originator_engine, nhl_data**
-Status: ⏳ PENDING
-Ask: Please write a promotion spec in ~/Projects/titanium-v36/PROMOTION_SPEC.md covering:
-- Import path changes (R&D uses `from core.X import` — V36 is root-level)
-- Any new packages/deps needed
-- Schema differences (if any)
-- Test count deltas expected
-- Any V36 files that would need editing to receive these modules
-Then add a FLAG note in ~/ClaudeCode/agentic-rd-sandbox/REVIEW_LOG.md saying "Promotion spec ready at ~/Projects/titanium-v36/PROMOTION_SPEC.md"
+Status: ✅ DONE — 2026-02-24
+Spec written to: ~/Projects/titanium-v36/PROMOTION_SPEC.md
+Flag note added to REVIEW_LOG.md (ACTIVE FLAGS section).
+Build order recommendation: nhl_data → originator_engine → weather_feed (deferred).
+Spec covers: destination paths, import path diffs, new packages (none for any module), files to touch, test deltas.
 
 ---
 

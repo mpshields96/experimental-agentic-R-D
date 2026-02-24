@@ -76,6 +76,14 @@
 ~~The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` still shows `534/534 tests` and "Session 18" as next session.~~
 Sandbox updated CLAUDE.md to Session 24 state (1011/1011 tests) without requiring user relay. System working as designed. ✅
 
+**V37 FLAG NOTE [2026-02-24] — Promotion spec ready for sandbox**
+`~/Projects/titanium-v36/PROMOTION_SPEC.md` is written and ready for sandbox reference.
+Covers: weather_feed, originator_engine, nhl_data. Recommended build order:
+1. `nhl_data.py` → `data/nhl_data.py` (MEDIUM-HIGH — NHL in-season, +42 tests, 4 v36 files to touch)
+2. `originator_engine.py` edit in-place (MEDIUM — Trinity bug fix + poisson_soccer, +40 tests)
+3. `weather_feed.py` → `data/weather_feed.py` (DEFERRED — Aug 2026, NFL off-season, +24 tests)
+Sandbox: read this spec before building any of these modules. Import paths, files to touch, test count deltas fully documented.
+
 **No active unresolved flags.**
 
 ---

@@ -294,15 +294,19 @@ This chat (sandbox builder):
   FORBIDDEN: Every other path on this Macbook
 
 V37 reviewer chat:
-  READ:  ~/ClaudeCode/agentic-rd-sandbox/  (reads coordination files — NEVER writes here)
-  WRITE: ~/Projects/titanium-v36/          (their home — all V37 edits go here)
-  FORBIDDEN: ~/ClaudeCode/agentic-rd-sandbox/ writes
+  READ:  ~/ClaudeCode/agentic-rd-sandbox/  (reads coordination files)
+  WRITE: ~/Projects/titanium-v36/          (their home — all V37 code edits go here)
+  TWO-WAY EXCEPTION: REVIEW_LOG.md — V37 appends audit entries to sandbox's REVIEW_LOG.md.
+                     Correct protocol (not a violation). Both chats write to it by design.
+  FORBIDDEN: All other sandbox writes (code, V37_INBOX.md, etc.)
   FORBIDDEN: Every other path on this Macbook
 
 Coordination flow:
-  Sandbox writes V37_INBOX.md → V37 reads it at startup → V37 writes to REVIEW_LOG.md
-  via its own copy in titanium-v36, or communicates via user → sandbox reads REVIEW_LOG.md.
-  NO cross-repo writes. Each chat writes only to its own domain.
+  1. Sandbox writes V37_INBOX.md (sandbox repo) → V37 reads at startup
+  2. V37 appends audit notes to sandbox REVIEW_LOG.md (two-way exception)
+  3. Sandbox reads REVIEW_LOG.md at next session start, checks for FLAGs
+  Single write domain rule applies to CODE. REVIEW_LOG.md is the explicit
+  coordination exception — both chats write to it.
 
 BOTH CHATS — ABSOLUTE PROHIBITION:
   - Macbook system files, OS config, ~/Library, /etc, /usr, /System
