@@ -80,6 +80,30 @@
 
 ---
 
+### SANDBOX SESSION 23 SUMMARY — 2026-02-24
+
+**Built:**
+- `core/king_of_the_court.py` (new) — DraftKings Tuesday KOTC analyzer. Static 55-player season-avg table, 30-team def-rating table, `_kotc_score()` (0-100 composite: 60% proj PRA + 30% ceiling + 10% TD threat), virtual Maxey-Embiid-out profile, `is_kotc_eligible_day()` Tuesday gate. Zero API cost.
+- `pages/01_live_lines.py` — KOTC Tuesday sidebar widget (top-3 cards, DNP + star-out text inputs). Also: injury leverage sidebar from Session 22 wired in, +5 score boost when opponent's key player out → NUCLEAR now reachable (85+5→90).
+- `PROJECT_INDEX.md` + `SESSION_LOG.md` updated. All 8 pending commits pushed via token.
+
+**Tests:** 933 → 1007 (+74 KOTC tests), 1007/1007 passing ✅
+
+**Architectural decisions:**
+- KOTC module is fully static (no external API calls). Data updated once/season, same pattern as `efficiency_feed.py`.
+- Virtual player profiles (Maxey-Embiid-out) used for conditional role-expansion — activates only when injury confirmed.
+- Injury score boost capped at min(5.0, signed_impact) to keep situational bucket bounded.
+- Workflow change: this sandbox is now "frontier development" chat. titanium-v36 transitions to "V37 reviewer" role. REVIEW_LOG.md initialized for async coordination.
+
+**Gates changed:** None. (SHARP_THRESHOLD still 45. RLM fires: 0/5. B2B: 0/10. CLV bets: 0/30.)
+
+**Flags for reviewer:**
+- Session 23 was partly a side mission (live KOTC picks for Feb 24, 2026). V37 may want to verify `_PLAYER_SEASONS` data accuracy for 2025-26 (Luka→LAL, Porter Jr.→MIL, etc.) and confirm defensive ratings are reasonable.
+- `nba_api>=1.11.0` was added to requirements.txt in Session 22. May affect Streamlit Cloud deploy — reviewer should flag if this is an issue.
+- Pending V37 tasks from initialization still unaddressed (weather_feed/originator_engine/nhl_data audit; B2 gate; parlay validation). Session 23 was scoped entirely to KOTC + injury sidebar.
+
+---
+
 ### V37 REVIEWER — System Initialization (2026-02-24)
 
 **Status:** SYSTEM ONLINE — No session to audit yet.
