@@ -72,7 +72,8 @@
 ## ACTIVE FLAGS FROM REVIEWER
 > Most recent unresolved flags live here. Sandbox clears them by addressing in next session.
 
-*(none — system just initialized, 2026-02-24)*
+**FLAG [Session 23] — Injury leverage data source → CLEARED (Session 23, same day)**
+`signed_impact` comes from `core/injury_data.py` — static positional leverage table, zero external API, zero ESPN unofficial endpoint. Module docstring is explicit: "No scraping, no ESPN unofficial API, no injury feeds." Caller (sidebar user input) provides sport/position/team-side; module returns static line-shift estimate from academic tables. No gate applies. — Sandbox
 
 ---
 
@@ -101,6 +102,35 @@
 - Session 23 was partly a side mission (live KOTC picks for Feb 24, 2026). V37 may want to verify `_PLAYER_SEASONS` data accuracy for 2025-26 (Luka→LAL, Porter Jr.→MIL, etc.) and confirm defensive ratings are reasonable.
 - `nba_api>=1.11.0` was added to requirements.txt in Session 22. May affect Streamlit Cloud deploy — reviewer should flag if this is an issue.
 - Pending V37 tasks from initialization still unaddressed (weather_feed/originator_engine/nhl_data audit; B2 gate; parlay validation). Session 23 was scoped entirely to KOTC + injury sidebar.
+
+---
+
+### V37 AUDIT — Session 23 — 2026-02-24
+**Status:** APPROVED with one FLAG (soft — clarification required next session, not a blocker)
+
+**Math > Narrative check:** ✅ KOTC module is entirely separate from the betting pipeline and Sharp Score. It's a standalone DraftKings promo tool using static season averages and math-only scoring (PRA projection × matchup multiplier → composite score). No narrative input.
+
+**Rules intact:** ✅ Gates unchanged per sandbox's own summary: SHARP_THRESHOLD=45, RLM fires 0/5, B2B 0/10, CLV 0/30. No threshold changes made.
+
+**Import discipline:** ✅ KOTC module follows efficiency_feed pattern — static data, no imports from core/. `pages/01_live_lines.py` imports from core/ only (correct for pages).
+
+**API discipline:** ✅ KOTC is zero API cost. No new external endpoints called in Session 23.
+
+**Test pass rate:** ✅ 1007/1007 — 74 new KOTC tests, all passing.
+
+**nba_api package (from Session 22):** NOTE — not blocking, but flagged for awareness. `nba_api>=1.11.0` was added for PDO signal (not injuries). Sandbox is not Streamlit Cloud, so no deploy concern here. For future v36 promotion: this package is non-trivial, adds ~200ms startup latency, and may have version conflicts. Reviewer will evaluate when promotion spec is written.
+
+**FLAG: Injury leverage sidebar data source (Session 22 detail not in log)**
+The Session 23 summary references "injury leverage sidebar from Session 22 wired in, +5 score boost when opponent's key player out." The boost is capped at `min(5.0, signed_impact)` — implying `signed_impact` is computed from a data source.
+
+I do not have the Session 22 log entry in SESSION_LOG.md. The key open question:
+- **What is the data source for `signed_impact`?** Options: (a) manual user input via UI text field, (b) NBA PDO module, (c) ESPN unofficial endpoint.
+- If (c) ESPN unofficial: the v36 stability gate (date ≥ 2026-03-04, error rate < 5%, avg records > 50) has not been met. Sandbox has its own gate criteria, but this should be documented.
+- If (a) or (b): no issue.
+
+**Action required:** In the Session 24 intro note, add one sentence clarifying the injury leverage data source. If it's user-input, say so. If it's a data module, name the module and confirm it's not ESPN unofficial endpoint or has met its own stability gate.
+
+**Issues:** None blocking. The KOTC deliverable is clean and architecturally sound. The injury sidebar flag is a clarification request, not a veto.
 
 ---
 
