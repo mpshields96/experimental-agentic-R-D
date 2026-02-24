@@ -37,6 +37,11 @@ if str(ROOT) not in sys.path:
 
 from core.efficiency_feed import get_efficiency_gap
 from core.nba_pdo import get_all_pdo_data
+from core.king_of_the_court import (
+    rank_kotc_candidates,
+    format_kotc_summary,
+    is_kotc_eligible_day,
+)
 from core.injury_data import (
     injury_kill_switch,
     list_high_leverage_positions,
@@ -434,6 +439,85 @@ with st.sidebar:
         if inj_active:
             _lev = next((l for p, l, _ in _high_lev if p == inj_position), 0.0)
             st.caption(f"Expected line shift: **{_lev:.1f} pts** · threshold KILL ≥ 3.5 pts")
+
+# --- King of the Court (Tuesday only) ---
+if is_kotc_eligible_day():
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 👑 King of the Court")
+        st.caption("DraftKings Tuesday promo — highest PRA wins $2M prize pool.")
+        with st.expander("KOTC Picks (tonight)", expanded=True):
+            _kotc_outs_raw = st.text_input(
+                "Confirmed DNPs (comma-separated)",
+                value="",
+                key="kotc_outs",
+                placeholder="Jaylen Brown, Joel Embiid",
+            )
+            _kotc_outs = {
+                name.strip() for name in _kotc_outs_raw.split(",") if name.strip()
+            }
+            _kotc_star_outs_raw = st.text_input(
+                "Star-teammate DNPs (boosts others)",
+                value="",
+                key="kotc_star_outs",
+                placeholder="Jayson Tatum (BOS)",
+            )
+            # Parse "Player Name (TEAM)" format
+            _kotc_star_outs: dict[str, str] = {}
+            for entry in _kotc_star_outs_raw.split(","):
+                entry = entry.strip()
+                if "(" in entry and entry.endswith(")"):
+                    pname, team = entry[:-1].rsplit("(", 1)
+                    _kotc_star_outs[pname.strip()] = team.strip()
+
+            # Use tonight's full NBA slate — all 30 teams (scheduler has live games;
+            # for sidebar we provide all known NBA team abbrevs as fallback)
+            _NBA_ALL_TEAMS = [
+                "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN",
+                "DET", "GSW", "HOU", "IND", "LAC", "LAL", "MEM", "MIA",
+                "MIL", "MIN", "NOP", "NYK", "OKC", "ORL", "PHI", "PHX",
+                "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
+            ]
+
+            try:
+                _kotc_candidates = rank_kotc_candidates(
+                    _NBA_ALL_TEAMS,
+                    injury_outs=_kotc_outs,
+                    star_outs=_kotc_star_outs if _kotc_star_outs else None,
+                )
+            except Exception as _exc:
+                _kotc_candidates = []
+
+            if not _kotc_candidates:
+                st.caption("No KOTC candidates found.")
+            else:
+                for _rank, _c in enumerate(_kotc_candidates[:3], 1):
+                    _badge = "🥇" if _rank == 1 else ("🥈" if _rank == 2 else "🥉")
+                    _td_flag = " ★TD" if _c.triple_double_threat else ""
+                    _exp_flag = " ↑" if _c.role_expansion else ""
+                    st.html(
+                        f"""
+                        <div style="background:#1a1d23;border:1px solid #2d3139;
+                                    border-left:3px solid #f59e0b;border-radius:6px;
+                                    padding:8px 10px;margin:4px 0;">
+                          <div style="font-size:13px;font-weight:700;color:#f3f4f6;">
+                            {_badge} {_c.player_name}{_td_flag}{_exp_flag}
+                            <span style="color:#6b7280;font-weight:400;font-size:11px;">
+                              ({_c.team} {_c.position})
+                            </span>
+                          </div>
+                          <div style="font-size:11px;color:#9ca3af;margin-top:2px;">
+                            KOTC Score <b style="color:#f59e0b">{_c.kotc_score:.0f}</b>
+                            &nbsp;·&nbsp;Proj PRA <b style="color:#22c55e">{_c.pra_projection:.1f}</b>
+                            &nbsp;·&nbsp;Ceil <b style="color:#a78bfa">{_c.pra_ceiling:.1f}</b>
+                          </div>
+                          <div style="font-size:10px;color:#6b7280;margin-top:2px;">
+                            vs {_c.opponent} [{_c.matchup_grade}]
+                          </div>
+                        </div>
+                        """
+                    )
+                st.caption(f"#1 bet: **{_kotc_candidates[0].player_name}** — {_kotc_candidates[0].reasoning[:60]}…")
 
 # --- Fetch & render ---
 fetch_placeholder = st.empty()
