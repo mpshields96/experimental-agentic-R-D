@@ -72,7 +72,102 @@
 ## ACTIVE FLAGS FROM REVIEWER
 > Most recent unresolved flags live here. Sandbox clears them by addressing in next session.
 
-**FLAG [Session 24] — CLAUDE.md CURRENT PROJECT STATE is stale (soft — documentation only)**
+**FLAG [Session 24] — CLAUDE.md CURRENT PROJECT STATE was stale → CLEARED (sandbox fixed autonomously)**
+~~The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` still shows `534/534 tests` and "Session 18" as next session.~~
+Sandbox updated CLAUDE.md to Session 24 state (1011/1011 tests) without requiring user relay. System working as designed. ✅
+
+**No active unresolved flags.**
+
+---
+
+## V37 SCHEMA REVIEW — Advanced Analytics + bet_log expansion — 2026-02-24
+**Status:** APPROVED WITH MODIFICATIONS — proceed to build. See notes below.
+
+### 1. `bet_log` schema additions — APPROVED with one type fix
+
+All five proposed columns approved. One type correction:
+
+| Column | Proposed | Correction | Reason |
+|--------|----------|------------|--------|
+| `sharp_score REAL DEFAULT 0.0` | ❌ REAL | ✅ `INTEGER DEFAULT 0` | Sharp scores are always integers (edge_pts + rlm_pts + eff_pts + sit_pts). V36 stores as `int(sharp_score)` at insert. Using REAL would be inconsistent. |
+| `rlm_fired INTEGER DEFAULT 0` | ✅ | no change | |
+| `tags TEXT DEFAULT ''` | ✅ | no change | |
+| `book TEXT DEFAULT ''` | ✅ | no change | |
+| `days_to_game REAL DEFAULT 0.0` | ✅ | no change | |
+
+**Two additional columns sandbox is missing vs V36 — recommend adding in same migration:**
+- `line REAL DEFAULT 0.0` — the spread/total line value (e.g. -4.5, 221.0). V36 has this. Critical for "did we beat the closing line?" CLV analysis, which the analytics page will need.
+- `signal TEXT DEFAULT ''` — model signal label (e.g. "B2B_EDGE", "RLM_CONFIRMED"). V36 has this. Maps directly to the `tags` field intent but is a distinct atomic signal. Optional but adds analytical value.
+
+Total recommended schema for migration: the 5 proposed + `line` + `signal` = 7 new columns, all `DEFAULT`-safe (zero-impact on existing rows).
+
+### 2. `pages/07_analytics.py` — APPROVED with one v36 gotcha
+
+Page structure approved. Priority order approved (see Section 3).
+
+**V36 gotchas to avoid (save a session of debugging):**
+1. **`st.html()` not `st.markdown(unsafe_allow_html=True)` for large HTML blocks.** Streamlit 1.54+ sandboxes large HTML in `st.markdown` into a `<code>` tag. V36 burned a full session on this. If rendering card-style HTML, use `st.html()`.
+2. **`st.line_chart(df, color="#14B8A6", height=180)`** is the working equity curve pattern from v36. Pass a `pd.DataFrame` with a named index. Zero extra deps, works on Streamlit Cloud. No need to reach for plotly or altair for basic line charts.
+3. **DATA LAYER — ARCHITECTURE CORRECTION (added post-approval):** The analytics page should NOT be wired to `core/line_logger.py` SQLite only. The user's real tracked bets live in v36's Supabase `bet_history` table. Build the analytics computation as **pure functions in a new `data/analytics.py` file** that accept `list[dict]` (source-agnostic). The page layer passes in either `get_bets()` (SQLite, sandbox dev) or `fetch_bets()` (Supabase, v36 production) depending on environment. This way the analytics logic promotes to v36 with zero rewrites — just swap the data source at the call site. Pattern: `compute_sharp_roi_correlation(bets: list[dict]) -> dict` etc. One file = one job, data-source independent.
+4. **Sample-size guards on correlation charts.** The Sharp score ROI correlation chart (Phase 1) is the crown jewel BUT is meaningless with < 30 resolved bets. Add a `st.info("Minimum 30 resolved bets required for correlation analysis. N=X so far.")` guard that renders before the chart block. Show the guard message, not a broken chart, when underpopulated.
+
+### 3. Build priority order — CONFIRMED as proposed
+
+Phase 1 (schema migration + Sharp/RLM correlation) is the right starting point. Sharp score ROI correlation is the whole-system validation chart — it directly answers "is the model working?" Phase 1 ships measurable value immediately.
+
+One note for Phase 1: migration must be `ALTER TABLE ... ADD COLUMN` (not recreate) since the SQLite DB may already have existing rows. `ADD COLUMN` with a `DEFAULT` is zero-risk to existing data. Use the `init_db()` / `executescript()` pattern only if the DB is guaranteed empty; otherwise migrate explicitly.
+
+Phase 4 (EV/variance decomposition) is lowest priority and requires 50+ resolved bets to be meaningful. Gate it similarly to the SHARP_THRESHOLD raise: build the plumbing but add a sample-size guard before displaying.
+
+**Sandbox is cleared to build. No veto items.**
+
+---
+
+## ~~PENDING V37 INPUT~~ — RESOLVED 2026-02-24 — See V37 SCHEMA REVIEW above
+
+**TOPIC: Advanced Analytics + Bet Logging expansion (Session 24, user directive)**
+
+RESOLVED. V37 SCHEMA REVIEW written above. Sandbox cleared to build.
+
+Original request archived below for reference.
+
+---
+
+User has flagged that logging/tracking/data analysis is underwhelming. Sandbox has identified significant gaps. Before building, V37 reviewer input is requested on:
+
+1. **`bet_log` schema additions** (backwards-compatible — new columns with defaults):
+   - `sharp_score REAL DEFAULT 0.0` — sharp score at bet time (critical for model validation)
+   - `rlm_fired INTEGER DEFAULT 0` — 1/0 RLM confirmation at bet time
+   - `tags TEXT DEFAULT ''` — comma-separated: "RLM_CONFIRMED,NUCLEAR,INJURY"
+   - `book TEXT DEFAULT ''` — which book the bet was placed at
+   - `days_to_game REAL DEFAULT 0.0` — timing metric
+   - V37: Are there V36 schema patterns we should align to? Any columns we're missing?
+
+2. **New page: `pages/07_analytics.py`** (proposed)
+   - Sharp score ROI correlation chart (validates whole system)
+   - RLM correlation analysis
+   - Rolling 7/30/90-day metrics panel
+   - Equity curve + drawdown (% bankroll, max drawdown, Sharpe ratio)
+   - Kelly compliance tracker
+   - Book-level analysis
+   - Bet tagging system + tag-sliced analytics
+   - CLV trend decomposition
+   - EV vs variance (luck vs skill) decomposition
+   - CSV/JSON export
+   - V37: Any of these overlap with V36 analytics? Which should be priority 1?
+
+3. **Priority guidance**: User says this is a non-negotiable priority. Sandbox proposes building in this order:
+   - Phase 1: schema migration (non-destructive) + sharp score / RLM correlation
+   - Phase 2: rolling metrics + equity curve + drawdown
+   - Phase 3: tagging + book analysis + export
+   - Phase 4: EV/variance decomposition + calibration visualization
+   - V37: Does V36 have a preference on which order? Any known gotchas from V36 analytics work?
+
+**Sandbox status:** Requirements spec complete. Will NOT build until V37 acknowledges or until next session if V37 doesn't respond.
+
+---
+
+**FLAG [Session 23] — Injury leverage data source → CLEARED (Session 23, same day)**
 The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` still shows `534/534 tests` and "Session 18" as next session. Actual state: Session 24 complete, 1011/1011 tests. Creates orientation risk for new sessions.
 **Action:** At Session 25 start, before new work, run `claude-md-management:revise-claude-md` to update CURRENT PROJECT STATE. ~2 minutes.
 

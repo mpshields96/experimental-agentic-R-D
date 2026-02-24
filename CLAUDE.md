@@ -270,8 +270,11 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 | `superpowers:verification-before-completion` | Before claiming any task is done or tests pass |
 | `superpowers:systematic-debugging` | Before proposing any fix for a bug or test failure |
 
-**Reddit research**: `WebSearch` on `site:reddit.com` allowed for `r/ClaudeAI`, `r/Claude`,
-`r/ClaudeCode`, `r/vibecoding` — use when looking for library recommendations or known issues.
+**2-session save rule (HARD RULE)**: `sc:save` + `claude-md-management:revise-claude-md` MUST run at minimum every 2 sessions. If approaching a context limit / new chat, run the full session end ritual first, then write a comprehensive ORIGINAL_PROMPT.md update before transitioning. Never fall more than 2 sessions behind on MD file updates.
+
+**Reddit research**: `WebSearch` API ONLY — never browser automation (risk of Chrome bans).
+Allowed subreddits: `r/ClaudeAI`, `r/Claude`, `r/ClaudeCode` (user favorite), `r/vibecoding`,
+`r/sportsbook`, `r/algobetting`.
 
 ---
 
@@ -396,6 +399,10 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 19. **nba_api "LA Clippers" edge case**: nba_api returns `"LA Clippers"` not `"Los Angeles Clippers"`. Always run through `normalize_nba_team_name()` before matching to `efficiency_feed._TEAM_DATA`. The normalization table in `nba_pdo.py` is the source of truth for all 30 NBA teams.
 20. **Passing external data into kill switches**: When a data module (e.g. nba_pdo) maintains a module-level cache, and parse_game_markets() receives that data as a dict param, seed the module cache from the dict BEFORE calling the kill switch. Pattern: `from core.nba_pdo import _pdo_cache as _cache; _cache[name] = result; then call pdo_kill_switch()`. This avoids duplicating kill logic inline.
 21. **Edge generation test fixtures**: Tight spread prices (-108/-112 across 3 books) do NOT produce >3.5% edge candidates. The outlier-book pattern is required: 3 consensus books at one price + 1 outlier at significantly different price. See `_make_game_with_clear_edge()` in test_math_engine.py as the canonical template.
+22. **Module-level test state bleed**: When a module defines global state (e.g. `quota = QuotaTracker()` at module level), raising thresholds (like BILLING_RESERVE from 20→1000) can retroactively break existing tests that leave `remaining=490` in prior test runs. Always add `setup_method(self): _reset_quota()` to test classes, and create a `_reset_*()` helper that sets all state to safe values.
+23. **V37_INBOX.md auto-coordination**: This chat writes task instructions to `~/Projects/titanium-v36/V37_INBOX.md`. V37 reviewer reads it at every session start. V37's CLAUDE.md has been updated to include this in the startup ritual. This eliminates the need for the user to manually relay prompts between chats.
+24. **WebSearch only for Reddit**: Never use Playwright/browser automation for Reddit research. Use `WebSearch` tool with `site:reddit.com` queries. Browser automation on social sites risks Chrome bans.
+25. **Original prompt file**: `memory/ORIGINAL_PROMPT.md` is maintained in the sandbox. When approaching context limits, run full session end ritual, update this file with expanded current-state prompt, then use it as the initialization template for the next chat. It must always enable a completely seamless transition.
 
 ---
 
