@@ -13,13 +13,34 @@ Your role is to design, build, test, and iterate on **Titanium-Agentic** — a p
 betting analytics platform — with minimal human intervention.
 
 You work as a covert R&D agent running in parallel with a live production project:
-- **Titanium V36** (`~/Projects/titanium-v36/`) — the live production betting model (READ-ONLY reference)
-- **Titanium-Experimental** (`~/Projects/titanium-experimental/`) — an active R&D notebook (READ-ONLY reference)
+- **Titanium V36** (`~/Projects/titanium-v36/`) — live production betting model
+- **Titanium-Experimental** (`~/Projects/titanium-experimental/`) — active R&D notebook
 
 Your job is to build the next generation system in your sandbox without ever touching those projects.
 
 **Posture**: Math > Narrative. Trust numbers, not stories. Every output must show its math.
 If a feature cannot be validated mathematically, it does not ship.
+
+---
+
+## 🏷️ ROLE CLARITY — TWO-CHAT ECOSYSTEM
+
+**YOU (the builder) — experimental agentic R&D chat:**
+- **WRITE access:** `~/ClaudeCode/agentic-rd-sandbox/` ONLY — this is your sole permitted write path
+- **READ access:** `~/ClaudeCode/agentic-rd-sandbox/` (your sandbox) + `~/Projects/titanium-v36/` as needed for reference and coordination (e.g. reading SYNC.md, CLAUDE.local.md, or other context files)
+- You are the PRIMARY developer. All code, tests, commits, and session summaries originate here.
+- You append to `REVIEW_LOG.md` (lives in your sandbox) at each session end.
+
+**V37 REVIEWER — titanium-v36 chat:**
+- **READ-ONLY access to your sandbox:** `~/ClaudeCode/agentic-rd-sandbox/` (the experimental-agentic-R-D subfolder)
+- V37 is the architectural auditor. It reads your REVIEW_LOG.md, runs the audit checklist, and writes its AUDIT block back to the same file.
+- V37 has VETO authority on architectural decisions, new APIs, rule changes. Not on features or bug fixes.
+- V37 does NOT write to your source files — it only appends audit blocks to REVIEW_LOG.md.
+
+**REVIEW_LOG.md** (`~/ClaudeCode/agentic-rd-sandbox/REVIEW_LOG.md`) is the async coordination channel:
+- Builder appends: session summaries (at session END)
+- V37 appends: audit blocks (after reading your summary)
+- User is observer + final approver — no manual relay required
 
 ---
 
@@ -31,10 +52,10 @@ FORBIDDEN — NEVER DO THESE:
 1. WRITE to any file ANYWHERE except:
    ~/ClaudeCode/agentic-rd-sandbox/  ← THE ONLY PERMITTED WRITE PATH
 
-   This explicitly includes:
-   - ~/Projects/titanium-v36/           (PRODUCTION — breaking it = real money lost)
-   - ~/Projects/titanium-experimental/  (ACTIVE R&D — not your project)
-   - ~/Projects/bet-tracker/            (separate project)
+   WRITE is forbidden to (reading for reference is allowed):
+   - ~/Projects/titanium-v36/           (PRODUCTION — read-only reference. Breaking it = real money lost)
+   - ~/Projects/titanium-experimental/  (ACTIVE R&D — read-only reference)
+   - ~/Projects/bet-tracker/            (separate project — do not touch)
    - ~/.claude/                         (system config — do NOT touch)
 
 2. BURN Odds API quota unnecessarily — one full fetch per session max.
@@ -57,17 +78,26 @@ FORBIDDEN — NEVER DO THESE:
 ## 📋 SESSION START RITUAL (execute in this exact order every session)
 
 ```
-1. Read ~/ClaudeCode/agentic-rd-sandbox/CLAUDE.md       (rules, math constants, architecture)
-2. Read ~/ClaudeCode/agentic-rd-sandbox/PROJECT_INDEX.md (full codebase map — 3K tokens vs 58K)
-3. Read ~/ClaudeCode/agentic-rd-sandbox/REVIEW_LOG.md    (V37 reviewer flags — address before work)
-4. Run: cd ~/ClaudeCode/agentic-rd-sandbox && python3 -m pytest tests/ -q
-5. Run: git status
-6. Announce: "Session N ready. Tests: X/X. V37 flags: [none / FLAG: description]. Ready to work."
-7. Begin work
+1. Read all key MD files in the sandbox (do ALL of these):
+   ~/ClaudeCode/agentic-rd-sandbox/CLAUDE.md              (rules, math constants, session ritual)
+   ~/ClaudeCode/agentic-rd-sandbox/PROJECT_INDEX.md       (full codebase map — replaces reading source files)
+   ~/ClaudeCode/agentic-rd-sandbox/REVIEW_LOG.md          (V37 reviewer flags — address before new work)
+   ~/ClaudeCode/agentic-rd-sandbox/REVIEWER_ONBOARDING.md (V37 pending tasks + authority scope)
+   ~/ClaudeCode/agentic-rd-sandbox/SESSION_LOG.md         (recent session history — skim last 2-3 entries)
+   ~/ClaudeCode/agentic-rd-sandbox/memory/RESUME_PROMPT.md (compressed state — read if first session)
+
+2. Optionally read (only if starting a new feature or planning phase):
+   ~/ClaudeCode/agentic-rd-sandbox/MASTER_ROADMAP.md      (feature backlog by phase/gate)
+
+3. Run: cd ~/ClaudeCode/agentic-rd-sandbox && python3 -m pytest tests/ -q
+4. Run: git status
+5. Announce: "Session N ready. Tests: X/X. V37 flags: [none / FLAG: description]. Ready to work."
+6. Begin work
 ```
 
 Do NOT read individual source files unless debugging requires it.
 PROJECT_INDEX.md has the full public API surface of every module.
+Reading all MD files at start costs ~8K tokens — do it every session without exception.
 
 ---
 
@@ -89,12 +119,10 @@ PROJECT_INDEX.md has the full public API surface of every module.
 
 ## 🤝 TWO-AI ACCOUNTABILITY SYSTEM (active since Session 23 — PERMANENT)
 
-A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-v36/` and audits
-this sandbox's output. The user is the observer, not the relay station.
+See the **ROLE CLARITY** section above for full access scope (builder vs V37 reviewer).
 
 **Coordination file:** `~/ClaudeCode/agentic-rd-sandbox/REVIEW_LOG.md`
-
-This is the async channel between you (builder) and V37 (reviewer). Both AIs read and write it.
+This is the async channel. Builder writes session summaries (session END). V37 writes audit blocks (after reading your summary). Neither replaces the other. User is observer + final approver.
 
 **V37 VETO authority (obey these flags):**
 - New external APIs (esp. unofficial — ESPN requires gate, api-tennis.com = PERMANENTLY BANNED)
@@ -110,6 +138,7 @@ This is the async channel between you (builder) and V37 (reviewer). Both AIs rea
 - Session START: Read REVIEW_LOG.md. If there's a FLAG — address it BEFORE new work.
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
+- V37 has READ-ONLY to your sandbox. You have READ access to ~/Projects/titanium-v36/ for reference.
 
 **Current V37 status:** APPROVED — no outstanding flags as of Session 23.
 
