@@ -263,7 +263,19 @@ APSCHEDULER: st.session_state guard prevents restart on Streamlit rerun.
 | Playwright MCP | ✅ | Browser automation (not needed for this build) |
 | Supabase MCP | ✅ | Future storage upgrade path (not used yet) |
 | Task (subagent) | ✅ | Background research, parallel work |
-| GitHub MCP | ❌ | Use Bash git commands only |
+| SQLite MCP | ✅ | **Read-only state verification only** — see safety rule below |
+| GitHub MCP | ❌ | Plugin already installed. Use Bash git commands only. Activate by PAT env var only if needed for a specific task — NOT persistent. |
+
+**SQLite MCP safety rule (PERMANENT — Session 30):**
+`mcp-server-sqlite` exposes BOTH read and write tools. The write tools (`write_query`, `create_table`)
+are **PERMANENTLY PROHIBITED** on `titanium.db`. Only these tools are permitted:
+- `read_query` — SELECT queries for state verification
+- `list_tables` — schema inspection
+- `describe_table` — column inspection
+ALL database writes go through `core/line_logger.py` only. MCP writes bypass the migration
+system and would cause schema drift. There is no exception to this rule, ever.
+
+Configured in: `.mcp.json` at sandbox root. Server: `mcp-server-sqlite` (pip3 installed).
 
 **Preferred subagent types**: `general-purpose` for research, `Explore` for codebase navigation,
 `Bash` for git operations. Use `run_in_background=true` for long research tasks.

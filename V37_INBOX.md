@@ -55,14 +55,21 @@ PRECONDITION — Totals markets:
 # In compute_rlm()
 """
 PRECONDITION — Direction consistency:
-    `current_prob` and `open_prob` MUST represent the same outcome direction.
-    Example: both = implied prob of Away team winning (not one Away, one Home).
-    Mixing directions produces sign inversion (drift fires on wrong condition).
+    `current_price` and the cached open price MUST represent the same outcome direction.
+    `side` (team name, "Over", "Under") is used as the cache key — consistent naming
+    across calls is required. If the side name changes between open and current
+    (e.g. team alias mismatch), get_open_price() returns None → cold-cache fallback.
 
-PRECONDITION — Open price availability:
-    `open_prob` = 0.0 means no historical open exists (cold cache). RLM will not fire
-    on a cold cache (drift = current_prob - 0.0 = positive even on fresh lines).
-    Callers should guard: if open_prob == 0.0: rlm_confirmed = False.
+COLD CACHE BEHAVIOUR (already implemented — document for future maintainers):
+    When get_open_price() returns None (no historical open stored), function returns
+    (False, 0.0) immediately — RLM cannot fire without an open price baseline.
+    This is correct and intentional. Do NOT add a fallback that treats 0.0 as a valid
+    open price — that would cause drift = current_prob - 0.0 = positive spurious RLM.
+
+POSTCONDITION:
+    Signed drift > 0 means implied probability INCREASED (line got harder/more expensive).
+    On public-bet side, this means sharp money is on the other side → RLM.
+    Negative drift means line moved in public's favour (normal public-following move).
 """
 
 # In _canonical_totals_books()
