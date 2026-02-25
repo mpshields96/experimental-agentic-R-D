@@ -769,6 +769,17 @@ def consensus_fair_prob(
     """
     Build consensus vig-free probability across all books for one side.
 
+    PRECONDITION — Totals markets only:
+        All bookmakers in `bookmakers` MUST quote the same total line.
+        Callers must filter to canonical line via `_canonical_totals_books()` before passing here.
+        Mixed-line input produces undefined fair probability (probability anchored to one line,
+        best price potentially at another line → false edge signal).
+
+    PRECONDITION — All markets:
+        Each bookmaker dict must follow Odds API format:
+        {"markets": [{"key": "spreads"|"totals"|"h2h", "outcomes": [...]}]}
+        Non-standard formats silently produce empty results (no validation error raised).
+
     Method:
     - For each book with BOTH sides, compute no-vig probability.
     - Return (mean_fair_prob, std_dev, n_books).
@@ -963,6 +974,23 @@ def compute_rlm(
 ) -> tuple[bool, float]:
     """
     Detect Reverse Line Movement.
+
+    PRECONDITION — Direction consistency:
+        `current_price` and the cached open price MUST represent the same outcome direction.
+        `side` (team name, "Over", "Under") is used as the cache key — consistent naming
+        across calls is required. If the side name changes between open and current
+        (e.g. team alias mismatch), get_open_price() returns None → cold-cache fallback.
+
+    COLD CACHE BEHAVIOUR (already implemented — document for future maintainers):
+        When get_open_price() returns None (no historical open stored), function returns
+        (False, 0.0) immediately — RLM cannot fire without an open price baseline.
+        This is correct and intentional. Do NOT add a fallback that treats 0.0 as a valid
+        open price — that would cause drift = current_prob - 0.0 = positive spurious RLM fire.
+
+    POSTCONDITION:
+        Signed drift > 0 means implied probability INCREASED (line got harder/more expensive).
+        On public-bet side, this means sharp money is on the other side → RLM.
+        Negative drift means line moved in public's favour (normal public-following move).
 
     RLM fires when:
     1. Public money is on this side (public_on_side=True).
@@ -1193,6 +1221,14 @@ def parse_game_markets(
         List of BetCandidates passing collar AND minimum edge.
         BetCandidates with KILL reason have kill_reason set and are included
         so the UI can display them as killed (not silently dropped).
+
+    INVARIANTS (must hold for correct output):
+        1. Totals consensus and best-price always computed from the SAME canonical-line book set.
+           _canonical_totals_books() enforces this. Do not split these two calls.
+        2. Both sides of a totals market (Over + Under) share one dedup bucket via
+           _deduplicate_markets() using key (event_id, market_type) — line excluded intentionally.
+           Do NOT re-add the line to the totals dedup key. See V37 CLAUDE.md Architecture Decisions.
+        3. Kill switches fire ONLY on mathematical inputs. No narrative conditions added here.
     """
     candidates: list[BetCandidate] = []
     home = game.get("home_team", "")
@@ -1210,6 +1246,12 @@ def parse_game_markets(
 
     def _best_price_for(team: str, mkt: str, bks: Optional[list] = None) -> tuple[Optional[int], Optional[float], str]:
         """Find best (highest) price for a team/side across all books.
+
+        PRECONDITION — Totals markets:
+            When `mkt` is "totals", `bks` parameter MUST be restricted to canonical-line
+            books only (same set passed to consensus_fair_prob). Passing `all_bks` for totals
+            allows best price to be found at a non-modal line, creating consensus/price mismatch.
+            Default `bks=None` (→ all_bks) is intentionally unsafe for totals — caller must scope it.
 
         Args:
             team: Outcome name to match (e.g. "Over", "Under", or team name).
@@ -1433,7 +1475,21 @@ def parse_game_markets(
     # simultaneously. Fix: find the modal (most-quoted) total line across all books,
     # restrict ALL totals work — consensus AND best-price — to that canonical set only.
     def _canonical_totals_books() -> tuple[Optional[float], list]:
-        """Return (modal_total_line, books_quoting_that_line) across all_bks."""
+        """Return (modal_total_line, books_quoting_that_line) across all_bks.
+
+        CONTRACT:
+            Input:  full bookmaker list (may contain books at mixed total lines)
+            Output: (modal_line: float, filtered_books: list) where all books in filtered_books
+                    quote exactly modal_line for the totals market.
+
+            Edge cases:
+            - Tiebreak when two lines have equal book count: Counter insertion order determines
+              winner (non-deterministic across Python versions, deterministic within a run).
+              Acceptable — affects <5% of games (requires exact tie in book distribution).
+            - Single-book game: returns that book's line + [that book]. No MIN_BOOKS guard
+              applies inside this function — caller must check len(filtered_books) >= MIN_BOOKS.
+            - No books with totals market: returns (None, []). Caller must handle.
+        """
         from collections import Counter
         line_counts: Counter = Counter()
         for book in all_bks:
