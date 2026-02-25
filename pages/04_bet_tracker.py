@@ -247,6 +247,43 @@ with log_col:
 
         notes_input = st.text_input("Notes (optional)", key="bt_notes")
 
+        # --- Analytics metadata (for 07_analytics.py correlation charts) ---
+        st.markdown(
+            "<div style='font-size:0.6rem; text-transform:uppercase; letter-spacing:0.1em;"
+            " color:#6b7280; margin: 8px 0 4px;'>Analytics Metadata</div>",
+            unsafe_allow_html=True,
+        )
+        a1, a2, a3 = st.columns(3)
+        with a1:
+            sharp_score_input = st.number_input(
+                "Sharp Score (0-100)", value=0, step=1,
+                min_value=0, max_value=100, key="bt_sharp_score",
+            )
+        with a2:
+            line_input = st.number_input(
+                "Line (spread/total)", value=0.0, step=0.5, key="bt_line",
+            )
+        with a3:
+            book_input = st.selectbox(
+                "Book",
+                ["", "Pinnacle", "FanDuel", "DraftKings", "BetMGM",
+                 "Caesars", "PointsBet", "bet365", "Other"],
+                key="bt_book",
+            )
+        a4, a5, a6 = st.columns(3)
+        with a4:
+            rlm_fired_input = st.checkbox("RLM Confirmed", value=False, key="bt_rlm_fired")
+        with a5:
+            signal_input = st.text_input(
+                "Signal (e.g. B2B_EDGE)", value="", key="bt_signal",
+                placeholder="B2B_EDGE / RLM_CONFIRMED",
+            )
+        with a6:
+            tags_input = st.text_input(
+                "Tags (comma-sep)", value="", key="bt_tags",
+                placeholder="NUCLEAR,RLM_CONFIRMED",
+            )
+
         submitted = st.form_submit_button("Log Bet", use_container_width=True, type="primary")
         if submitted:
             if not target_input.strip():
@@ -265,6 +302,12 @@ with log_col:
                         kelly_size=kelly_input,
                         stake=stake_input,
                         notes=notes_input,
+                        sharp_score=int(sharp_score_input),
+                        rlm_fired=rlm_fired_input,
+                        tags=tags_input.strip(),
+                        book=book_input,
+                        line=float(line_input),
+                        signal=signal_input.strip(),
                         db_path=DB_PATH,
                     )
                     st.success(f"Bet #{bet_id} logged.")

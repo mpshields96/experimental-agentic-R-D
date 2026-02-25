@@ -46,6 +46,14 @@ Schema: bet_log table (Tab 4 — Bet Tracker)
   clv         REAL DEFAULT 0.0  -- closing line value (filled post-game)
   close_price INTEGER           -- closing market price (filled post-game)
   notes       TEXT DEFAULT ''
+  -- Analytics columns (Session 25 migration — V37 schema review approved)
+  sharp_score INTEGER DEFAULT 0      -- sharp score at bet time (0-100)
+  rlm_fired   INTEGER DEFAULT 0      -- 1 if RLM confirmed at bet time
+  tags        TEXT DEFAULT ''        -- comma-separated: "RLM_CONFIRMED,NUCLEAR"
+  book        TEXT DEFAULT ''        -- book where bet was placed
+  days_to_game REAL DEFAULT 0.0     -- timing metric (days before game start)
+  line        REAL DEFAULT 0.0       -- spread/total line value (e.g. -4.5, 221.0)
+  signal      TEXT DEFAULT ''        -- model signal label (e.g. "B2B_EDGE")
 
 DO NOT add API calls or Streamlit calls to this file.
 """
@@ -132,6 +140,18 @@ CREATE INDEX IF NOT EXISTS idx_bet_log_result
     ON bet_log(result);
 """
 
+# Migration: add analytics columns to existing bet_log tables
+# Each statement is idempotent — errors from "duplicate column" are silently swallowed.
+_BET_LOG_MIGRATIONS = [
+    "ALTER TABLE bet_log ADD COLUMN sharp_score INTEGER DEFAULT 0",
+    "ALTER TABLE bet_log ADD COLUMN rlm_fired INTEGER DEFAULT 0",
+    "ALTER TABLE bet_log ADD COLUMN tags TEXT DEFAULT ''",
+    "ALTER TABLE bet_log ADD COLUMN book TEXT DEFAULT ''",
+    "ALTER TABLE bet_log ADD COLUMN days_to_game REAL DEFAULT 0.0",
+    "ALTER TABLE bet_log ADD COLUMN line REAL DEFAULT 0.0",
+    "ALTER TABLE bet_log ADD COLUMN signal TEXT DEFAULT ''",
+]
+
 
 # ---------------------------------------------------------------------------
 # Connection management
@@ -169,6 +189,7 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
 def init_db(db_path: Optional[str] = None) -> None:
     """
     Initialize the database schema. Safe to call multiple times (CREATE IF NOT EXISTS).
+    Also runs analytics column migrations for existing DBs (idempotent ALTER TABLE ADD COLUMN).
 
     Should be called once at app startup before the scheduler begins.
 
@@ -183,6 +204,21 @@ def init_db(db_path: Optional[str] = None) -> None:
     except sqlite3.Error as exc:
         logger.error("Schema init failed: %s", exc)
         raise
+    finally:
+        conn.close()
+
+    # Run analytics column migrations — silently skip if columns already exist
+    conn = get_connection(db_path)
+    try:
+        for stmt in _BET_LOG_MIGRATIONS:
+            try:
+                conn.execute(stmt)
+                conn.commit()
+            except sqlite3.OperationalError as exc:
+                if "duplicate column name" in str(exc).lower():
+                    pass  # Already migrated — safe to skip
+                else:
+                    raise
     finally:
         conn.close()
 
@@ -587,6 +623,13 @@ def log_bet(
     kelly_size: float,
     stake: float = 0.0,
     notes: str = "",
+    sharp_score: int = 0,
+    rlm_fired: bool = False,
+    tags: str = "",
+    book: str = "",
+    days_to_game: float = 0.0,
+    line: float = 0.0,
+    signal: str = "",
     db_path: Optional[str] = None,
 ) -> int:
     """
@@ -594,12 +637,19 @@ def log_bet(
 
     Args:
         sport, matchup, market_type, target: Bet identification.
-        price:      American odds at bet time.
-        edge_pct:   Edge percentage at bet time.
-        kelly_size: Recommended Kelly units at bet time.
-        stake:      Actual units wagered (0 = not yet set).
-        notes:      Optional free-form notes.
-        db_path:    Optional DB path override.
+        price:        American odds at bet time.
+        edge_pct:     Edge percentage at bet time.
+        kelly_size:   Recommended Kelly units at bet time.
+        stake:        Actual units wagered (0 = not yet set).
+        notes:        Optional free-form notes.
+        sharp_score:  Sharp score at bet time (0-100).
+        rlm_fired:    True if RLM was confirmed at bet time.
+        tags:         Comma-separated signal tags (e.g. "RLM_CONFIRMED,NUCLEAR").
+        book:         Bookmaker where bet was placed.
+        days_to_game: Days before game start (timing metric).
+        line:         Spread/total line value (e.g. -4.5, 221.0).
+        signal:       Model signal label (e.g. "B2B_EDGE", "RLM_CONFIRMED").
+        db_path:      Optional DB path override.
 
     Returns:
         Integer row ID of the new bet record.
@@ -611,11 +661,13 @@ def log_bet(
             """
             INSERT INTO bet_log
                 (logged_at, sport, matchup, market_type, target,
-                 price, edge_pct, kelly_size, stake, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 price, edge_pct, kelly_size, stake, notes,
+                 sharp_score, rlm_fired, tags, book, days_to_game, line, signal)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (now, sport, matchup, market_type, target,
-             price, edge_pct, kelly_size, stake, notes),
+             price, edge_pct, kelly_size, stake, notes,
+             sharp_score, int(rlm_fired), tags, book, days_to_game, line, signal),
         )
         conn.commit()
         return cursor.lastrowid

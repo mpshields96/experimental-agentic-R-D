@@ -1,5 +1,5 @@
 # PROJECT_INDEX.md — Titanium-Agentic
-## Generated: sc:index-repo | 2026-02-24 (updated Session 24 cont.) | 1011/1011 tests passing
+## Generated: sc:index-repo | 2026-02-24 (updated Session 25) | 1062/1062 tests passing
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
@@ -17,7 +17,8 @@ agentic-rd-sandbox/
 │   ├── 03_line_history.py          # Movement cards, sparklines, RLM seed table
 │   ├── 04_bet_tracker.py           # Bet log, grading, P&L, CLV tracker
 │   ├── 05_rd_output.py             # Math validation dashboard (pure math_engine)
-│   └── 06_simulator.py             # Trinity game simulator (NBA/Soccer Poisson mode)
+│   ├── 06_simulator.py             # Trinity game simulator (NBA/Soccer Poisson mode)
+│   └── 07_analytics.py             # Advanced analytics Phase 1 (sharp/RLM/CLV/equity/rolling/books)
 ├── core/
 │   ├── math_engine.py              # ALL math — collar, edge, Kelly, sharp score, RLM, CLV, Nemesis
 │   ├── odds_fetcher.py             # Odds API wrapper, quota tracker, rest days
@@ -32,6 +33,7 @@ agentic-rd-sandbox/
 │   ├── injury_data.py              # Static positional impact table (5 sports, 50+ positions)
 │   ├── nba_pdo.py                  # NBA PDO regression signal (nba_api, 1hr TTL, _endpoint_factory)
 │   ├── king_of_the_court.py        # DraftKings Tuesday KOTC analyzer (PRA-ranked)
+│   ├── analytics.py                # Pure analytics functions — source-agnostic list[dict] API
 │   ├── calibration.py              # Sharp score calibration pipeline (activates at 30 bets)
 │   ├── clv_tracker.py              # CLV snapshot CSV log + summary
 │   ├── price_history_store.py      # SQLite open-price store, 14-day purge, multi-session RLM
@@ -85,6 +87,8 @@ agentic-rd-sandbox/
 - Path: `core/line_logger.py`
 - DB: `data/line_history.db` (SQLite WAL)
 - Key exports: `init_db`, `upsert_line`, `log_snapshot`, `get_movements`, `get_upcoming_movements`, `get_line_history`, `get_open_prices_for_rlm`, `log_bet`, `update_bet_result`, `get_bets`, `get_pnl_summary`, `count_snapshots`
+- `log_bet()` analytics params (Session 25): `sharp_score`, `rlm_fired`, `tags`, `book`, `days_to_game`, `line`, `signal` — all optional with defaults
+- Migration: `_BET_LOG_MIGRATIONS` — idempotent `ALTER TABLE ADD COLUMN` in `init_db()`, safe on existing DBs
 - Purpose: Persistent store for line snapshots, movements, and bet log.
 
 ### scheduler.py
@@ -154,6 +158,14 @@ agentic-rd-sandbox/
 - UI: Tuesday-only sidebar widget in 01_live_lines.py (DNP + star-out text inputs)
 - Purpose: DraftKings Tuesday KOTC promo — ranks highest projected PRA players.
 
+### analytics.py
+- Path: `core/analytics.py`
+- Key exports: `get_bet_counts`, `compute_sharp_roi_correlation`, `compute_rlm_correlation`, `compute_clv_beat_rate`, `compute_equity_curve`, `compute_rolling_metrics`, `compute_book_breakdown`, `MIN_RESOLVED`
+- Design: source-agnostic — accepts `list[dict]` (pass `get_bets()` for SQLite or `fetch_bets()` for Supabase/v36)
+- Sample guard: `MIN_RESOLVED=30` — all analytics functions return `status="inactive"` below threshold
+- Pearson r: `_pearson_r(xs, ys)` — correlation helper used by sharp score ROI correlation
+- Purpose: Pure analytics computation layer. No DB or UI imports. Promotes to v36 with zero rewrites.
+
 ### calibration.py
 - Path: `core/calibration.py`
 - Key exports: `get_calibration_report`, `CalibrationReport`, `_brier_score`, `_roc_auc`, `_calibration_bins`
@@ -187,6 +199,7 @@ agentic-rd-sandbox/
 |---|---|---|
 | math_engine | test_math_engine.py | 217 |
 | tennis_data | test_tennis_data.py | 96 |
+| analytics | test_analytics.py | 51 |
 | king_of_the_court | test_king_of_the_court.py | 74 |
 | nba_pdo | test_nba_pdo.py | 66 |
 | originator_engine | test_originator_engine.py | 62 |
@@ -202,7 +215,7 @@ agentic-rd-sandbox/
 | nhl_data | test_nhl_data.py | 34 |
 | line_logger | test_line_logger.py | 31 |
 | weather_feed | test_weather_feed.py | 24 |
-| **Total** | | **1011 / 1011 passing** |
+| **Total** | | **1062 / 1062 passing** |
 
 ---
 

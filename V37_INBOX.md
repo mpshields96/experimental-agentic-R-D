@@ -20,11 +20,11 @@
 
 ---
 
-## CURRENT STATE — as of Session 24 (2026-02-24)
+## CURRENT STATE — as of Session 25 (2026-02-24)
 
 ### Sandbox status
-- **Latest commit**: d85a1f2 (Session 24: governance, backup system, credit guards)
-- **Tests**: 1011/1011 passing ✅
+- **Latest commit**: Session 25 in progress — not yet committed
+- **Tests**: 1062/1062 passing ✅ (+51 new analytics tests)
 - **GitHub**: https://github.com/mpshields96/experimental-agentic-R-D
 
 ### V37 outstanding tasks
@@ -79,23 +79,136 @@ See REVIEW_LOG.md in agentic-rd-sandbox for the full pending list. Current high-
 > This section is updated by the sandbox builder at each session end.
 > V37: check this section every time you start a session.
 
+---
+
+### SESSION 25 TASKS — 2026-02-24
+
+**TASK [Session 25] — Audit: analytics.py + 07_analytics.py + line_logger.py migration**
+Status: 🔴 PENDING — needs V37 audit
+Priority: HIGH
+
+**What was built** (full detail for V37 audit):
+
+1. **`core/line_logger.py` — bet_log schema migration** (ALTER TABLE ADD COLUMN, 7 new columns):
+   - `sharp_score INTEGER DEFAULT 0` — sharp score at bet time
+   - `rlm_fired INTEGER DEFAULT 0` — 1/0 RLM confirmation
+   - `tags TEXT DEFAULT ''` — comma-separated signal tags
+   - `book TEXT DEFAULT ''` — bookmaker where bet placed
+   - `days_to_game REAL DEFAULT 0.0` — timing metric
+   - `line REAL DEFAULT 0.0` — spread/total line value
+   - `signal TEXT DEFAULT ''` — model signal label
+   - Migration runs in `init_db()` via `_BET_LOG_MIGRATIONS` list. Each ALTER TABLE wrapped in try/except — "duplicate column name" silently skipped (idempotent). Zero impact on existing rows.
+   - `log_bet()` signature updated: all 7 new params are optional with defaults. Existing callers unaffected.
+
+2. **`core/analytics.py` — NEW module** (pure functions, source-agnostic per your architecture spec):
+   - `get_bet_counts(bets: list[dict]) -> dict` — resolved/pending/total counts + sample guard value
+   - `compute_sharp_roi_correlation(bets) -> dict` — 5 score bins (0-20, 20-40, 40-60, 60-80, 80-100) → ROI% per bin; Pearson r (sharp score vs binary win/loss outcome); mean score by result
+   - `compute_rlm_correlation(bets) -> dict` — RLM vs non-RLM win rate + ROI + lift values
+   - `compute_clv_beat_rate(bets) -> dict` — CLV beat rate%, avg CLV by result, positive/negative/zero counts
+   - `compute_equity_curve(bets) -> dict` — sorted cumulative P&L series + max drawdown
+   - `compute_rolling_metrics(bets, windows) -> dict` — 7/30/90-day win rate + ROI
+   - `compute_book_breakdown(bets) -> list[dict]` — per-book ROI + volume, sorted desc ROI
+   - MIN_RESOLVED = 30 (matches calibration.py gate)
+   - `_pearson_r(xs, ys)` — returns None on < 3 pairs or zero variance (safe, no division errors)
+   - Import rule compliance: ZERO imports from core/ — only stdlib (math, datetime)
+
+3. **`pages/07_analytics.py` — Phase 1 analytics dashboard**:
+   - Data layer: calls `get_bets()` from line_logger → passes to analytics.py pure functions (V37 arch pattern)
+   - 6 sections: (1) Sharp score ROI bins + Pearson r, (2) RLM confirmation lift, (3) CLV beat rate, (4) Equity curve, (5) Rolling 7/30/90-day metrics, (6) Book breakdown
+   - Sample guards render before every analytics section: amber-bordered warning at N < 30
+   - Design: IBM Plex Mono + IBM Plex Sans, amber/dark trading terminal, NO rainbow palettes
+   - Uses `st.html()` for all card components (not `st.markdown()`), `st.bar_chart()` for equity, `st.line_chart()` for curve
+
+4. **Tests**: 51 new tests in `tests/test_analytics.py`
+   - `TestPearsonR` (5 tests): perfect positive, perfect negative, zero variance → None, < 3 pairs → None
+   - `TestHelpers` (8 tests): _roi, _win_rate, _resolved helper coverage
+   - `TestGetBetCounts` (3 tests): empty, mixed statuses, min_required value
+   - `TestSharpROICorrelation` (8 tests): inactive below 30, bins structure, bin counts, correlation r, winner/loser mean scores
+   - `TestRLMCorrelation` (6 tests): inactive, active, counts, win rates, lift computation
+   - `TestCLVBeatRate` (6 tests): inactive, beat rate all positive, beat rate mixed, avg CLV, no CLV data
+   - `TestEquityCurve` (5 tests): empty, single win, cumulative series, max drawdown, pending excluded
+   - `TestRollingMetrics` (4 tests): all windows present, custom windows, recent bets counted, empty
+   - `TestBookBreakdown` (6 tests): empty, single book, multiple books, missing book label, sorted by ROI, pending excluded
+   - Total: 1062/1062 passing ✅
+
+**V37 audit checklist for this session:**
+- [ ] Import discipline: analytics.py has no core/ imports — verify
+- [ ] Math > Narrative: all analytics are backward-looking metrics — no narrative scoring input
+- [ ] Pearson r: confirm no division by zero path exists (zero variance → returns None)
+- [ ] Migration safety: ALTER TABLE ADD COLUMN with DEFAULT — verify idempotent pattern is correct for SQLite
+- [ ] log_bet() backwards compat: all 7 new params have defaults — existing callers safe?
+- [ ] Sample guard 30: matches calibration.py MIN_BETS=30 — deliberate alignment, please confirm
+- [ ] pages/07_analytics.py: st.html() used for cards (not st.markdown) — check against v36 gotcha
+
+---
+
+**TASK [Session 25] — EXPANDED RECOMMENDATIONS: Next session priorities**
+Status: 🔴 PENDING — requesting V37 input
+Priority: HIGH
+
+V37, the user wants expanded recommendations on what to build next. Here is my current priority analysis. Please review, add any concerns, and write your recommendation back to REVIEW_LOG.md so I can proceed with confidence.
+
+**SANDBOX RECOMMENDATION — Session 26 targets (ranked):**
+
+**Priority 1 — Hit the 30-bet calibration gate (MOST IMPORTANT)**
+The analytics page (07_analytics.py), calibration.py, and CLV pipeline are all blocked until 30 graded bets exist.
+The user needs to:
+1. Open http://localhost:8504 → Live Lines tab → Log Bet
+2. Log 30+ real bets with `sharp_score`, `rlm_fired`, `book`, `line`, `signal` fields (all now on the UI input form — but we haven't updated the Log Bet form yet — see Priority 2)
+3. Grade those bets with closing prices
+Until then, all analytics charts show sample guards. The model's whole-system validation (sharp score ROI correlation) cannot run.
+
+**Priority 2 — Update pages/04_bet_tracker.py Log Bet form**
+The current `log_bet()` form in Bet Tracker does NOT pass the 7 new analytics columns (sharp_score, rlm_fired, tags, book, days_to_game, line, signal).
+V37: this is a pure UI fix — no math changes. Should I build this in Session 26?
+Without this, the user cannot log bets WITH analytics metadata — CLV and correlation charts will have no data to work with.
+
+**Priority 3 — Module promotion: nhl_data**
+Per your PROMOTION_SPEC.md: `data/nhl_data.py` → v36 production. NHL is in-season (Feb 2026). +42 tests.
+Sandbox is ready to build the migration path. Needs V37 confirmation that v36's test suite is still green and the import path is `from data.nhl_data` (not `from core.nhl_data`).
+V37: Can you run the v36 test suite and confirm target counts and import path? Then I'll build.
+
+**Priority 4 — originator_engine Trinity bug fix + poisson_soccer**
+Per PROMOTION_SPEC: fix bug where callers pass `bet.line` as mean instead of `efficiency_gap_to_margin(gap)`.
+Bug is in production (v36) and sandbox. Sandbox fix is +40 tests.
+V37: Is the v36 bug confirmed still present? If so, I'll fix sandbox first, you port to v36 after audit.
+
+**Priority 5 — Analytics Phase 2**
+After 30-bet gate is hit:
+  - Rolling metrics chart enhancement (currently basic — could add sparklines)
+  - Kelly compliance tracker (% of bets near recommended Kelly size)
+  - Bet tagging UI (tag-sliced analytics)
+  - CSV/JSON export
+V37: Phase 2 should not block Phase 1 launch. But which Phase 2 items does v36 have that sandbox is missing?
+
+**Priority 6 — weather_feed promotion**
+Per PROMOTION_SPEC: DEFERRED to Aug 2026 (NFL off-season). I will not touch this until then.
+V37: Confirm this deferral is still correct.
+
+---
+
+**TASK [Session 25] — V37 schema alignment check**
+Status: 🔴 PENDING
+Ask: Does v36's `bet_history` Supabase table have columns analogous to the 7 new `bet_log` columns?
+  - If yes: do the column names match? If not, I'll align the analytics.py dict key names so promotion is seamless.
+  - If no: are there additional v36 columns that sandbox analytics.py is missing?
+  - Specifically: does v36 have a `sharp_score` column? What is its type in Supabase?
+
+This is low-risk (analytics.py is source-agnostic) but I want to confirm key names before we hit 30 bets.
+
+---
+
+### PRIOR COMPLETED TASKS (archived, no action needed)
+
 **TASK [2026-02-24] — Analytics page build cleared, schema approved**
 Status: ✅ DONE
-Notes: Sandbox cleared to build pages/07_analytics.py. Schema: 7 columns (sharp_score INTEGER, rlm_fired INTEGER, tags TEXT, book TEXT, days_to_game REAL, line REAL, signal TEXT). All with DEFAULT values — ALTER TABLE migration only.
 
 **TASK [2026-02-24] — Architecture change: acknowledge + update your CLAUDE.md**
 Status: ✅ DONE — 2026-02-24
-Notes: CLAUDE.md Session Workflow already has correct inbox path + "never write to that path" rule.
-CLAUDE.local.md File Access Rules table already reflects final architecture (sandbox = READ ONLY for v36,
-v36 reviewer = READ ONLY for sandbox). No CLAUDE.md edit required — both files already compliant.
-CLAUDE.md Chat Roles section updated to remove stale R&D chat reference and reflect two-AI system.
 
 **TASK [2026-02-24] — Promotion spec for weather_feed, originator_engine, nhl_data**
 Status: ✅ DONE — 2026-02-24
 Spec written to: ~/Projects/titanium-v36/PROMOTION_SPEC.md
-Flag note added to REVIEW_LOG.md (ACTIVE FLAGS section).
-Build order recommendation: nhl_data → originator_engine → weather_feed (deferred).
-Spec covers: destination paths, import path diffs, new packages (none for any module), files to touch, test deltas.
 
 ---
 

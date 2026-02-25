@@ -188,6 +188,57 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 
 ---
 
+### SANDBOX SESSION 25 SUMMARY — 2026-02-24
+
+**Built:**
+- `core/analytics.py` (NEW) — 7 pure analytics functions, source-agnostic list[dict] API (V37 architecture spec).
+  * `get_bet_counts`, `compute_sharp_roi_correlation`, `compute_rlm_correlation`, `compute_clv_beat_rate`
+  * `compute_equity_curve`, `compute_rolling_metrics`, `compute_book_breakdown`
+  * MIN_RESOLVED=30 gate — all analytics return `status="inactive"` below threshold (matches calibration.py)
+  * Pearson r for sharp score vs win/loss outcome (returns None on zero variance — no division errors)
+  * Zero imports from core/ — promotes to V36 with zero rewrites (swap get_bets() → fetch_bets() at call site)
+- `core/line_logger.py` — bet_log schema migration + log_bet() update
+  * 7 new columns: sharp_score INTEGER, rlm_fired INTEGER, tags TEXT, book TEXT, days_to_game REAL, line REAL, signal TEXT
+  * Migration runs in init_db() via _BET_LOG_MIGRATIONS (ALTER TABLE ADD COLUMN, idempotent, swallows "duplicate column" errors)
+  * log_bet() updated: 7 new optional params with defaults — existing callers unaffected
+- `pages/07_analytics.py` (NEW) — Phase 1 analytics dashboard (6 sections)
+  * Sharp score ROI bins (5 bins, bar chart) + Pearson r + mean score by result
+  * RLM confirmation lift (win rate + ROI comparison bars with lift badges)
+  * CLV beat rate (% positive CLV, avg CLV by result)
+  * Equity curve (cumulative P&L line chart + max drawdown)
+  * Rolling 7/30/90-day metrics (win rate + ROI + N per window)
+  * Book breakdown (per-book ROI table, sorted desc)
+  * Sample guards on every analytics section: amber-bordered warning at N < 30
+  * IBM Plex Mono + IBM Plex Sans, trading terminal dark aesthetic
+- `pages/04_bet_tracker.py` — Log Bet form updated with 7 analytics metadata fields
+  * sharp_score (number, 0-100), line (number), book (selectbox: Pinnacle/FanDuel/DraftKings/BetMGM/etc)
+  * rlm_fired (checkbox), signal (text), tags (text comma-sep)
+  * Passes all 7 new params to log_bet()
+
+**Tests:** 1011 → 1062 (+51 tests in test_analytics.py), 1062/1062 passing ✅
+
+**Architectural decisions:**
+- analytics.py placed in core/ (not core/data/) — consistent with existing data-only module pattern (efficiency_feed, injury_data, king_of_the_court all in core/). V37 architecture note said "data/analytics.py" — interpreted as "data-layer in core/" to match established convention.
+- init_db() migration is idempotent: wrap each ALTER TABLE in try/except, silently skip "duplicate column name" errors. Safe to call on fresh DB (no-op since columns are in schema CREATE TABLE) AND on existing DB (ALTER TABLE adds them).
+- analytics.py _pearson_r() returns None rather than raising on zero variance — callers show "insufficient data" label.
+
+**Gates changed:** None. SHARP_THRESHOLD=45. RLM 0/5. B2B 0/10. CLV 0/30.
+
+**Flags for reviewer:**
+- analytics.py: please verify Pearson r math and MIN_RESOLVED=30 alignment with calibration.py
+- log_bet() backwards compat: existing callers (pages/04_bet_tracker.py before this session) didn't pass analytics params — they now default to zeros. Review that `sharp_score=0` in old rows doesn't skew correlation charts (it shouldn't — score=0 rows will cluster in 0-20 bin only, which is fine)
+- The 30-bet sample guard prevents any analytics from rendering until 30 bets are graded. This is by design — the user needs to log AND grade bets to unlock the charts.
+- pages/04_bet_tracker.py updated (Log Bet form) — not covered by tests (UI layer). V37: sanity-check the form passes all 7 params correctly.
+- Deployment question: user asked about Streamlit Cloud deployment for live testing. Sandbox cannot push to GitHub without user-provided token. V37: does v36 use Streamlit Cloud? Can you share deployment instructions?
+
+**Next session recommendations (full detail in V37_INBOX.md):**
+1. Hit 30-bet gate — user logs 30 real bets via updated Log Bet form, grades them with closing prices
+2. Module promotion: nhl_data (per PROMOTION_SPEC.md — NHL in-season, highest priority)
+3. originator_engine Trinity bug fix (bug in v36 and sandbox — fix sandbox first, V37 ports to v36)
+4. Analytics Phase 2 after gate (Kelly compliance, tag-sliced analytics, CSV export)
+
+---
+
 ### SANDBOX SESSION 24 SUMMARY — 2026-02-24
 
 **Built:**
