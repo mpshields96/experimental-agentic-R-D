@@ -13,9 +13,11 @@ Design principles:
 Run: streamlit run app.py
 """
 
+import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 import streamlit as st
@@ -26,6 +28,26 @@ import streamlit as st
 ROOT = Path(__file__).parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# ---------------------------------------------------------------------------
+# Activity tracking — writes data/last_activity.json on EVERY page load.
+# Scheduler checks this file; if no user activity for 24h → suspends polling.
+# This single call runs at module level — Streamlit re-executes on every page
+# navigation and browser refresh, so the timestamp is always fresh.
+# ---------------------------------------------------------------------------
+_ACTIVITY_FILE = ROOT / "data" / "last_activity.json"
+
+
+def _touch_activity() -> None:
+    """Update last-user-activity timestamp. Call on every page load."""
+    try:
+        _ACTIVITY_FILE.parent.mkdir(exist_ok=True)
+        _ACTIVITY_FILE.write_text(json.dumps({"ts": time.time()}))
+    except OSError:
+        pass  # Non-fatal — scheduler will treat missing file as inactive
+
+
+_touch_activity()  # Runs on every page load / refresh
 
 # ---------------------------------------------------------------------------
 # Logging setup — write to logs/error.log
@@ -186,7 +208,13 @@ with st.sidebar:
         last_poll = status["last_poll_time"]
         err_count = status["poll_error_count"]
 
-        if is_running:
+        idle_hours = status.get("idle_hours", 0.0)
+        is_inactive = status.get("inactive", False)
+
+        if is_inactive:
+            dot_color = "#f59e0b"
+            label = "PAUSED"
+        elif is_running:
             dot_color = "#22c55e"
             label = "LIVE"
         elif st.session_state.get("scheduler_error"):
@@ -198,12 +226,18 @@ with st.sidebar:
 
         poll_str = last_poll.strftime("%H:%M:%S UTC") if last_poll else "—"
         err_str = f"  ⚠ {err_count} errors" if err_count else ""
+        idle_str = f"Idle: {idle_hours:.1f}h" if idle_hours > 1.0 else ""
+        inactive_warning = (
+            f'<div style="color:#f59e0b; font-size:0.6rem; margin-top:4px;">'
+            f'⏸ Auto-paused ({idle_hours:.0f}h idle). Refresh to resume.</div>'
+            if is_inactive else ""
+        )
 
         st.html(
             f"""
             <div style="
                 background: #1a1d23;
-                border: 1px solid #2d3139;
+                border: 1px solid {'#f59e0b' if is_inactive else '#2d3139'};
                 border-radius: 6px;
                 padding: 10px 12px;
                 margin-bottom: 12px;
@@ -222,8 +256,10 @@ with st.sidebar:
                 <div style="font-size:0.65rem; color:#6b7280; line-height:1.6;">
                     <div>Polls: every 5 min</div>
                     <div>Last: {poll_str}</div>
+                    {f'<div>{idle_str}</div>' if idle_str else ''}
                     {f'<div style="color:#ef4444;">{err_str}</div>' if err_count else ''}
                 </div>
+                {inactive_warning}
             </div>
             """
         )

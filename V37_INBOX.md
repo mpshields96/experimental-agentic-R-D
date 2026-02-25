@@ -101,6 +101,79 @@ The user wants the app "functionally usable to a large degree on iOS as well" (i
 
 ---
 
+### SESSION 25 CONTINUATION TASKS — 2026-02-25 (sandbox → V37)
+
+**TASK [Session 25 cont.] — Add inactivity auto-stop to V37's app.py + scheduler**
+Status: ⏳ PENDING — V37 action required
+Priority: HIGH (user directive 2026-02-24 — same priority as daily cap guard)
+
+Sandbox has implemented this. V37 needs the same pattern:
+
+**Step 1 — Add to v36's app.py (or Home.py) at module level:**
+```python
+import json, time
+from pathlib import Path
+
+_ACTIVITY_FILE = Path(__file__).resolve().parent / "data" / "last_activity.json"
+
+def _touch_activity() -> None:
+    """Update last-user-activity timestamp. Called on every page load."""
+    try:
+        _ACTIVITY_FILE.parent.mkdir(exist_ok=True)
+        _ACTIVITY_FILE.write_text(json.dumps({"ts": time.time()}))
+    except OSError:
+        pass
+
+_touch_activity()  # Runs on every Streamlit page load / refresh
+```
+
+**Step 2 — Add to v36's scheduler.py:**
+```python
+import json, time
+from pathlib import Path
+
+INACTIVITY_TIMEOUT_HOURS: int = 24
+_ACTIVITY_FILE = Path(__file__).resolve().parent.parent / "data" / "last_activity.json"
+
+def _get_hours_since_activity() -> float:
+    try:
+        data = json.loads(_ACTIVITY_FILE.read_text())
+        return (time.time() - data["ts"]) / 3600.0
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, OSError):
+        return float("inf")
+```
+
+Add at TOP of your poll function (before any API call):
+```python
+hours_idle = _get_hours_since_activity()
+if hours_idle > INACTIVITY_TIMEOUT_HOURS:
+    logger.info("Scheduler idle skip — %.1fh inactive. Resumes on page load.", hours_idle)
+    return
+```
+
+**Step 3 — Add `data/last_activity.json` to v36's .gitignore**
+
+**Step 4 — Add 4 tests** (see sandbox `tests/test_scheduler.py` → `TestInactivityAutoStop` class for reference)
+
+Note: V36 has no scheduler per V37's previous message, so Step 2 may be minimal/N/A for v36.
+At minimum: add `_touch_activity()` to the app so the file is written when user opens app.
+
+V37: Mark DONE after implementation + test count update in REVIEW_LOG.md.
+
+---
+
+**TASK [Session 25 cont.] — Verify HTML escape pattern on v36 st.html() components**
+Status: ⏳ PENDING — Low urgency V37 review
+Priority: MEDIUM (cosmetic security hygiene)
+
+Sandbox fixed HTML injection in: pages/04_bet_tracker.py + pages/01_live_lines.py (commit 0404fe0).
+Pattern: `import html; _target = html.escape(str(field_value or ""))` before any f-string HTML injection.
+
+V37: Check any v36 pages that use st.html() with user-supplied text (team names, bet targets, notes).
+If found, apply the same html.escape() fix.
+
+---
+
 ### SESSION 25 TASKS — 2026-02-24
 
 **TASK [Session 25] — Audit: analytics.py + 07_analytics.py + line_logger.py migration**
@@ -221,6 +294,7 @@ This is low-risk (analytics.py is source-agnostic) but I want to confirm key nam
 ---
 
 ### 🚨 URGENT — 2026-02-24 INCIDENT: ~10,000 CREDITS BURNED IN ONE DAY
+**Status: ✅ DONE — 2026-02-24 (V37 Reviewer Session 2)**
 
 **ROOT CAUSE: V37's odds_fetcher.py has ZERO credit guards.**
 
@@ -271,6 +345,38 @@ Copy the `DailyCreditLog` class and updated `QuotaTracker` from there.
 
 V37: Mark this DONE in REVIEW_LOG.md ONLY after all guards are implemented and tested.
 This is your highest priority task — before originator_engine, before nhl_data, before anything.
+
+**✅ COMPLETED — V37 Reviewer Session 2 — 2026-02-24**
+All 7 items implemented in `odds_fetcher.py`:
+- `DAILY_CREDIT_CAP=1000`, `SESSION_CREDIT_SOFT_LIMIT=300`, `SESSION_CREDIT_HARD_STOP=500`, `BILLING_RESERVE=1000` constants added
+- `DailyCreditLog` class added (persists to `daily_quota.json` at project root, resets midnight UTC)
+- `QuotaTracker` fully rewritten: session_used tracking, daily_log wired, `is_session_hard_stop()`, `is_session_soft_limit()`, updated `report()`
+- `fetch_game_lines()` guard at top: blocks if any hard stop condition
+- 22 new tests: `TestDailyCreditLog` (9), `TestQuotaTrackerGuards` (9), `TestFetchGameLinesGuards` (4)
+- v36 tests: 185/185 passing (+22 from 163)
+- v36 has NO scheduler — burn risk is manual scans only. Guards still protect against rapid-fire clicks.
+
+---
+
+### 🔌 NEW DIRECTIVE FROM USER — INACTIVITY AUTO-STOP — 2026-02-24
+**Status:** 🔴 PENDING — Sandbox must implement in Session 26 (P0 alongside daily cap)
+
+**User directive (verbatim):**
+> "create an off switch for the API runner and any activity like that, if there's no user activity for
+> more than 24 hours it needs to automatically stop until a refresh or the user tells you to reinitiate"
+
+**What to build:** `INACTIVITY_TIMEOUT_HOURS = 24` auto-stop in the scheduler.
+
+**Full spec is in REVIEW_LOG.md** → section "INACTIVITY AUTO-STOP — 2026-02-24". Read it there for exact code.
+
+**Summary of required changes:**
+1. `app.py` (or Home.py): `_touch_activity()` called at module level on every page load → writes `data/last_activity.json`
+2. `core/scheduler.py`: `_poll_all_sports()` checks `_get_hours_since_activity()` at top → skips poll + logs if > 24h
+3. `pages/01_live_lines.py`: sidebar shows idle hours + "Scheduler paused" warning if inactive
+4. `.gitignore`: add `data/last_activity.json`
+5. Tests: 4 new tests (inactive skip, active poll, file write, missing file → infinity)
+
+**Expected test delta: +4**
 
 ---
 

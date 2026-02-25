@@ -11,9 +11,11 @@ Usage in app.py:
         st.session_state["scheduler_started"] = True
 """
 
+import json
 import logging
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -34,6 +36,28 @@ from core.nhl_data import get_starters_for_odds_game, cache_goalie_status
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Inactivity auto-stop — permanent user directive (2026-02-24)
+#
+# If no user has loaded any page in > INACTIVITY_TIMEOUT_HOURS, the scheduler
+# silently skips all polls (zero API credits burned).
+# Resumes automatically the moment the user refreshes or navigates any page.
+#
+# Activity timestamp written by app.py → data/last_activity.json on every load.
+# ---------------------------------------------------------------------------
+INACTIVITY_TIMEOUT_HOURS: int = 24
+_ACTIVITY_FILE = Path(__file__).resolve().parent.parent / "data" / "last_activity.json"
+
+
+def _get_hours_since_activity() -> float:
+    """Return hours since last user page load. Returns infinity if file missing."""
+    try:
+        data = json.loads(_ACTIVITY_FILE.read_text())
+        return (time.time() - data["ts"]) / 3600.0
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, OSError):
+        return float("inf")  # Unknown = treat as inactive (safe default)
+
+
+# ---------------------------------------------------------------------------
 # Module-level state — persists across Streamlit reruns in the same process
 # ---------------------------------------------------------------------------
 _scheduler: Optional[BackgroundScheduler] = None
@@ -42,6 +66,7 @@ _last_poll_result: dict = {}   # {sport: n_games} from last successful poll
 _poll_error_count: int = 0
 _poll_errors: list = []        # last N error strings (capped at 10)
 _db_path: Optional[str] = None
+_last_idle_hours: float = 0.0  # Most recent inactivity check result (for UI display)
 
 
 # ---------------------------------------------------------------------------
@@ -52,8 +77,24 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
     Called by APScheduler every 5 minutes.
     Fetches all configured sports and writes to SQLite via log_snapshot().
     Errors are logged but never bubble up (APScheduler catches them anyway).
+
+    AUTO-STOP: If no user has loaded any app page in > INACTIVITY_TIMEOUT_HOURS,
+    this function returns immediately without making any API calls.
+    Resumes automatically the moment the user refreshes the page.
     """
-    global _last_poll_time, _last_poll_result, _poll_error_count
+    global _last_poll_time, _last_poll_result, _poll_error_count, _last_idle_hours
+
+    # --- INACTIVITY GUARD — check BEFORE any API call ---
+    hours_idle = _get_hours_since_activity()
+    _last_idle_hours = hours_idle
+    if hours_idle > INACTIVITY_TIMEOUT_HOURS:
+        logger.info(
+            "Scheduler idle skip — no user activity for %.1fh (threshold=%dh). "
+            "Zero API credits burned. Resumes on next page load.",
+            hours_idle,
+            INACTIVITY_TIMEOUT_HOURS,
+        )
+        return
 
     effective_db = db_path or _db_path
     results_summary: dict = {}
@@ -258,6 +299,7 @@ def get_status() -> dict:
             "rlm_gate": dict,  from math_engine.rlm_gate_status()
         }
     """
+    idle_hours = _get_hours_since_activity()
     return {
         "running": _scheduler is not None and _scheduler.running,
         "last_poll_time": _last_poll_time,
@@ -266,6 +308,9 @@ def get_status() -> dict:
         "recent_errors": list(_poll_errors),
         "quota_report": quota.report(),
         "rlm_gate": rlm_gate_status(),
+        "idle_hours": idle_hours,
+        "inactive": idle_hours > INACTIVITY_TIMEOUT_HOURS,
+        "inactivity_timeout_hours": INACTIVITY_TIMEOUT_HOURS,
     }
 
 

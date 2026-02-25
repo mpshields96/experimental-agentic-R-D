@@ -72,6 +72,187 @@
 ## ACTIVE FLAGS FROM REVIEWER
 > Most recent unresolved flags live here. Sandbox clears them by addressing in next session.
 
+---
+
+### 🔌 USER DIRECTIVE — INACTIVITY AUTO-STOP — 2026-02-24
+*(User directive: "create an off switch for the API runner and any activity like that — if no user activity for more than 24 hours it needs to automatically stop until a refresh or the user tells you to reinitiate")*
+
+**STATUS: REQUIRED for sandbox Session 26. Implement alongside daily cap.**
+
+---
+
+#### PROBLEM ANALYSIS — WHERE THE API CREDITS ARE COMING FROM
+
+The full source breakdown from `logs/error.log` (Feb 18–24):
+
+| Source | Credits/cycle | Frequency | Credits/day (max) | Status |
+|--------|--------------|-----------|-------------------|--------|
+| `_poll_all_sports()` via APScheduler | ~26 (11 sports × 2–3 credits each) | Every 5 min (288×/day) | **7,488** | ⛔ Root cause |
+| EXECUTE SCAN button (manual) | ~26 | Per user click | Negligible (1–3 clicks/day) | ✅ Low risk |
+| Line history probe on startup | ~0 (reads local DB, no API call) | Once per app start | 0 | ✅ Clean |
+| fetch_active_tennis_keys() | ~1 per tournament | Each scheduler cycle | ~288 extra | ⚠️ Additive |
+
+**The scheduler is the entire burn. The "break it" live test ran the app repeatedly over 6 days. Each restart reset `session_used=0`, bypassing the 500-credit session guard. By the time BILLING_RESERVE (1000) fired, 18,246 credits had been consumed.**
+
+---
+
+#### PROPOSED FIX — 24-HOUR INACTIVITY AUTO-STOP
+
+**Concept:** Track the last time any user touched the app. If no activity in 24 hours → scheduler silently skips all polls (no API calls). Auto-resumes the moment the app page is loaded or refreshed.
+
+**Implementation (sandbox — `core/scheduler.py` + app startup):**
+
+**Step 1 — Add `data/last_activity.json` writer (in app.py startup):**
+```python
+# In app.py or Home.py — at the TOP, runs on every page load/refresh
+import json, time
+from pathlib import Path
+
+_ACTIVITY_FILE = Path(__file__).resolve().parent / "data" / "last_activity.json"
+
+def _touch_activity() -> None:
+    """Update last user activity timestamp. Call on every page load."""
+    try:
+        _ACTIVITY_FILE.parent.mkdir(exist_ok=True)
+        _ACTIVITY_FILE.write_text(json.dumps({"ts": time.time()}))
+    except OSError:
+        pass
+
+_touch_activity()  # Call at module level — runs on every Streamlit page load
+```
+
+**Step 2 — Add inactivity check in `core/scheduler.py` `_poll_all_sports()`:**
+```python
+import json, time
+from pathlib import Path
+
+INACTIVITY_TIMEOUT_HOURS: int = 24          # Stop polling after this many hours
+_ACTIVITY_FILE = Path(__file__).resolve().parent.parent / "data" / "last_activity.json"
+
+def _get_hours_since_activity() -> float:
+    """Return hours since last user activity. Returns infinity if file missing."""
+    try:
+        data = json.loads(_ACTIVITY_FILE.read_text())
+        return (time.time() - data["ts"]) / 3600
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, OSError):
+        return float("inf")  # Unknown = treat as inactive
+
+def _poll_all_sports() -> dict:
+    """Scheduled poll — skips if user inactive > 24 hours."""
+    hours_idle = _get_hours_since_activity()
+    if hours_idle > INACTIVITY_TIMEOUT_HOURS:
+        logger.info(
+            "Scheduler idle skip — no user activity for %.1f hours (threshold=%dh). "
+            "API calls suspended. Resumes on next page load.",
+            hours_idle, INACTIVITY_TIMEOUT_HOURS,
+        )
+        return {}
+
+    # ... existing poll logic ...
+```
+
+**Step 3 — Add `last_activity.json` to `.gitignore`:**
+```
+# Runtime activity tracking — not source code
+data/last_activity.json
+```
+
+**Step 4 — Add scheduler status to UI sidebar:**
+```python
+# In pages/01_live_lines.py sidebar
+hours_idle = _get_hours_since_activity()
+if hours_idle > INACTIVITY_TIMEOUT_HOURS:
+    st.sidebar.warning(f"⏸ Scheduler paused ({hours_idle:.0f}h idle). Refresh to resume.")
+else:
+    st.sidebar.metric("Last activity", f"{hours_idle:.1f}h ago")
+```
+
+**Why this works:**
+- Scheduler keeps running (no restart needed) — it just SKIPS polls when idle
+- Page load/refresh = `_touch_activity()` → instantly resumes polling
+- No manual "reinitiate" button needed — loading the page IS the reinitiate
+- Works even if the user left the Streamlit process running for days
+
+**Required tests:**
+- `test_scheduler_skips_poll_when_inactive_24h()` — last_activity older than 24h → poll returns `{}`
+- `test_scheduler_polls_when_activity_recent()` — last_activity 1h ago → poll proceeds
+- `test_touch_activity_writes_file()` — file written with current timestamp
+- `test_get_hours_since_activity_returns_infinity_when_missing()` — no file → `float("inf")`
+
+**Expected test count delta: +4**
+
+**Priority:** Session 26 — implement alongside DAILY_CREDIT_CAP (they're related quota safety features). Both are P0 before any other work.
+
+---
+
+### ✅ V37 QUOTA GUARD IMPLEMENTATION — 2026-02-24
+**Status:** COMPLETE. v36 `odds_fetcher.py` now has full credit enforcement matching sandbox.
+
+**What was built (V37 Reviewer Session 2):**
+- `DailyCreditLog` class + `daily_quota.json` persistence (resets midnight UTC, survives restarts)
+- Constants: `DAILY_CREDIT_CAP=1000`, `SESSION_CREDIT_SOFT_LIMIT=300`, `SESSION_CREDIT_HARD_STOP=500`, `BILLING_RESERVE=1000`
+- `QuotaTracker` rewritten: session_used tracking, daily_log wired, `is_session_hard_stop()`, `is_session_soft_limit()`, updated `report()`
+- `fetch_game_lines()` blocks at top on any hard-stop condition
+- 22 new tests — **v36: 185/185 passing (+22)**
+
+**Note for sandbox:** v36 has NO scheduler. Quota burn risk is manual clicks only. Do NOT add a scheduler to v36 without explicit user approval and daily cap enforcement in place.
+
+---
+
+### 🚨 CRITICAL INCIDENT — QUOTA EXHAUSTED — 2026-02-24
+**Severity:** P0 — Monthly Odds API quota burned to 1 credit remaining. New daily cap imposed by user (permanent rule).
+
+**What happened:**
+The APScheduler in `core/scheduler.py` polled all sports every 5 minutes. Each full cycle costs ~26 credits (11 sports × ~2-3 credits each). The scheduler auto-starts when `streamlit run app.py` is run. During the "break it" live test on 2026-02-24, the app was started (and restarted multiple times), each restart resetting `session_used = 0` — allowing fresh polling each time. There was no DAILY credit cap — only a per-session cap (500 credits) that reset on every process restart.
+
+**Timeline from logs/error.log:**
+- 2026-02-18 22:11: `remaining=18,247` (start of log, first scheduler run)
+- 2026-02-23 evening: `remaining=7-19` (near zero already)
+- 2026-02-24 20:16: `remaining=1`, 401 Unauthorized (quota exhausted)
+
+**Net burned: ~18,246 credits in 6 days.** Monthly 20,000 credit allotment is effectively gone.
+
+**Root cause:**
+1. Scheduler runs live API calls 24/7 once started — no one-time manual approval
+2. `session_used` resets on each restart — per-session hard stop (500) was ineffective across restarts
+3. No DAILY cap existed — only billing reserve floor (1,000) as last-resort guard
+4. "Break it" live test started the app multiple times, accelerating the final drain
+
+---
+
+### 🚨 NEW PERMANENT RULE — DAILY CREDIT HARD CAP (user directive, 2026-02-24)
+
+**USER RULE (non-negotiable, permanent, forever):**
+> "There's a strict limit now and forever to NEVER exceed more than 1,000 credits in a day — that includes experimenting and testing the model/ecosystem."
+
+**Implementation required in next sandbox session (Session 26 — P0 priority):**
+
+1. **`DAILY_CREDIT_HARD_CAP = 1000`** — add to `core/odds_fetcher.py` alongside existing constants
+2. **Persistent daily usage tracking** — `QuotaTracker` must persist `day_used` to a file (e.g. `data/quota_day.json`) keyed by `YYYY-MM-DD`. Reset on new day. Check this on EVERY fetch.
+3. **Scheduler must check daily cap before each poll** — if `day_used >= DAILY_CREDIT_HARD_CAP`, skip the poll entirely and log: `"Daily cap reached (%d/%d) — skipping poll"`. Do NOT stop the scheduler, just skip.
+4. **Manual scan must also check daily cap** — if `day_used >= DAILY_CREDIT_HARD_CAP`, `st.error("Daily API limit reached (1,000 credits). Resets at midnight UTC.")` and do NOT run.
+5. **Sidebar UI** — display `day_used / 1000` metric so user always sees today's burn (see Protection 8 in Safety Mandate above — same sidebar metric, add daily as well as session).
+6. **Hard cap applies to ALL contexts: sandbox, v36, R&D testing.** No exception for "just testing."
+
+**Exact file layout change:**
+```python
+# In core/odds_fetcher.py (add after existing constants)
+DAILY_CREDIT_HARD_CAP: int = 1_000     # PERMANENT USER RULE — never burn more than this in a day
+_QUOTA_DAY_FILE = Path(__file__).resolve().parent.parent / "data" / "quota_day.json"
+```
+
+**Required tests:**
+- `test_daily_cap_blocks_fetch_when_at_limit()` — day_used=1000 → fetch returns empty, logs warning
+- `test_daily_cap_resets_on_new_day()` — day=2026-02-24 data with new day → day_used=0
+- `test_daily_cap_increments_per_sport()` — 3 sports × 3 credits → day_used=9
+- `test_daily_cap_blocks_scheduler_poll()` — scheduler skips when daily cap hit
+
+**This is P0. Build before anything else in Session 26.**
+
+**Action for sandbox:** Address daily cap FIRST in Session 26. Then address remaining Security Hardening items (Protections 1-10 from Safety Mandate). Then proceed to Session 26 planned work (nhl_data promotion, originator_engine fix).
+
+---
+
 **FLAG [Session 24] — CLAUDE.md CURRENT PROJECT STATE was stale → CLEARED (sandbox fixed autonomously)**
 ~~The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` still shows `534/534 tests` and "Session 18" as next session.~~
 Sandbox updated CLAUDE.md to Session 24 state (1011/1011 tests) without requiring user relay. System working as designed. ✅
@@ -126,6 +307,237 @@ Current metrics from 10 log entries (all 2026-02-19):
 - Status: PROMISING. Gate date not yet reached (8 days remaining). Log must keep accumulating.
 - V37 will re-check on 2026-03-04 and report final gate decision to REVIEW_LOG.md.
 - NOTE: Log is stale — last entry was 5 days ago. If the R&D scheduler is no longer running, new entries won't accumulate. User may need to confirm R&D scheduler is active for the gate to be meaningful.
+
+### V37 SAFETY MANDATE — Safeguards & Protections Spec — 2026-02-24
+*(User directive: ensure appropriate safety measures, safeguards, and protections are in place. Implement all of the following before promoting to v36 or sharing the URL.)*
+
+---
+
+#### PROTECTION 1 — Streamlit Password Gate (IMPLEMENT NOW)
+**File:** `.streamlit/secrets.toml`
+**Priority:** 🔴 CRITICAL — do this before any live URL is shared
+
+Add to `.streamlit/secrets.toml`:
+```toml
+[passwords]
+titanium = "your-chosen-password"
+```
+Add to `Home.py` or any entry page (top of file, before any other st calls):
+```python
+import streamlit as st
+if not st.experimental_user or not st.secrets.get("passwords"):
+    # Fallback: simple password check
+    pwd = st.text_input("Password", type="password")
+    if pwd != st.secrets["passwords"].get("titanium", ""):
+        st.stop()
+```
+This is Streamlit's native auth pattern. Zero extra dependencies. Blocks the URL from being usable by anyone without the password. DO NOT commit the password to GitHub — it stays in secrets.toml which is gitignored.
+
+---
+
+#### PROTECTION 2 — EXECUTE SCAN: Rate Limit + Cooldown (IMPLEMENT NOW)
+**File:** `pages/01_live_lines.py` (or wherever EXECUTE SCAN button lives)
+**Priority:** 🔴 CRITICAL — prevents quota exhaustion abuse
+
+```python
+import time
+
+SCAN_COOLDOWN_SECONDS = 300  # 5 minutes between scans
+
+last_scan = st.session_state.get("last_scan_ts", 0)
+seconds_since = time.time() - last_scan
+cooldown_remaining = max(0, SCAN_COOLDOWN_SECONDS - seconds_since)
+
+scan_disabled = cooldown_remaining > 0 or st.session_state.get("scan_running", False)
+label = f"EXECUTE SCAN ({int(cooldown_remaining)}s cooldown)" if cooldown_remaining > 0 else "EXECUTE SCAN"
+
+if st.button(label, disabled=scan_disabled):
+    st.session_state["scan_running"] = True
+    st.session_state["last_scan_ts"] = time.time()
+    try:
+        # ... run pipeline ...
+    finally:
+        st.session_state["scan_running"] = False
+```
+- 5-minute cooldown between scans (configurable constant)
+- Button disabled + shows countdown while cooling down
+- `try/finally` ensures `scan_running` is always cleared even on error
+- Prevents rapid-fire quota burning regardless of who is clicking
+
+---
+
+#### PROTECTION 3 — API Key Safety: Clean Error Handling (IMPLEMENT NOW)
+**File:** `core/odds_fetcher.py`
+**Priority:** 🔴 CRITICAL — prevents key leakage in UI
+
+Wrap every `requests.get()` / `_get()` call:
+```python
+import requests
+
+def _get(url: str, params: dict) -> dict:
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.HTTPError as e:
+        # Sanitize: never let the raw URL (which contains apiKey=...) reach the caller
+        status = e.response.status_code if e.response else "unknown"
+        raise RuntimeError(f"Odds API error {status} — check quota or key validity") from None
+    except requests.exceptions.Timeout:
+        raise RuntimeError("Odds API timed out (>10s) — try again shortly") from None
+    except requests.exceptions.ConnectionError:
+        raise RuntimeError("Odds API unreachable — check network connection") from None
+```
+The `from None` suppresses the original exception chain so the raw URL (with API key embedded) never reaches a Streamlit traceback. Pages catch `RuntimeError` and call `st.error(str(e))` — clean message, no key exposure.
+
+---
+
+#### PROTECTION 4 — Log Bet Form: Input Validation (IMPLEMENT NOW)
+**File:** `pages/04_bet_tracker.py`
+**Priority:** 🟡 HIGH — prevents corrupt analytics data
+
+Add a `_validate_log_bet_inputs()` function called before `log_bet()`:
+```python
+def _validate_log_bet_inputs(price, edge, stake, kelly, sharp_score, days_to_game, line):
+    errors = []
+    if not (-2000 <= price <= 10000):
+        errors.append("Price must be a valid American odds value (-2000 to +10000)")
+    if not (0.0 <= edge <= 100.0):
+        errors.append("Edge must be between 0% and 100%")
+    if stake <= 0:
+        errors.append("Stake must be greater than 0")
+    if not (0.0 <= kelly <= 10.0):
+        errors.append("Kelly size must be between 0 and 10 units")
+    if not (0 <= sharp_score <= 100):
+        errors.append("Sharp score must be 0–100")
+    if days_to_game < 0:
+        errors.append("Days to game cannot be negative")
+    return errors
+
+errors = _validate_log_bet_inputs(price, edge, stake, kelly, sharp_score, days_to_game, line)
+if errors:
+    for err in errors:
+        st.error(err)
+    st.stop()
+# Only reaches log_bet() if all validations pass
+log_bet(...)
+```
+
+---
+
+#### PROTECTION 5 — SQLite DB: Absolute Path (IMPLEMENT NOW)
+**File:** `core/line_logger.py`
+**Priority:** 🟡 HIGH — prevents silent data loss on wrong launch directory
+
+```python
+from pathlib import Path
+
+# At top of file — never a bare relative path
+_DB_PATH = Path(__file__).resolve().parent.parent / "titanium.db"
+# This puts titanium.db at the sandbox root regardless of launch dir
+
+def _get_connection():
+    return sqlite3.connect(str(_DB_PATH))
+```
+Verify with: `grep -n "sqlite3.connect\|\.db" core/line_logger.py`
+
+---
+
+#### PROTECTION 6 — Grade Bet: Pending-Only Filter (IMPLEMENT NOW)
+**File:** `pages/04_bet_tracker.py`
+**Priority:** 🟡 HIGH — prevents P&L double-counting
+
+Grade Bet selectbox must only show `status="pending"` bets:
+```python
+pending_bets = [b for b in get_bets() if b.get("result") == "pending"]
+if not pending_bets:
+    st.info("No pending bets to grade.")
+    st.stop()
+```
+Never show already-resolved bets in the grade dropdown. If a bet shows `result="win"` or `result="loss"`, it must not appear. Double-grading corrupts P&L permanently.
+
+---
+
+#### PROTECTION 7 — Analytics: Null Safety on Numeric Fields (IMPLEMENT NOW)
+**File:** `core/analytics.py`
+**Priority:** 🟡 HIGH — prevents crash on pre-migration DB rows
+
+Change all `.get("profit", 0.0)` and `.get("stake", 0.0)` calls to null-safe form:
+```python
+# Replace this pattern:
+b.get("profit", 0.0)
+# With:
+float(b.get("profit") or 0.0)
+
+# Replace:
+b.get("stake", 0.0)
+# With:
+float(b.get("stake") or 0.0)
+```
+The `or 0.0` handles the case where the column exists but contains SQL NULL (which Python receives as `None`). Without this, `None + 0.5` raises TypeError silently in older rows from before the schema migration.
+
+---
+
+#### PROTECTION 8 — Quota Guard: Session-Level API Call Counter in UI (IMPLEMENT)
+**File:** `pages/01_live_lines.py` or `Home.py`
+**Priority:** 🟡 HIGH — user visibility into quota burn
+
+The quota guards exist in `core/odds_fetcher.py` (SESSION_CREDIT_SOFT_LIMIT=300, HARD_STOP=500). But the user has no visibility into remaining quota on the UI.
+
+Add to the sidebar or scan results header:
+```python
+remaining = st.session_state.get("quota_remaining", "unknown")
+used_session = st.session_state.get("session_credits_used", 0)
+st.sidebar.metric("API Credits Remaining", remaining, delta=f"-{used_session} this session")
+```
+Wire `quota_remaining` from the `x-requests-remaining` response header that the Odds API returns on every call. Already available in `_get()` response headers. Surface it — don't hide it.
+
+---
+
+#### PROTECTION 9 — Secrets: Confirm .gitignore Coverage
+**File:** `.gitignore`
+**Priority:** 🔴 CRITICAL — one-time check
+
+Verify these are gitignored:
+```
+.streamlit/secrets.toml   # API key + password
+*.db                      # SQLite bet database (personal bet data)
+.backups/                 # Backup tarballs
+__pycache__/
+*.pyc
+```
+Run: `git check-ignore -v .streamlit/secrets.toml titanium.db` — both must return a match. If either is NOT ignored, fix `.gitignore` immediately and run `git rm --cached` to remove from tracking.
+
+---
+
+#### PROTECTION 10 — Streamlit Config: Disable Telemetry + Set Safe Defaults
+**File:** `.streamlit/config.toml`
+**Priority:** 🟢 LOW
+
+```toml
+[browser]
+gatherUsageStats = false  # Don't phone home
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true  # CSRF protection on form submissions
+```
+
+---
+
+#### TESTS TO WRITE (sandbox: add these to test suite)
+Each protection above should have at least one test:
+- `test_validate_log_bet_rejects_bad_price()` — price=99999 → errors list non-empty
+- `test_validate_log_bet_rejects_negative_stake()` — stake=-5 → errors list non-empty
+- `test_db_path_is_absolute()` — `_DB_PATH.is_absolute()` is True
+- `test_analytics_roi_handles_none_profit()` — bet with `profit=None` → `_roi()` returns 0.0, no exception
+- `test_analytics_roi_handles_none_stake()` — bet with `stake=None` → `_roi()` returns 0.0, no exception
+- `test_pending_filter_excludes_resolved()` — `get_bets(status="pending")` returns only pending rows
+
+Expected test count delta: ~+12 tests.
+
+---
 
 **FLAG [Session 25 UI] — NFL Backup QB listed as LIVE kill switch — NOT WIRED**
 `SYSTEM_GUIDE.md` + `00_guide.py` both list "NFL Backup QB → KILL" as LIVE. `backup_qb` param exists in math_engine.py but is never set from real data — always False. Remove or mark STUB.

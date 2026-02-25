@@ -195,13 +195,24 @@ class TestGetStatus:
 # _poll_all_sports (internal, tested via trigger_poll_now)
 # ---------------------------------------------------------------------------
 class TestPollAllSports:
+    """
+    All tests in this class mock _get_hours_since_activity to return 0.0
+    (simulating an active user) so the inactivity guard never fires.
+    Tests specifically for the inactivity guard live in TestInactivityAutoStop.
+    """
+
     def test_successful_poll_updates_state(self):
         fake_data = {
             "NBA": [{"id": "game1"}, {"id": "game2"}],
             "NFL": [],
         }
-        with patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
-             patch("core.scheduler.log_snapshot", return_value=[{}, {}]) as mock_log:
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
+             patch("core.scheduler.log_snapshot", return_value=[{}, {}]) as mock_log, \
+             patch("core.scheduler.integrate_with_session_cache"), \
+             patch("core.scheduler.inject_historical_prices_into_cache"), \
+             patch("core.scheduler.probe_bookmakers", return_value={}), \
+             patch("core.scheduler.log_probe_result"):
             trigger_poll_now()
             assert sched_mod._last_poll_time is not None
             assert sched_mod._last_poll_result["NBA"] == 2
@@ -211,26 +222,30 @@ class TestPollAllSports:
 
     def test_empty_sport_not_logged(self):
         fake_data = {"NBA": [], "NFL": []}
-        with patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
              patch("core.scheduler.log_snapshot") as mock_log:
             trigger_poll_now()
             mock_log.assert_not_called()
 
     def test_exception_increments_error_count(self):
-        with patch("core.scheduler.fetch_batch_odds", side_effect=RuntimeError("API down")):
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", side_effect=RuntimeError("API down")):
             trigger_poll_now()
             assert sched_mod._poll_error_count == 1
             assert len(sched_mod._poll_errors) == 1
 
     def test_error_list_capped_at_10(self):
-        with patch("core.scheduler.fetch_batch_odds", side_effect=RuntimeError("fail")):
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", side_effect=RuntimeError("fail")):
             for _ in range(15):
                 trigger_poll_now()
         assert len(sched_mod._poll_errors) == 10
 
     def test_exception_does_not_raise(self):
         """Errors must be swallowed so APScheduler keeps running."""
-        with patch("core.scheduler.fetch_batch_odds", side_effect=Exception("boom")):
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", side_effect=Exception("boom")):
             trigger_poll_now()  # must not raise
 
 
@@ -240,8 +255,13 @@ class TestPollAllSports:
 class TestTriggerPollNow:
     def test_returns_result_summary(self):
         fake_data = {"NBA": [{"id": "g1"}]}
-        with patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
-             patch("core.scheduler.log_snapshot", return_value=[{}]):
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
+             patch("core.scheduler.log_snapshot", return_value=[{}]), \
+             patch("core.scheduler.integrate_with_session_cache"), \
+             patch("core.scheduler.inject_historical_prices_into_cache"), \
+             patch("core.scheduler.probe_bookmakers", return_value={}), \
+             patch("core.scheduler.log_probe_result"):
             result = trigger_poll_now()
             assert result == {"NBA": 1}
 
@@ -252,7 +272,8 @@ class TestTriggerPollNow:
             mock_poll.assert_called_once_with("/tmp/override.db")
 
     def test_returns_empty_on_error(self):
-        with patch("core.scheduler.fetch_batch_odds", side_effect=RuntimeError("fail")):
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", side_effect=RuntimeError("fail")):
             result = trigger_poll_now()
             # last_poll_result was never updated; returns {}
             assert result == {}
@@ -318,7 +339,8 @@ class TestNhlGoaliePoll:
             "commence_time": "2099-01-01T23:00:00Z",  # future game
         }
         fake_data = {"NHL": [nhl_game]}
-        with patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
              patch("core.scheduler.log_snapshot", return_value=[nhl_game]), \
              patch("core.scheduler._poll_nhl_goalies") as mock_goalies, \
              patch("core.scheduler.integrate_with_session_cache"), \
@@ -331,7 +353,8 @@ class TestNhlGoaliePoll:
     def test_non_nhl_sport_does_not_trigger_goalie_poll(self):
         """NBA, NFL etc. should not trigger NHL goalie poll."""
         fake_data = {"NBA": [{"id": "nba_game_1"}]}
-        with patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.0), \
+             patch("core.scheduler.fetch_batch_odds", return_value=fake_data), \
              patch("core.scheduler.log_snapshot", return_value=[{}]), \
              patch("core.scheduler._poll_nhl_goalies") as mock_goalies, \
              patch("core.scheduler.integrate_with_session_cache"), \
@@ -404,6 +427,71 @@ class TestNhlGoaliePoll:
         }
         with patch("core.scheduler.get_starters_for_odds_game", side_effect=Exception("API Error")):
             _poll_nhl_goalies([game])  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# Inactivity auto-stop (2026-02-24 user directive)
+# ---------------------------------------------------------------------------
+class TestInactivityAutoStop:
+    """
+    Tests for the 24-hour inactivity guard in _poll_all_sports().
+
+    When no user has loaded any page in > INACTIVITY_TIMEOUT_HOURS,
+    the scheduler must skip all fetches (zero API calls) and return early.
+    Resumes automatically on the next page load (file written by app.py).
+    """
+
+    def test_inactive_skips_fetch(self):
+        """When idle_hours > 24, fetch_batch_odds must NOT be called."""
+        with patch("core.scheduler._get_hours_since_activity", return_value=25.0), \
+             patch("core.scheduler.fetch_batch_odds") as mock_fetch:
+            trigger_poll_now()
+            mock_fetch.assert_not_called()
+
+    def test_active_proceeds_with_fetch(self):
+        """When recently active (idle_hours < 24), fetch must be called."""
+        fake_data = {"NBA": []}
+        with patch("core.scheduler._get_hours_since_activity", return_value=0.5), \
+             patch("core.scheduler.fetch_batch_odds", return_value=fake_data) as mock_fetch:
+            trigger_poll_now()
+            mock_fetch.assert_called_once()
+
+    def test_get_hours_returns_infinity_on_missing_file(self, tmp_path):
+        """Missing activity file → treat as inactive (return infinity)."""
+        import core.scheduler as sched_mod
+        original = sched_mod._ACTIVITY_FILE
+        try:
+            sched_mod._ACTIVITY_FILE = tmp_path / "nonexistent_activity.json"
+            hours = sched_mod._get_hours_since_activity()
+            assert hours == float("inf")
+        finally:
+            sched_mod._ACTIVITY_FILE = original
+
+    def test_get_hours_returns_correct_value(self, tmp_path):
+        """Activity file with recent timestamp → returns correct elapsed hours."""
+        import core.scheduler as sched_mod
+        import json, time as _time
+        activity_file = tmp_path / "last_activity.json"
+        one_hour_ago = _time.time() - 3600.0
+        activity_file.write_text(json.dumps({"ts": one_hour_ago}))
+
+        original = sched_mod._ACTIVITY_FILE
+        try:
+            sched_mod._ACTIVITY_FILE = activity_file
+            hours = sched_mod._get_hours_since_activity()
+            # Allow ±5 seconds tolerance
+            assert 0.99 < hours < 1.01
+        finally:
+            sched_mod._ACTIVITY_FILE = original
+
+    def test_get_status_includes_idle_hours(self):
+        """get_status() must expose idle_hours and inactive keys for the UI."""
+        with patch("core.scheduler._get_hours_since_activity", return_value=2.5):
+            status = get_status()
+        assert "idle_hours" in status
+        assert "inactive" in status
+        assert abs(status["idle_hours"] - 2.5) < 0.01
+        assert status["inactive"] is False  # 2.5h < 24h threshold
 
 
 # ---------------------------------------------------------------------------
