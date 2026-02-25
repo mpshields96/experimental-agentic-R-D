@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 24 | Last updated: 2026-02-24
+## Version: Session 25 | Last updated: 2026-02-24
 ## For: New agentic R&D chat initialization
 
 ---
@@ -382,7 +382,7 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 
 | Gate | Current State | Action when met |
 |---|---|---|
-| SHARP_THRESHOLD raise | 0/20 RLM fires | MANUALLY change 45→50 in math_engine.py |
+| SHARP_THRESHOLD raise | 0/5 RLM fires | MANUALLY change 45→50 in math_engine.py |
 | Pinnacle origination | pinnacle_present=False | Add to PREFERRED_BOOKS when consistently True |
 | CLV verdict | 0/30 graded bets | Check clv_summary() verdict |
 | NHL kill switch | ✅ COMPLETE (Session 13) | nhl_data.py + nhl_kill_switch() + scheduler wired |
@@ -415,9 +415,16 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 20. **Passing external data into kill switches**: When a data module (e.g. nba_pdo) maintains a module-level cache, and parse_game_markets() receives that data as a dict param, seed the module cache from the dict BEFORE calling the kill switch. Pattern: `from core.nba_pdo import _pdo_cache as _cache; _cache[name] = result; then call pdo_kill_switch()`. This avoids duplicating kill logic inline.
 21. **Edge generation test fixtures**: Tight spread prices (-108/-112 across 3 books) do NOT produce >3.5% edge candidates. The outlier-book pattern is required: 3 consensus books at one price + 1 outlier at significantly different price. See `_make_game_with_clear_edge()` in test_math_engine.py as the canonical template.
 22. **Module-level test state bleed**: When a module defines global state (e.g. `quota = QuotaTracker()` at module level), raising thresholds (like BILLING_RESERVE from 20→1000) can retroactively break existing tests that leave `remaining=490` in prior test runs. Always add `setup_method(self): _reset_quota()` to test classes, and create a `_reset_*()` helper that sets all state to safe values.
-23. **V37_INBOX.md auto-coordination**: This chat writes task instructions to `~/Projects/titanium-v36/V37_INBOX.md`. V37 reviewer reads it at every session start. V37's CLAUDE.md has been updated to include this in the startup ritual. This eliminates the need for the user to manually relay prompts between chats.
+23. **V37_INBOX.md auto-coordination**: This chat writes task instructions to `~/ClaudeCode/agentic-rd-sandbox/V37_INBOX.md` (sandbox repo — NOT titanium-v36). V37 reads from this path at startup. V37's CLAUDE.md updated in Session 24. Eliminates user relay entirely.
 24. **WebSearch only for Reddit**: Never use Playwright/browser automation for Reddit research. Use `WebSearch` tool with `site:reddit.com` queries. Browser automation on social sites risks Chrome bans.
 25. **Original prompt file**: `memory/ORIGINAL_PROMPT.md` is maintained in the sandbox. When approaching context limits, run full session end ritual, update this file with expanded current-state prompt, then use it as the initialization template for the next chat. It must always enable a completely seamless transition.
+26. **ralph-loop plugin has a shell bug**: `setup-ralph-loop.sh` line 113 fails with `PROMPT_PARTS[*]: unbound variable`. Cannot fix — `~/.claude/plugins/cache/` is prohibited. User must fix manually or reinstall. Do not retry invoking until confirmed fixed.
+27. **Analytics source-agnostic pattern (permanent)**: New analytics/reporting functions MUST accept `list[dict]`, not direct DB calls. Page layer calls `get_bets()` (sandbox) or `fetch_bets()` (v36 Supabase) and passes result in. Follow `core/analytics.py` as template for all future analytics modules.
+28. **Form-to-function param parity**: When building Streamlit forms for multi-param functions (e.g. log_bet 7 analytics params), enumerate every param and verify each has a matching widget + kwarg in the submit handler. Missing one requires a V37 flag fix cycle.
+29. **nhl_data promotion baseline (V37 confirmed Session 25)**: v36 test count = 163/163. Import path in v36: `from data.nhl_data import ...` (data/ subpackage, NOT core/). PROMOTION_SPEC.md at ~/Projects/titanium-v36/PROMOTION_SPEC.md has full instructions.
+30. **originator_engine Trinity bug confirmed in v36**: Callers pass `bet.line` as mean instead of `efficiency_gap_to_margin(efficiency_gap)`. Build fix in sandbox first (+40 tests), V37 ports to v36 after audit.
+31. **v36 Supabase promotion prerequisite**: Before promoting analytics.py to v36, run Supabase migration to add 7 columns to `bet_history`: sharp_score, rlm_fired, tags, book, days_to_game, line, signal. Column names already match — no renames needed.
+32. **Analytics terminal font pair**: IBM Plex Mono (data values, labels, monospace) + IBM Plex Sans (headers, body) — confirmed pairing for this project's analytics dashboard pages.
 
 ---
 
@@ -453,41 +460,41 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 24)
+## 🚦 CURRENT PROJECT STATE (as of Session 25)
 
 ```
-Test suite:   1011/1011 passing
-Last commit:  cd6e3d1 (Session 23 push) — Session 24 work pending push
+Test suite:   1062/1062 passing
+Last commit:  834ad6f (Session 25: clear V37 flags in REVIEW_LOG) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App port:     8504 (confirmed — do NOT use 8501/8502/8503)
 
-BUILT (complete):
-  All 5 pages, all core modules, 12 active sports, RLM 2.0, CLV tracker,
-  Pinnacle probe, weekly purge, sidebar health dashboard, RLM fire gate,
-  NHL kill switch, efficiency_feed.py, tennis (dynamic discovery + kill switch),
-  soccer 3-way h2h (passes_collar_soccer, no_vig_probability_3way, consensus_fair_prob_3way)
+BUILT (Sessions 1-25 complete):
+  18 core modules, 7 pages, 12 active sports
+  Session 25: analytics.py (source-agnostic), 07_analytics.py Phase 1,
+              bet_log schema migration (7 new columns), Log Bet form updated
+  Prior: RLM 2.0, CLV, NHL kill switch, PDO, KOTC, calibration, equity curve,
+         parlay builder, injury data, weather feed, originator engine, etc.
 
-KILL SWITCHES ACTIVE:
-  NBA: B2B rest + star absence + pace variance
+KILL SWITCHES ACTIVE (unchanged):
+  NBA: B2B rest + PDO regression
   NFL: Wind >15/20mph + backup QB
   NCAAB: 3PT reliance >40% on road + tempo diff
-  Soccer (all 6): Market drift >10% + dead rubber — 3-way h2h now LIVE
-  NHL: Backup goalie confirmed (free NHL API, zero quota cost)
-  Tennis: Clay >72% / Grass >75% favourite → FLAG (dynamic discovery, surface from key)
-  MLB: DEFERRED to Apr 1, 2026 (season starts Mar 27)
-  NCAAF: DEFERRED (no validated threshold)
+  Soccer (6 leagues): Market drift + dead rubber — 3-way h2h LIVE
+  NHL: Backup goalie (free NHL API, zero quota cost)
+  Tennis: Surface mismatch (dynamic key discovery)
+  MLB: DEFERRED Apr 1, 2026 | NCAAF: off-season gate
 
-SYSTEM GATES (all blocked — need live data accumulation):
-  RLM fire count:  0 / 20  → do NOT raise SHARP_THRESHOLD yet
-  Graded bets:     0        → CLV scatter (4A) deferred
-  NBA B2B:         0 instances in DB → 3D deferred
+SYSTEM GATES:
+  RLM fire count:  0 / 5   → do NOT raise SHARP_THRESHOLD yet
+  Graded bets:     0 / 30  → analytics sample guards active; CLV verdict deferred
+  CLV pipeline:    ready — Log Bet form captures all 7 analytics metadata fields
 
-NEXT SESSION (Session 18):
-  1. System gates check (always first)
-  2. Accumulate live data — run app with scheduler
-  3. NBA B2B home/road diff — gate: 10+ B2B instances in DB
-  4. MLB kill switch — HOLD until Apr 1, 2026
-  See MASTER_ROADMAP.md Section 9 for full checklist
+NEXT SESSION (Session 26):
+  Priority 1: Log 30 real bets + grade → unlocks all analytics charts
+  Priority 2: originator_engine Trinity bug fix (+40 tests, V37 confirmed)
+  Priority 3: nhl_data promotion (v36 baseline 163/163, import from data.nhl_data)
+  Priority 4: Analytics Phase 2 (after 30-bet gate)
+  Priority 5: weather_feed HOLD until Aug 2026
 ```
 
 ---

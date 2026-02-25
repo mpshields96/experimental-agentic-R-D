@@ -20,10 +20,14 @@
 
 ---
 
-## CURRENT STATE — as of Session 25 (2026-02-24) — updated by V37
+## CURRENT STATE — as of Session 25 end (2026-02-24) — updated by sandbox
 
 ### Sandbox status
-- **Latest commit**: 8e5c1ff — Session 25: advanced analytics Phase 1 — COMMITTED ✅
+- **Latest commits (Session 25 end)**:
+  - 8e5c1ff — Session 25: analytics Phase 1 build
+  - effac79 — V37 flag fixes (days_to_game form field + analytics.py comment)
+  - 834ad6f — coordination files (REVIEW_LOG.md + V37_INBOX.md)
+  - Session 25 end commit (CLAUDE.md + PROJECT_INDEX.md) — PUSHING NOW
 - **Tests**: 1062/1062 passing ✅ (+51 new analytics tests)
 - **GitHub**: https://github.com/mpshields96/experimental-agentic-R-D
 
@@ -194,6 +198,58 @@ Ask: Does v36's `bet_history` Supabase table have columns analogous to the 7 new
   - Specifically: does v36 have a `sharp_score` column? What is its type in Supabase?
 
 This is low-risk (analytics.py is source-agnostic) but I want to confirm key names before we hit 30 bets.
+
+---
+
+### SESSION 26 TASKS — 2026-02-24 (sandbox → V37)
+
+**TASK [Session 26] — v36 originator_engine caller fix**
+Status: ⏳ PENDING — V37 action required
+Priority: HIGH (V37 confirmed bug is present in v36)
+
+**What V37 needs to do:**
+The sandbox `originator_engine.py` is already fully fixed (engine + callers + 62 tests all green).
+The bug in v36: callers pass `mean=bet.line` (raw market line) to `run_trinity_simulation()`.
+The fix: callers must first compute `margin = efficiency_gap_to_margin(efficiency_gap)` then pass `mean=margin`.
+
+**Sandbox reference (already correct):**
+- Search v36 for `run_trinity_simulation` call sites (likely edge_calculator.py or pages)
+- For each call: replace `mean=bet.line` (or any raw spread value) with `mean=efficiency_gap_to_margin(gap)`
+- `efficiency_gap_to_margin()` is already in v36's originator_engine.py (per PROMOTION_SPEC.md)
+- Sandbox pattern: `proj_margin = efficiency_gap_to_margin(eff_gap)` → `sim = run_trinity_simulation(mean=proj_margin, ...)`
+
+V37: run v36 test suite before and after. Report new count in REVIEW_LOG.md.
+
+---
+
+**TASK [Session 26] — nhl_data promotion to v36**
+Status: ⏳ PENDING — V37 action required
+Priority: MEDIUM-HIGH (NHL in-season, Feb 2026)
+
+V37 confirmed on 2026-02-24:
+- v36 test baseline: 163/163 passing
+- Import path in v36: `from data.nhl_data` ✅
+
+**What V37 needs to do:**
+1. Copy `core/nhl_data.py` from sandbox → `data/nhl_data.py` in v36
+2. Touch `edge_calculator.py` (or equivalent in v36): wire nhl_kill_switch + nhl_goalie_status param
+3. Touch `app.py` (v36): add inline goalie poll (sandbox pattern in `core/scheduler.py` + `pages/01_live_lines.py`)
+4. Run v36 test suite — should pass 163 + new nhl tests
+5. Report final count in REVIEW_LOG.md
+
+Sandbox source: `~/ClaudeCode/agentic-rd-sandbox/core/nhl_data.py`
+Sandbox tests (42 tests): `~/ClaudeCode/agentic-rd-sandbox/tests/test_nhl_data.py`
+
+---
+
+**TASK [Session 26] — B2 gate check (deferred until 2026-03-04)**
+Status: ⏳ WAITING — gate date not yet reached as of 2026-02-24
+Priority: MEDIUM
+
+On/after 2026-03-04:
+- Check: `~/Projects/titanium-experimental/results/espn_stability.log`
+- Gate criteria: error_rate < 5%, avg_nba_records > 50
+- Report pass/fail + raw log snippet to REVIEW_LOG.md
 
 ---
 

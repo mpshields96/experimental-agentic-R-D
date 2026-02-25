@@ -7,7 +7,7 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 24 (cont.) — 2026-02-24 — V37 promotion spec complete
+# Last updated: Session 25 — 2026-02-24 — analytics Phase 1 + V37 flag fixes + V37 ping written
 # Maintained by: sandbox builder chat
 
 ---
@@ -136,8 +136,9 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file. Write tasks to V37_INBOX.md.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
 
-Current V37 status: **APPROVED — no outstanding flags as of Session 24 cont.**
+Current V37 status: **APPROVED — no outstanding flags as of Session 25 end.**
 V37 promotion spec written: `~/Projects/titanium-v36/PROMOTION_SPEC.md` — ready for sandbox reference.
+Session 25 audit: APPROVED. V37 flags cleared (days_to_game form + analytics.py comment). Both fixed.
 
 ---
 
@@ -160,18 +161,17 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 24 complete — 2026-02-24)
+## 📍 CURRENT PROJECT STATE (Session 25 complete — 2026-02-24)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      streamlit run app.py --server.port 8504
-Tests:    1011 / 1011 passing ✅
-GitHub:   mpshields96/experimental-agentic-R-D (main) — committed, PUSH PENDING (need token)
-Latest:   5fb88c2 (Session 24 final cont.: V37 inbox completions + REVIEW_LOG two-way rule)
-Prior:    3bce41d (Session 24 final: cross-repo write fix + ORIGINAL_PROMPT.md ready)
-          97eaa44 (sc:save + sc:index-repo — index + session log updated)
-          0395926 (clean access architecture + REVIEWER_PROMPT.md)
-          d85a1f2 (Session 24: governance, backup system, credit guards)
+Tests:    1062 / 1062 passing ✅ (+51 new analytics tests)
+GitHub:   mpshields96/experimental-agentic-R-D (main) — PUSHED ✅
+Latest:   Session 25 end (CLAUDE.md updates + PROJECT_INDEX.md — committing now)
+Prior:    834ad6f (coordination files: REVIEW_LOG.md + V37_INBOX.md)
+          effac79 (V37 flag fixes: days_to_game form + analytics.py comment)
+          8e5c1ff (Session 25: analytics Phase 1 build)
 ```
 
 ### Access architecture (final — permanent)
@@ -181,38 +181,40 @@ Prior:    3bce41d (Session 24 final: cross-repo write fix + ORIGINAL_PROMPT.md r
 - memory/REVIEWER_PROMPT.md = copy-paste to start new V37 chat
 - memory/ORIGINAL_PROMPT.md = copy-paste to start new sandbox chat (this file)
 
-### Core Modules (17 modules, all tested)
+### Core Modules (18 modules, all tested)
 
 | Module | Purpose | Tests |
 |--------|---------|-------|
 | `math_engine.py` | ALL math — collar, edge, Kelly, sharp score, RLM, CLV, Nemesis | 217 |
 | `odds_fetcher.py` | Odds API wrapper, quota tracking, rest days, tennis discovery | 51 |
-| `line_logger.py` | SQLite WAL: lines, snapshots, bets, movements | 31 |
+| `line_logger.py` | SQLite WAL: lines, snapshots, bets, movements. log_bet() now accepts 7 analytics params (sharp_score, rlm_fired, tags, book, days_to_game, line, signal) | 31 |
 | `scheduler.py` | APScheduler: poll loop, NHL goalie hook, purge | 35 |
 | `nhl_data.py` | Free NHL API: goalie starter detection, zero quota | 34 |
 | `tennis_data.py` | Surface classification, player win rates (ATP 48 + WTA 42) | 96 |
 | `efficiency_feed.py` | Static team efficiency — 250+ teams, 10 leagues | 51 |
 | `weather_feed.py` | NFL live wind via Open-Meteo (32 stadiums, 1hr TTL) | 24 |
-| `originator_engine.py` | Trinity Monte Carlo simulation (20%C / 20%F / 60%M) | 62 |
+| `originator_engine.py` | Trinity Monte Carlo simulation (20%C / 20%F / 60%M). Sandbox fully fixed: engine + callers + 62 tests. | 62 |
 | `parlay_builder.py` | 2-leg positive-EV parlay finder, correlation discount | 47 |
 | `injury_data.py` | Static positional impact — 5 sports, 50+ positions, ZERO API | 59 |
 | `nba_pdo.py` | PDO regression kill switch — nba_api free tier, 1hr TTL cache | 66 |
 | `king_of_the_court.py` | DraftKings Tuesday KOTC analyzer — static season data, zero API | 74 |
+| `analytics.py` | Pure analytics: sharp/RLM/CLV/equity/rolling/book breakdown. source-agnostic list[dict] API. MIN_RESOLVED=30. | 51 |
 | `calibration.py` | Sharp score calibration pipeline — activates at 30 graded bets | 46 |
 | `clv_tracker.py` | CLV snapshot CSV log + summary | 46 |
 | `price_history_store.py` | Persistent open-price store — multi-session RLM continuity | 36 |
 | `probe_logger.py` | Bookmaker probe log (JSON) | 36 |
 
-### Pages (6 Streamlit pages)
+### Pages (7 Streamlit pages)
 
 | Page | Purpose |
 |------|---------|
 | `pages/01_live_lines.py` | Full bet pipeline, injury sidebar (+5 boost), KOTC Tuesday widget |
 | `pages/02_analysis.py` | KPI summary, P&L, edge/CLV histograms, line pressure |
 | `pages/03_line_history.py` | Movement cards, sparklines, RLM seed table |
-| `pages/04_bet_tracker.py` | Bet log, grading, P&L, CLV tracker |
+| `pages/04_bet_tracker.py` | Bet log, grading, P&L, CLV tracker — now includes 7 analytics metadata fields |
 | `pages/05_rd_output.py` | Math validation dashboard (pure math_engine, no live data) |
 | `pages/06_simulator.py` | Trinity game simulator (NBA + Soccer Poisson modes) |
+| `pages/07_analytics.py` | Advanced analytics Phase 1 — sharp/RLM/CLV/equity/rolling/book (sample guard at N<30) |
 
 ---
 
@@ -320,40 +322,34 @@ Constants: SESSION_CREDIT_SOFT_LIMIT, SESSION_CREDIT_HARD_STOP, BILLING_RESERVE
 
 ---
 
-## 🎯 NEXT SESSION TARGETS (as of Session 24)
+## 🎯 NEXT SESSION TARGETS (as of Session 25)
 
-**Priority 1 — CLV pipeline (needs human action first)**
-- Log real bets via UI at http://localhost:8504 → Live Lines → Log Bet
-- Calibration activates at 30 graded bets
+**Priority 1 — Log real bets to hit 30-bet calibration gate (human action required)**
+- Open http://localhost:8504 → Live Lines → Log Bet
+- Log bets WITH the 7 new analytics metadata fields (sharp_score, rlm_fired, tags, book, days_to_game, line, signal)
+- 04_bet_tracker.py form has all 7 fields ✅ — form is ready
+- Once 30 graded bets: calibration.py + analytics.py charts activate (currently all showing sample guards)
+- User has flagged readiness to start live betting tonight (evening 2026-02-24) — slate monitoring mode
 
-**Priority 2 — Advanced Analytics (V37 cleared — build now)**
-- `pages/07_analytics.py` — Phase 1: schema migration + Sharp score ROI correlation + RLM correlation + CLV beat rate
-- Schema migration: 7 new columns with ALter TABLE ADD COLUMN (not recreate)
-  - `sharp_score INTEGER DEFAULT 0` (V37 type correction)
-  - `rlm_fired INTEGER DEFAULT 0`
-  - `tags TEXT DEFAULT ''`
-  - `book TEXT DEFAULT ''`
-  - `days_to_game REAL DEFAULT 0.0`
-  - `line REAL DEFAULT 0.0` (V37 recommended addition)
-  - `signal TEXT DEFAULT ''` (V37 recommended addition)
-- Sample-size guard: "Minimum 30 resolved bets required — N=X so far" before charts
-- Use `st.html()` not `st.markdown()` for card-style HTML blocks
-- Equity curve pattern: `st.line_chart(df, color="#14B8A6", height=180)`
+**Priority 2 — V37 actions (v37 is working on these — NOT sandbox work)**
+- V37 fix: v36 originator_engine callers (use `efficiency_gap_to_margin()` not `bet.line` as mean)
+- V37 promote: nhl_data to v36 (sandbox ready, V37 confirmed 163/163 baseline, import path `from data.nhl_data`)
+- V37 gate: B2 gate check ≥ 2026-03-04
 
-**Priority 3 — Module promotions (V37 spec ready — ref: ~/Projects/titanium-v36/PROMOTION_SPEC.md)**
+**Priority 3 — Analytics Phase 2 (AFTER 30-bet gate is hit)**
+Unblock after sufficient data:
+- Rolling metrics sparklines (upgrade from basic line_chart)
+- Kelly compliance tracker (% of bets near recommended Kelly size)
+- Bet tag-sliced analytics (filter charts by tag)
+- CSV/JSON export from 07_analytics.py
 
-V37 completed PROMOTION_SPEC.md on 2026-02-24. Build order: nhl_data → originator_engine → weather_feed.
+**Priority 4 — weather_feed promotion (DEFERRED — Aug 2026)**
+NFL off-season. Do not touch before NFL preseason window.
 
-| Module | Priority | V37 status | Test delta | Key note |
-|--------|----------|-----------|-----------|---------|
-| `data/nhl_data.py` | MEDIUM-HIGH | Spec ready ✅ | +42 tests | NHL in-season (Feb 2026). Import path: `from data.nhl_data`. Touch: `edge_calculator.py` (nhl_kill_switch + nhl_goalie_status param), `app.py` (inline goalie poll). |
-| `originator_engine.py` | MEDIUM | Spec ready ✅ | +40 tests | Bug fix: callers pass `bet.line` as mean → replace with `efficiency_gap_to_margin(efficiency_gap)`. Add: `poisson_soccer()`, `PoissonResult`, new constants. Keep: `simulate_prop()`, `run_poisson_matrix()`. |
-| `data/weather_feed.py` | DEFERRED | Spec ready ✅ | +24 tests | NFL off-season. **Build Aug 2026 only** (NFL preseason window). |
-
-**B2 gate monitor** — ESPN stability log
+**B2 gate monitor**
 - Check: ~/Projects/titanium-experimental/results/espn_stability.log
 - Gate: date ≥ 2026-03-04, error_rate < 5%, avg_nba_records > 50
-- Status: PENDING (report to REVIEW_LOG.md when checked)
+- Status: V37 WAITING for gate date
 
 ---
 
@@ -407,9 +403,15 @@ Plotly:       paper_bgcolor="#0e1117", plot_bgcolor="#13161d", font.color="#d1d5
 21. KOTC virtual profiles: "Tyrese Maxey-Embiid-out" activates ONLY when "Joel Embiid" is in injury_outs set
 22. Module-level test state bleed: when module defines global state, raising thresholds breaks tests that leave stale state. Always `setup_method(self): _reset_state()` in test classes.
 23. V37_INBOX.md: auto-relay file in SANDBOX (~/ClaudeCode/agentic-rd-sandbox/V37_INBOX.md). Sandbox writes tasks, V37 reads at startup from that path. Eliminates user relay.
-26. REVIEW_LOG.md two-way exception: V37 writes to REVIEW_LOG.md (in sandbox) — this is correct protocol, not a policy violation. Both chats write to it by design. Single-write-domain rule has one explicit exception: REVIEW_LOG.md.
 24. WebSearch only for Reddit: never browser automation on social sites. Use WebSearch with `site:reddit.com`.
 25. ORIGINAL_PROMPT.md: `memory/ORIGINAL_PROMPT.md` is the session transition doc. Always update before opening a new chat.
+26. ralph-loop plugin bug: `PROMPT_PARTS[*]: unbound variable` on line 113 of setup-ralph-loop.sh. Array not initialized. Fix requires ~/.claude/plugins/cache/ write — PROHIBITED path. Cannot fix from within Claude.
+27. analytics.py pattern: pure functions accept `list[dict]` (source-agnostic). Pages call `get_bets()` (SQLite) or `fetch_bets()` (Supabase). Zero rewrites when promoting. Keep this pattern for all future analytics modules.
+28. Form parity rule: whenever log_bet() gains new params, 04_bet_tracker.py Log Bet form MUST be updated in the same session. V37 will flag if not. Never let form lag behind the backend.
+29. nhl_data v36 baseline (V37 confirmed 2026-02-24): 163/163 tests, import path `from data.nhl_data`. V37 will handle v36 integration. Sandbox nhl_data is ready for reference.
+30. originator_engine Trinity bug: sandbox engine + callers are FULLY FIXED (62 tests). All sandbox pages use `efficiency_gap_to_margin(gap)` as mean. V36 callers confirmed buggy — V37 owns the fix.
+31. analytics.py → v36 Supabase prerequisite: v36 `bet_history` table needs 7 new columns (sharp_score, rlm_fired, tags, book, days_to_game, line, signal) before analytics.py can promote. Column names already match sandbox — no renames needed. V37 to add columns when ready.
+32. IBM Plex Mono + IBM Plex Sans: confirmed font pair for trading terminal aesthetic in analytics pages. Load via Google Fonts. Never substitute other monospace fonts.
 
 ---
 

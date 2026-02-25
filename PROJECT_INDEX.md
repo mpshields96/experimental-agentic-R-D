@@ -41,7 +41,7 @@ agentic-rd-sandbox/
 │   └── data/__init__.py
 ├── scripts/
 │   └── backup.sh                   # Session-end backup: sandbox + V36 → .backups/ (keep last 5)
-├── tests/                          # 1011 unit tests across 17 test files
+├── tests/                          # 1062 unit tests across 18 test files
 ├── data/
 │   └── (probe_log.json — gitignored)
 ├── logs/
@@ -63,7 +63,7 @@ agentic-rd-sandbox/
 ## Entry Points
 
 - **App**: `app.py` — `streamlit run app.py --server.port 8504`
-- **Tests**: `python3 -m pytest tests/ -q` — 1011 tests, ~1.4s
+- **Tests**: `python3 -m pytest tests/ -q` — 1062 tests, ~1.6s
 - **Scheduler**: auto-starts via `app.py` session_state guard on first Streamlit load
 
 ---

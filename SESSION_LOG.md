@@ -2,6 +2,58 @@
 
 ---
 
+## Session 25 — 2026-02-24
+
+### Objective
+Build analytics Phase 1 dashboard (07_analytics.py), migrate bet_log schema (+7 analytics columns),
+update bet tracker form for analytics metadata capture. Fix V37 audit flags. Run session end ritual.
+
+### What Was Built
+- **core/line_logger.py** — schema migration: 7 new columns via `_BET_LOG_MIGRATIONS` idempotent ALTER TABLE:
+  `sharp_score INTEGER DEFAULT 0`, `rlm_fired INTEGER DEFAULT 0`, `tags TEXT DEFAULT ''`,
+  `book TEXT DEFAULT ''`, `days_to_game REAL DEFAULT 0.0`, `line REAL DEFAULT 0.0`, `signal TEXT DEFAULT ''`
+  `log_bet()` signature extended: all 7 new params optional with defaults — existing callers unaffected.
+- **core/analytics.py** (NEW — 7 pure functions, source-agnostic list[dict] API):
+  `get_bet_counts`, `compute_sharp_roi_correlation`, `compute_rlm_correlation`, `compute_clv_beat_rate`,
+  `compute_equity_curve`, `compute_rolling_metrics`, `compute_book_breakdown`
+  MIN_RESOLVED=30 gate (matches calibration.py). _pearson_r() returns None on <3 pairs or zero variance.
+  Zero imports from core/ — stdlib only.
+- **tests/test_analytics.py** (NEW — 51 tests across 9 test classes — all passed immediately)
+- **pages/07_analytics.py** (NEW — Phase 1 dashboard):
+  6 sections: Sharp score ROI bins + Pearson r, RLM lift, CLV beat rate, Equity curve, Rolling 7/30/90d, Book breakdown
+  IBM Plex Mono + IBM Plex Sans. Sample guards (amber-bordered) before every section (N < 30).
+  st.html() for cards, st.bar_chart() for ROI bins, st.line_chart() for equity curve.
+- **pages/04_bet_tracker.py** — Log Bet form extended with 7 analytics metadata fields
+  (sharp_score, line, book, rlm_fired, days_to_game, signal, tags). V37 flag fix: added days_to_game.
+- **CLAUDE.md** — Session 25 updates: version bump, SHARP_THRESHOLD gate (0/20 → 0/5), lesson 23 fix,
+  lessons 26-32 added, CURRENT PROJECT STATE fully replaced (was frozen at Session 17 / 1011 tests).
+- **PROJECT_INDEX.md** — test count updated (1011 → 1062), analytics.py + 07_analytics.py added.
+- **V37_INBOX.md** — Session 26 tasks written: v36 originator_engine caller fix, nhl_data promotion.
+- **memory/ORIGINAL_PROMPT.md** — Session 25 state, new modules, new lessons, updated next targets.
+
+### V37 Audit (Session 25)
+APPROVED. Two minor flags raised and fixed:
+1. `days_to_game` missing from Log Bet form → ✅ fixed (effac79)
+2. `analytics.py` comment wrong (`matches calibration.py` → `matches MIN_BETS_FOR_CALIBRATION in calibration.py`) → ✅ fixed (effac79)
+V37 confirmed: originator_engine bug in v36 (sandbox callers fully correct), nhl_data 163/163 baseline.
+V37 confirmed: v36 Supabase bet_history needs 7 new columns before analytics.py promotes (names already match).
+
+### Tests
+1011 → 1062 (+51), 1062/1062 passing ✅
+
+### Architectural Decisions
+- analytics.py: source-agnostic list[dict] API. Pages pass get_bets() (SQLite) or fetch_bets() (Supabase v36). Zero rewrites on promotion.
+- Form parity rule: any log_bet() param additions must ship with 04_bet_tracker.py form update same session.
+- Sandbox originator_engine callers: all use efficiency_gap_to_margin(gap) as mean — fully correct. V37 owns v36 fix.
+
+### Commits
+- 8e5c1ff — Session 25: analytics Phase 1 build + 51 tests ✅
+- effac79 — V37 flag fixes (days_to_game + analytics.py comment)
+- 834ad6f — coordination files (REVIEW_LOG.md + V37_INBOX.md)
+- [this commit] — CLAUDE.md + PROJECT_INDEX.md + session end files
+
+---
+
 ## Session 24 — 2026-02-24
 
 ### Objective
