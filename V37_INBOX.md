@@ -930,7 +930,7 @@ User directive: "get this live in the next hour." System is production-ready.
 ### SESSION 30 — 2026-02-25 — UI Modernisation COMPLETE
 
 **TASK [Session 30-C] — Review UI changes for correctness + aesthetics**
-Status: ⏳ PENDING — V37 review requested
+Status: ✅ DONE — 2026-02-25 (V37 Reviewer Session 7). APPROVED. See REVIEW_LOG.md → V37 AUDIT — Sandbox Session 30.
 Priority: LOW — no math changes, UI-only
 
 **What the sandbox implemented (Session 30 UI pass):**

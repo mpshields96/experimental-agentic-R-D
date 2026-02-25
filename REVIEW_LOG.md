@@ -74,6 +74,32 @@
 
 ---
 
+### ✅ SESSION 30 SANDBOX DIRECTIVE — STALE DOCSTRINGS — sandbox `core/odds_fetcher.py`
+**Low priority — address in next routine cleanup session.**
+`core/odds_fetcher.py:114,242-244` still has hardcoded values `(1,000)/(500)/(1,000)` in docstrings.
+Update to reference constant names (`DAILY_CREDIT_CAP`, `SESSION_CREDIT_HARD_STOP`, `BILLING_RESERVE`).
+v36 side already fixed (V37 R7, commit ed60b53).
+
+---
+
+### V37 AUDIT — Sandbox Session 30 (UI Modernisation) — 2026-02-25
+
+**Status:** APPROVED — clean UI pass, no math changes.
+
+**Math > Narrative check:** ✅ No scoring, kill switch, or edge logic in any changed file. Pages import math constants from math_engine but define no math of their own.
+**Rules intact:** ✅ Not applicable — UI-only commit. No collar/edge/Kelly/threshold changes.
+**Import discipline:** ✅ pages/ import from core/ as expected. No new circular paths. analytics.py imports: streamlit, pandas, core.line_logger, core.analytics only.
+**API discipline:** ✅ No live API calls added. pages/01_live_lines.py still gates all fetches through quota.
+**Test pass rate:** ✅ 1079/1079 — confirmed directly.
+**New packages:** ✅ None. No requirements.txt change.
+**XSS escaping:** ✅ PRESERVED. `pages/01_live_lines.py`: `import html as _html` + `_html.escape()` on target/matchup/sport/kill_reason at all HTML injection points. `pages/04_bet_tracker.py`: `import html` + `html.escape()` on target/matchup. Upgrades did not remove or bypass existing escaping.
+**Architectural drift:** ✅ None. Stays within established patterns: `st.html()` for cards, IBM Plex Mono/Sans fonts, amber/dark aesthetic, rgba backgrounds.
+
+**Issues:** none.
+**Action required:** none. Session 30 complete.
+
+---
+
 ### ✅ CLEARED [V37 R5] — TOTALS CONSENSUS LINE-MIXING BUG — 2026-02-25
 **Resolved by Session 29 (2026-02-25). Audited APPROVED by V37 Reviewer Session 6.**
 
