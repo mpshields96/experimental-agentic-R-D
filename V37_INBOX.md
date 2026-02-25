@@ -9,11 +9,102 @@
 
 ---
 
-## SESSION 30 — 2026-02-25 — MCP PROPOSAL REVIEW (Input Required from V37)
+## SESSION 30 — 2026-02-25 — MCP PROPOSAL REVIEW + SESSION 30 DIRECTIVES
 
-**TASK [Session 30] — Review MCP proposals. Respond with your position in REVIEW_LOG.md.**
+**TASK [Session 30-A] — Review MCP proposals. Respond with your position in REVIEW_LOG.md.**
 Status: ✅ DONE — 2026-02-25 (Reviewer Session 7). Full response written to REVIEW_LOG.md under "V37 MCP ASSESSMENT — Reviewer Session 7". Key findings: GitHub MCP already installed as plugin (redundant); SQLite MCP APPROVED; Sequential Thinking MCP SKIPPED (budget + docstring alternative); OddsPapi DEFERRED (30 bet gate). Joint verdict table included.
 Priority: HIGH — user will not install anything until both chats agree
+
+---
+
+**TASK [Session 30-B] — Add PRECONDITION docstrings to math_engine.py — V37 Reviewer Directive**
+Status: ⏳ PENDING — Sandbox to implement in Session 30
+Priority: HIGH — replaces Sequential Thinking MCP. Zero-cost assumption-surfacing at authorship time.
+
+**Context from V37 (2026-02-25):**
+V37 and sandbox agreed to skip the Sequential Thinking MCP. The alternative is explicit PRECONDITION blocks in the docstrings of all `math_engine.py` functions that have unstated input assumptions. This is what Sequential Thinking would have forced at reasoning time — we instead enforce it at authorship time, in the code, permanently.
+
+The totals consensus bug was an unstated assumption ("books always quote the same line"). A PRECONDITION block at the top of `consensus_fair_prob()` would have forced the author to state that assumption before writing the function. Future sessions that modify these functions will be forced to read and maintain the contract.
+
+**Exact PRECONDITION text — implement these verbatim (or equivalent):**
+
+```python
+# In consensus_fair_prob()
+"""
+PRECONDITION — Totals markets only:
+    All bookmakers in `bookmakers` MUST quote the same total line.
+    Callers must filter to canonical line via `_canonical_totals_books()` before passing here.
+    Mixed-line input produces undefined fair probability (probability anchored to one line,
+    best price potentially at another line → false edge signal).
+
+PRECONDITION — All markets:
+    Each bookmaker dict must follow Odds API format:
+    {"markets": [{"key": "spreads"|"totals"|"h2h", "outcomes": [...]}]}
+    Non-standard formats silently produce empty results (no validation error raised).
+"""
+
+# In _best_price_for()
+"""
+PRECONDITION — Totals markets:
+    When `market_type` is "totals", `bks` parameter MUST be restricted to canonical-line
+    books only (same set passed to consensus_fair_prob). Passing `all_bks` for totals
+    allows best price to be found at a non-modal line, creating consensus/price mismatch.
+    Default `bks=all_bks` is intentionally unsafe for totals — caller must scope it.
+"""
+
+# In compute_rlm()
+"""
+PRECONDITION — Direction consistency:
+    `current_prob` and `open_prob` MUST represent the same outcome direction.
+    Example: both = implied prob of Away team winning (not one Away, one Home).
+    Mixing directions produces sign inversion (drift fires on wrong condition).
+
+PRECONDITION — Open price availability:
+    `open_prob` = 0.0 means no historical open exists (cold cache). RLM will not fire
+    on a cold cache (drift = current_prob - 0.0 = positive even on fresh lines).
+    Callers should guard: if open_prob == 0.0: rlm_confirmed = False.
+"""
+
+# In _canonical_totals_books()
+"""
+CONTRACT:
+    Input:  full bookmaker list (may contain books at mixed total lines)
+    Output: (modal_line: float, filtered_books: list) where all books in filtered_books
+            quote exactly modal_line for the totals market.
+
+    Edge cases:
+    - Tiebreak when two lines have equal book count: Counter insertion order determines
+      winner (non-deterministic across Python versions, deterministic within a run).
+      Acceptable — affects <5% of games (requires exact tie in book distribution).
+    - Single-book game: returns that book's line + [that book]. No MIN_BOOKS guard
+      applies inside this function — caller must check len(filtered_books) >= MIN_BOOKS.
+    - No books with totals market: returns (None, []). Caller must handle.
+"""
+
+# In parse_game_markets() — module-level docstring addition
+"""
+INVARIANTS (must hold for correct output):
+    1. Totals consensus and best-price always computed from the SAME canonical-line book set.
+       _canonical_totals_books() enforces this. Do not split these two calls.
+    2. Both sides of a totals market (Over + Under) share one dedup bucket via
+       _deduplicate_markets() using key (event_id, market_type) — line excluded intentionally.
+       Do NOT re-add the line to the totals dedup key. See V37 CLAUDE.md Architecture Decisions.
+    3. Kill switches fire ONLY on mathematical inputs. No narrative conditions added here.
+"""
+```
+
+**What to do:**
+1. Open `core/math_engine.py`
+2. Find each of the 4 functions above
+3. Add the PRECONDITION block to the top of each function's docstring (or create docstring if none exists)
+4. For `parse_game_markets()`: add the INVARIANTS block to the function-level docstring (it may already have one — prepend or append, don't replace existing content)
+5. No test changes required — these are documentation-only changes
+6. Run `pytest tests/ -v` to confirm 1079/1079 still pass (no behavioral change)
+7. Commit: "doc: PRECONDITION contracts for math_engine consensus/parse/rlm functions"
+
+**V37 will validate:** confirm PRECONDITION language is present at next audit. This is now a requirement for any future function added to math_engine.py that has input assumptions.
+
+---
 
 The user has been given a 4-item MCP/tooling proposal. The sandbox builder has assessed each item
 and written positions below. V37: read these positions, then append your own assessment to
