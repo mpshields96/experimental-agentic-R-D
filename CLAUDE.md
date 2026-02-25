@@ -425,6 +425,10 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 30. **originator_engine Trinity bug confirmed in v36**: Callers pass `bet.line` as mean instead of `efficiency_gap_to_margin(efficiency_gap)`. Build fix in sandbox first (+40 tests), V37 ports to v36 after audit.
 31. **v36 Supabase promotion prerequisite**: Before promoting analytics.py to v36, run Supabase migration to add 7 columns to `bet_history`: sharp_score, rlm_fired, tags, book, days_to_game, line, signal. Column names already match — no renames needed.
 32. **Analytics terminal font pair**: IBM Plex Mono (data values, labels, monospace) + IBM Plex Sans (headers, body) — confirmed pairing for this project's analytics dashboard pages.
+33. **Streamlit page nav ordering**: Files in pages/ sort alphabetically in the nav sidebar. Use `00_` prefix for guide/onboarding pages that must load first (e.g. `00_guide.py`). Use `07_`, `08_` for progressively later pages.
+34. **Streamlit help= tooltip**: Any Streamlit widget (number_input, selectbox, checkbox, text_input) accepts `help="..."` → shows a hover tooltip. Use on ALL non-obvious form fields, especially analytics metadata inputs — prevents user confusion without bloating the UI.
+35. **External docs at repo root**: SYSTEM_GUIDE.md pattern — ELI5/FAQ/checklist documents at repo root are readable on GitHub without the app running. Create one for any workflow a non-technical user might need outside a live session.
+36. **UX principle (user permanent directive)**: "UI should be magnificently visually appealing but the ease and logic and functionality is the stronger highlight." Function > aesthetics. Both matter. `pages/00_guide.py` = reference template for amber/dark terminal onboarding style.
 
 ---
 
@@ -464,7 +468,7 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ```
 Test suite:   1062/1062 passing
-Last commit:  834ad6f (Session 25: clear V37 flags in REVIEW_LOG) — PUSHED ✅
+Last commit:  6702b55 (Session 25: onboarding guide + ELI5 doc + form tooltips) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App port:     8504 (confirmed — do NOT use 8501/8502/8503)
 
@@ -511,4 +515,4 @@ NEXT SESSION (Session 26):
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 17, 2026-02-19*
+*Last updated: Session 25, 2026-02-24*

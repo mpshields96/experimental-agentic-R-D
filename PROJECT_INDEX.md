@@ -1,5 +1,5 @@
 # PROJECT_INDEX.md — Titanium-Agentic
-## Generated: sc:index-repo | 2026-02-24 (updated Session 25) | 1062/1062 tests passing
+## Generated: sc:index-repo | 2026-02-24 (updated Session 25 end) | 1062/1062 tests passing
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
@@ -12,10 +12,11 @@ See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for 
 agentic-rd-sandbox/
 ├── app.py                          # Streamlit entry point, scheduler init, nav
 ├── pages/
+│   ├── 00_guide.py                 # Live session quick-start guide (loads first in nav)
 │   ├── 01_live_lines.py            # Bet pipeline, math breakdown, Log Bet, KOTC sidebar
 │   ├── 02_analysis.py              # KPIs, P&L, edge/CLV histograms, line pressure
 │   ├── 03_line_history.py          # Movement cards, sparklines, RLM seed table
-│   ├── 04_bet_tracker.py           # Bet log, grading, P&L, CLV tracker
+│   ├── 04_bet_tracker.py           # Bet log, grading, P&L, CLV tracker + analytics tooltips
 │   ├── 05_rd_output.py             # Math validation dashboard (pure math_engine)
 │   ├── 06_simulator.py             # Trinity game simulator (NBA/Soccer Poisson mode)
 │   └── 07_analytics.py             # Advanced analytics Phase 1 (sharp/RLM/CLV/equity/rolling/books)
@@ -47,6 +48,7 @@ agentic-rd-sandbox/
 ├── logs/
 ├── V37_INBOX.md                    # Auto-relay inbox for V37 reviewer (sandbox writes, V37 reads at startup)
 ├── CLAUDE.md                       # Session rules, tool call limits, stop mechanism
+├── SYSTEM_GUIDE.md                 # ELI5/FAQ external guide (readable on GitHub, no app needed)
 ├── MASTER_ROADMAP.md               # Feature backlog by phase/gate
 ├── SESSION_LOG.md                  # Per-session changelog
 ├── REVIEW_LOG.md                   # Two-AI audit log (both chats read/write)
