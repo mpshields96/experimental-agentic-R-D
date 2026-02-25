@@ -181,8 +181,9 @@ Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      NOT running (killed at session end)
 Tests:    1079 / 1079 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commits (all PUSHED):
-  - f6a4b3c — Session 29: Full math audit — totals fix, RLM direction fix, dead code deleted
+Latest commits (ca4e3fe wrap-up local only — push at Session 30 start with new token):
+  - ca4e3fe — Session 29 wrap-up: CLAUDE.md v29, SESSION_LOG, ORIGINAL_PROMPT (NOT PUSHED)
+  - f6a4b3c — Session 29: Full math audit — totals fix, RLM direction fix, dead code deleted (PUSHED)
   - e294539 — Session 28 wrap: V37 hard audit request
   - e69397a — Session 27 final: grade DB column + REVIEW_LOG close + session memory
   - 2db65c4 — Go-live config: credit limits + analytics gate (Session 27 cont.)
