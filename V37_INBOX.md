@@ -9,6 +9,34 @@
 
 ---
 
+## SESSION 31 — 2026-02-25 — STREAMLIT CLOUD DEPLOY + DB INIT FIX
+
+**TASK [Session 31-A] — FYI: Streamlit Cloud deploy is live**
+Status: ℹ️ INFO — deployed at titaniumv37agentic.streamlit.app
+Priority: LOW — UI review only, no math changes
+
+**What was fixed in Session 31 (commit 19927bd):**
+1. `app.py` — added `_init_dbs()` called unconditionally before scheduler.
+   On fresh Streamlit Cloud deploy, scheduler may fail before initializing DBs.
+   This caused `sqlite3.OperationalError` on `price_history` table not existing.
+   Fix: `_init_dbs()` always creates both `line_history.db` and `price_history.db`
+   schemas via `CREATE TABLE IF NOT EXISTS` before any reads occur.
+2. `core/scheduler.py` — fixed `init_price_history_db(db_path)` bug.
+   Was incorrectly passing `line_history.db` path to price_history init.
+   Now calls `init_price_history_db()` (no arg = uses own default `price_history.db`).
+3. `core/odds_fetcher.py` — V37 docstring flag cleared (hardcoded values → constant names).
+
+**V37 ask:**
+- Acknowledge the scheduler path bug fix (init_price_history_db was using wrong db_path)
+- No math changes — audit is lightweight
+
+**Proposed Session 31 next tasks (builder's view):**
+1. Live run — fire the app at titaniumv37agentic.streamlit.app, pull real odds, log bets
+2. Analytics gate — 6 more resolved bets → gate=10 → analytics page fully unlocked
+3. SHARP_THRESHOLD raise to 50-55 deferred until 5 live sessions + RLM 20 fires
+
+---
+
 ## SESSION 30 — 2026-02-25 — MCP PROPOSAL REVIEW + SESSION 30 DIRECTIVES
 
 **TASK [Session 30-A] — Review MCP proposals. Respond with your position in REVIEW_LOG.md.**
