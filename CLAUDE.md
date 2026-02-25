@@ -59,6 +59,13 @@ FORBIDDEN — NEVER DO THESE:
 
 7. EXCEED 75 tool calls in a single autonomous session without pausing to report status
 
+8. EXCEED 1,000 Odds API credits in a single calendar day (UTC) — EVER.
+   This applies to ALL usage: live fetches, testing, experiments, any script.
+   DAILY_CREDIT_CAP=1,000 is enforced in code (DailyCreditLog in odds_fetcher.py).
+   V37 must enforce the same limit.
+   This rule is PERMANENT. No exception, no override, no "just this once".
+   Violating this burned ~10,000 credits in one day (2026-02-24 incident).
+
 PERMITTED:
    - READ ~/Projects/titanium-v36/ (architecture + math reference — READ ONLY, no writes)
    - READ ~/Projects/titanium-experimental/ (reference only — no writes)
@@ -365,20 +372,24 @@ AVOID: rainbow palettes, excessive expanders, st.metric for everything,
 
 ```
 Subscription:    20,000 credits/month ($30/month)
+⚠️ PERMANENT USER DIRECTIVE (2026-02-24 incident — ~10,000 credits burned in one day by V37):
+DAILY_CREDIT_CAP = 1,000 credits/day. HARD LIMIT. No exceptions. No overrides. Ever.
+Applies to ALL usage: live fetches, testing, experiments, any script or tool.
+
 Monthly target:  ≤ 10,000 credits used (50% floor — always safe)
-Daily soft:      300 credits/session — logs warning, continues
-Daily hard stop: 500 credits/session — halts all fetches for session
+Daily hard cap:  1,000 credits/day (UTC) — PERMANENT, persisted to data/daily_quota.json
+Session soft:    300 credits/session — logs warning, continues
+Session hard:    500 credits/session — halts all fetches for session
 Billing reserve: 1,000 remaining — global floor, halts everything
 
-Implementation:  SESSION_CREDIT_SOFT_LIMIT, SESSION_CREDIT_HARD_STOP, BILLING_RESERVE
-                 all defined in core/odds_fetcher.py as module constants.
-                 QuotaTracker.is_session_hard_stop() enforced in fetch_batch_odds().
-
-Math:            10,000 / 30 days = 333/day. Soft=300 (daily target), Hard=500 (brake).
-                 BILLING_RESERVE=1,000 = always-on floor regardless of session count.
+Implementation:  DAILY_CREDIT_CAP, SESSION_CREDIT_SOFT_LIMIT, SESSION_CREDIT_HARD_STOP,
+                 BILLING_RESERVE all in core/odds_fetcher.py.
+                 DailyCreditLog persists daily usage across restarts (data/daily_quota.json).
+                 QuotaTracker.is_session_hard_stop() checks all three guards.
 
 Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds the session.
                  Scheduler polls must check is_session_hard_stop() before each cycle.
+                 V37 must implement the same daily cap — see V37_INBOX.md URGENT task.
 ```
 
 ---

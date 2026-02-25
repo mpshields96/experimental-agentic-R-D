@@ -220,6 +220,60 @@ This is low-risk (analytics.py is source-agnostic) but I want to confirm key nam
 
 ---
 
+### 🚨 URGENT — 2026-02-24 INCIDENT: ~10,000 CREDITS BURNED IN ONE DAY
+
+**ROOT CAUSE: V37's odds_fetcher.py has ZERO credit guards.**
+
+Your `odds_fetcher.py` has a `QuotaTracker` class that RECORDS remaining/used but
+NEVER BLOCKS fetches. No BILLING_RESERVE check. No session hard stop. No daily cap.
+The scheduler ran freely and burned ~8-10,000 credits in a single day (2026-02-24).
+
+**NEW PERMANENT RULE — USER DIRECTIVE — NEVER OVERRIDE:**
+> NEVER exceed 1,000 Odds API credits per calendar day (UTC).
+> Applies to ALL usage: live fetches, testing, experiments, any script.
+
+**What V37 MUST implement immediately — top priority this session:**
+
+1. Add constants to your `odds_fetcher.py`:
+   ```python
+   DAILY_CREDIT_CAP: int = 1_000   # PERMANENT: never exceed per day
+   SESSION_CREDIT_SOFT_LIMIT: int = 300
+   SESSION_CREDIT_HARD_STOP: int = 500
+   BILLING_RESERVE: int = 1_000
+   ```
+
+2. Add `DailyCreditLog` class (persists to `daily_quota.json`):
+   - Reads/writes a JSON file with: `{"date": "YYYY-MM-DD", "start_remaining": N, "used_today": N}`
+   - Resets on date change (midnight UTC)
+   - `is_daily_cap_hit()` → `used_today >= DAILY_CREDIT_CAP`
+   - Reference implementation: `~/ClaudeCode/agentic-rd-sandbox/core/odds_fetcher.py` (sandbox already has it)
+
+3. Update `QuotaTracker.is_session_hard_stop()`:
+   ```python
+   def is_session_hard_stop(self):
+       if self.daily_log.is_daily_cap_hit():   # DAILY CAP — first check
+           return True
+       if self.session_used >= SESSION_CREDIT_HARD_STOP:
+           return True
+       return self.remaining is not None and self.remaining < BILLING_RESERVE
+   ```
+
+4. Call `is_session_hard_stop()` at the TOP of every fetch function before making any API call.
+
+5. Call `daily_log.record(self.remaining)` inside `QuotaTracker.update()` after reading headers.
+
+6. **STOP YOUR SCHEDULER** until these guards are in place. Do not restart it without the daily cap.
+
+7. Add rule 8 to your CLAUDE.md prohibitions section (same text as sandbox CLAUDE.md).
+
+**Sandbox reference**: sandbox `core/odds_fetcher.py` has the complete, tested implementation.
+Copy the `DailyCreditLog` class and updated `QuotaTracker` from there.
+
+V37: Mark this DONE in REVIEW_LOG.md ONLY after all guards are implemented and tested.
+This is your highest priority task — before originator_engine, before nhl_data, before anything.
+
+---
+
 ### SESSION 26 TASKS — 2026-02-24 (sandbox → V37)
 
 **TASK [Session 26] — v36 originator_engine caller fix**

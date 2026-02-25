@@ -19,6 +19,7 @@ DO NOT add betting math or Streamlit calls to this file.
 NEVER hardcode API keys. Use os.environ.get("ODDS_API_KEY").
 """
 
+import json
 import logging
 import os
 import time
@@ -32,22 +33,92 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
 # ---------------------------------------------------------------------------
-# Quota budget constants (Session 24 — user directive)
+# Quota budget constants
+#
+# PERMANENT USER DIRECTIVE (2026-02-24): NEVER exceed 1,000 API credits per day.
+# This applies to ALL usage — live fetches, testing, experiments. No exceptions.
 #
 # Subscription: 20,000 credits/month ($30/month plan)
 # Monthly target: ≤ 10,000 credits/month (50% = always safe)
-# Daily/session self-imposed limits to prevent accidental over-burn:
 #
+#   DAILY_CREDIT_CAP           — HARD limit: never exceed 1,000 credits per calendar day (UTC)
 #   SESSION_CREDIT_SOFT_LIMIT  — warn in logs when session usage hits this
 #   SESSION_CREDIT_HARD_STOP   — stop ALL fetches for the session when hit
 #   BILLING_RESERVE            — global floor: never let remaining drop below this
 #
-# Math: 10,000 / 30 days = ~333/day. Soft=300 (safe), Hard=500 (emergency brake).
+# Math: 10,000 / 30 days = ~333/day. Daily cap=1,000 (3× budget = emergency ceiling).
 # BILLING_RESERVE=1,000 ensures we always have a buffer regardless of session count.
 # ---------------------------------------------------------------------------
+DAILY_CREDIT_CAP: int = 1_000         # PERMANENT: never exceed per calendar day (UTC)
 SESSION_CREDIT_SOFT_LIMIT: int = 300   # Warn when session uses this many credits
 SESSION_CREDIT_HARD_STOP: int = 500    # Stop fetching for the session at this count
 BILLING_RESERVE: int = 1_000          # Never let remaining drop below this
+
+# ---------------------------------------------------------------------------
+# Daily credit log — persisted across restarts
+# ---------------------------------------------------------------------------
+
+_DAILY_LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "daily_quota.json")
+
+
+class DailyCreditLog:
+    """Persist daily credit usage to a JSON file so the cap survives app restarts.
+
+    Resets automatically at midnight UTC when the date changes.
+    Thread-safe for single-process use (Streamlit/APScheduler share one process).
+    """
+
+    def __init__(self, log_path: str = _DAILY_LOG_PATH) -> None:
+        self._path = log_path
+        self._data = self._load()
+
+    def _today_str(self) -> str:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    def _load(self) -> dict:
+        today = self._today_str()
+        try:
+            with open(self._path) as f:
+                data = json.load(f)
+            if data.get("date") == today:
+                return data
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+        # New day or corrupt/missing file — reset
+        return {"date": today, "start_remaining": None, "used_today": 0}
+
+    def _save(self) -> None:
+        try:
+            os.makedirs(os.path.dirname(self._path), exist_ok=True)
+            with open(self._path, "w") as f:
+                json.dump(self._data, f)
+        except OSError as exc:
+            logger.warning("DailyCreditLog._save failed: %s", exc)
+
+    def record(self, remaining: int) -> None:
+        """Update daily usage from a fresh API remaining count."""
+        today = self._today_str()
+        if today != self._data.get("date"):
+            # Midnight rollover — reset for new day
+            self._data = {"date": today, "start_remaining": remaining, "used_today": 0}
+        elif self._data["start_remaining"] is None:
+            self._data["start_remaining"] = remaining
+            self._data["used_today"] = 0
+        else:
+            used = self._data["start_remaining"] - remaining
+            self._data["used_today"] = max(0, used)
+        self._save()
+
+    def is_daily_cap_hit(self) -> bool:
+        """Return True if today's usage has reached DAILY_CREDIT_CAP (1,000)."""
+        return self._data.get("used_today", 0) >= DAILY_CREDIT_CAP
+
+    def used_today(self) -> int:
+        return self._data.get("used_today", 0)
+
+    def report(self) -> str:
+        cap_warn = " ⛔DAILY_CAP" if self.is_daily_cap_hit() else ""
+        return f"daily={self.used_today()}/{DAILY_CREDIT_CAP}{cap_warn}"
 
 # Book preference order — DraftKings first, then fallbacks
 PREFERRED_BOOKS = ["draftkings", "fanduel", "betmgm", "betrivers", "caesars"]
@@ -104,11 +175,13 @@ ACTIVE_SPORTS = list(SPORT_KEYS.keys())
 class QuotaTracker:
     """Track API usage across the session and enforce credit budget limits.
 
-    Two independent guards:
-      1. session_used >= SESSION_CREDIT_HARD_STOP  → stop ALL fetches this session
-      2. remaining < BILLING_RESERVE               → stop ALL fetches (global floor)
+    Three independent guards (all checked in is_session_hard_stop):
+      1. daily_log.is_daily_cap_hit()             → PERMANENT: ≤1,000 credits/day
+      2. session_used >= SESSION_CREDIT_HARD_STOP  → per-process session cap
+      3. remaining < BILLING_RESERVE               → global billing floor
 
     session_used resets to 0 on process restart (not persisted — intentional).
+    daily_log persists to data/daily_quota.json and resets at midnight UTC.
     """
 
     def __init__(self) -> None:
@@ -116,6 +189,7 @@ class QuotaTracker:
         self.remaining: Optional[int] = None   # remaining in billing period (from API)
         self.last_cost: int = 0     # cost of last single call
         self.session_used: int = 0  # credits consumed THIS session (resets on restart)
+        self.daily_log: DailyCreditLog = DailyCreditLog()
 
     def update(self, headers: dict) -> None:
         try:
@@ -130,6 +204,8 @@ class QuotaTracker:
                     self.session_used += delta
             elif self.last_cost > 0:
                 self.session_used += self.last_cost
+            # Update daily log with fresh remaining count
+            self.daily_log.record(self.remaining)
         except (ValueError, TypeError):
             pass
 
@@ -140,7 +216,8 @@ class QuotaTracker:
             f"API quota | used={self.used} "
             f"session={self.session_used}(/{SESSION_CREDIT_HARD_STOP}){soft_warn}{hard_stop} "
             f"remaining={self.remaining} "
-            f"last_call={self.last_cost}"
+            f"last_call={self.last_cost} | "
+            f"{self.daily_log.report()}"
         )
 
     def is_low(self, threshold: int = BILLING_RESERVE) -> bool:
@@ -158,7 +235,19 @@ class QuotaTracker:
         return self.session_used >= SESSION_CREDIT_SOFT_LIMIT
 
     def is_session_hard_stop(self) -> bool:
-        """Return True if session must stop all fetches (hard limit or global floor)."""
+        """Return True if session must stop ALL fetches.
+
+        Hard stops (any one triggers):
+          1. Daily cap hit: today's usage >= DAILY_CREDIT_CAP (1,000) — PERMANENT rule
+          2. Session cap hit: session_used >= SESSION_CREDIT_HARD_STOP (500)
+          3. Billing floor: remaining < BILLING_RESERVE (1,000)
+        """
+        if self.daily_log.is_daily_cap_hit():
+            logger.warning(
+                "DAILY_CREDIT_CAP hit — used %d/%d credits today (UTC). No fetches until midnight.",
+                self.daily_log.used_today(), DAILY_CREDIT_CAP,
+            )
+            return True
         if self.session_used >= SESSION_CREDIT_HARD_STOP:
             return True
         return self.is_low(BILLING_RESERVE)
