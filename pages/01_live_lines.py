@@ -342,74 +342,101 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
 
     return f"""
     <div style="
-        background: #1a1d23;
-        border: 1px solid #2d3139;
-        border-left: 4px solid {left_border_color};
-        border-radius: 8px;
-        padding: 14px 16px;
-        margin-bottom: 10px;
+        background: linear-gradient(160deg, #1c1f28 0%, #171a22 100%);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-left: 3px solid {left_border_color};
+        border-radius: 10px;
+        padding: 14px 18px 12px;
+        margin-bottom: 8px;
         position: relative;
         opacity: {card_opacity};
+        box-shadow: 0 1px 3px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.18),
+                    inset 0 1px 0 rgba(255,255,255,0.04);
+        font-family: 'IBM Plex Sans', sans-serif;
     ">
         <!-- Header row -->
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
-            <div>
-                <span style="
-                    font-size:0.6rem; color:#6b7280;
-                    letter-spacing:0.1em; font-weight:600;
-                "># {rank} &nbsp;·&nbsp; {_sport} &nbsp;·&nbsp; {mkt_display}</span>{grade_pill_html}
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <div style="flex:1; min-width:0; padding-right:12px;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap;">
+                    <span style="
+                        font-family:'IBM Plex Mono',monospace;
+                        font-size:0.58rem; color:#4b5563;
+                        letter-spacing:0.12em; font-weight:600;
+                    ">#{rank} · {_sport} · {mkt_display}</span>
+                    {grade_pill_html}
+                </div>
                 <div style="
-                    font-size:1.0rem; font-weight:700; color:#e5e7eb; margin-top:3px;
+                    font-family:'IBM Plex Sans',sans-serif;
+                    font-size:1.05rem; font-weight:700; color:#f3f4f6;
+                    letter-spacing:-0.01em; line-height:1.25;
                 ">{_target}</div>
-                <div style="font-size:0.75rem; color:#9ca3af;">{_matchup}</div>
+                <div style="
+                    font-family:'IBM Plex Sans',sans-serif;
+                    font-size:0.72rem; color:#6b7280; margin-top:2px;
+                ">{_matchup}</div>
             </div>
-            <div style="text-align:right;">
+            <div style="text-align:right; flex-shrink:0;">
                 {line_html}
                 <div style="
-                    font-size:1.3rem; font-weight:800; color:{size_color};
+                    font-family:'IBM Plex Mono',monospace;
+                    font-size:1.45rem; font-weight:700; color:{size_color};
+                    letter-spacing:-0.02em; line-height:1.1;
                 ">{price_str}</div>
                 <div style="
-                    font-size:0.65rem; font-weight:600; color:{size_color};
-                    letter-spacing:0.08em; margin-top:1px;
+                    font-family:'IBM Plex Mono',monospace;
+                    font-size:0.6rem; font-weight:600; color:{size_color};
+                    letter-spacing:0.1em; margin-top:2px; opacity:0.85;
                 ">{size_label}</div>
-                <div style="font-size:0.65rem; color:#6b7280;">via {bet.book}</div>
+                <div style="
+                    font-family:'IBM Plex Sans',sans-serif;
+                    font-size:0.62rem; color:#4b5563; margin-top:2px;
+                ">{bet.book}</div>
             </div>
         </div>
 
-        <!-- Math row -->
+        <!-- Math tiles -->
         <div style="
             display:grid; grid-template-columns:1fr 1fr 1fr 1fr;
-            gap:8px; margin-bottom:10px;
+            gap:6px; margin-bottom:10px;
         ">
-            <div style="background:#0e1117; border-radius:4px; padding:6px 8px;">
-                <div style="font-size:0.6rem; color:#6b7280; letter-spacing:0.08em;">EDGE</div>
-                <div style="font-size:0.95rem; font-weight:700; color:{edge_color};">{edge_pct:+.1f}%</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                             color:#4b5563; letter-spacing:0.1em;">EDGE</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.95rem;
+                             font-weight:600; color:{edge_color}; margin-top:1px;">{edge_pct:+.1f}%</div>
             </div>
-            <div style="background:#0e1117; border-radius:4px; padding:6px 8px;">
-                <div style="font-size:0.6rem; color:#6b7280; letter-spacing:0.08em;">WIN PROB</div>
-                <div style="font-size:0.95rem; font-weight:700; color:#e5e7eb;">{win_pct:.1f}%</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                             color:#4b5563; letter-spacing:0.1em;">WIN PROB</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.95rem;
+                             font-weight:600; color:#d1d5db; margin-top:1px;">{win_pct:.1f}%</div>
             </div>
-            <div style="background:#0e1117; border-radius:4px; padding:6px 8px;">
-                <div style="font-size:0.6rem; color:#6b7280; letter-spacing:0.08em;">KELLY</div>
-                <div style="font-size:0.95rem; font-weight:700; color:#e5e7eb;">{kelly_pct:.1f}%</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                             color:#4b5563; letter-spacing:0.1em;">KELLY</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.95rem;
+                             font-weight:600; color:#d1d5db; margin-top:1px;">{kelly_pct:.1f}%</div>
             </div>
-            <div style="background:#0e1117; border-radius:4px; padding:6px 8px;">
-                <div style="font-size:0.6rem; color:#6b7280; letter-spacing:0.08em;">SHARP</div>
-                <div style="font-size:0.95rem; font-weight:700; color:{sharp_color};">{bet.sharp_score:.0f}</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                             color:#4b5563; letter-spacing:0.1em;">SHARP</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.95rem;
+                             font-weight:600; color:{sharp_color}; margin-top:1px;">{bet.sharp_score:.0f}</div>
             </div>
         </div>
 
         <!-- Sharp Score bar -->
-        <div style="margin-bottom:6px;">
-            <div style="
-                height:3px; background:#2d3139; border-radius:2px; overflow:hidden;
-            ">
-                <div style="
-                    height:100%; width:{sharp_bar_width}%; background:{sharp_color};
-                    border-radius:2px;
-                "></div>
+        <div style="margin-bottom:5px;">
+            <div style="height:4px; background:rgba(255,255,255,0.06); border-radius:99px; overflow:hidden;">
+                <div style="height:100%; width:{sharp_bar_width}%; border-radius:99px;
+                             background:linear-gradient(90deg, {sharp_color}99, {sharp_color});"></div>
             </div>
-            <div style="margin-top:3px; font-size:0.6rem;">
+            <div style="margin-top:4px; font-family:'IBM Plex Mono',monospace; font-size:0.58rem;
+                         display:flex; gap:14px; color:#4b5563;">
                 {breakdown_items}
             </div>
         </div>
@@ -429,50 +456,75 @@ def _parlay_card(combo: ParlayCombo, rank: int) -> str:
     discount_badge = ""
     if combo.correlation_discounted:
         discount_badge = (
-            '<span style="font-size:0.6rem; color:#f59e0b; '
-            'margin-left:6px; letter-spacing:0.08em;">SAME-SPORT DISC</span>'
+            '<span style="font-family:\'IBM Plex Mono\',monospace; font-size:0.48rem; '
+            'font-weight:700; color:#f59e0b; letter-spacing:0.12em; '
+            'background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); '
+            'border-radius:3px; padding:1px 5px; margin-left:7px;">SAME-SPORT DISC</span>'
         )
     return f"""
     <div style="
-        background: #13161d;
-        border: 1px solid #2d3139;
-        border-left: 4px solid #8b5cf6;
-        border-radius: 8px;
-        padding: 12px 16px;
+        background: linear-gradient(160deg, #1a1b26 0%, #161720 100%);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-left: 3px solid #8b5cf6;
+        border-radius: 10px;
+        padding: 13px 17px 11px;
         margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.18),
+                    inset 0 1px 0 rgba(255,255,255,0.04);
+        font-family: 'IBM Plex Sans', sans-serif;
     ">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <div>
-                <span style="font-size:0.6rem; color:#8b5cf6; letter-spacing:0.1em; font-weight:700;">
-                    PARLAY #{rank}
-                </span>{discount_badge}
-                <div style="font-size:0.9rem; font-weight:700; color:#e5e7eb; margin-top:3px;">
-                    {combo.leg_1.target} &nbsp;+&nbsp; {combo.leg_2.target}
+        <!-- Header row -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px;">
+            <div style="flex:1; padding-right:12px;">
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:0.52rem;
+                                 color:#7c3aed; letter-spacing:0.14em; font-weight:700;">
+                        PARLAY #{rank}
+                    </span>{discount_badge}
                 </div>
-                <div style="font-size:0.7rem; color:#6b7280; margin-top:1px;">
-                    {combo.leg_1.sport.upper()} · {combo.leg_1.matchup} &nbsp;|&nbsp;
-                    {combo.leg_2.sport.upper()} · {combo.leg_2.matchup}
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.92rem;
+                             font-weight:700; color:#f3f4f6; letter-spacing:-0.01em;">
+                    {_html.escape(str(combo.leg_1.target))} &nbsp;<span style="color:#7c3aed; font-weight:400;">+</span>&nbsp; {_html.escape(str(combo.leg_2.target))}
+                </div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.68rem;
+                             color:#6b7280; margin-top:2px;">
+                    {_html.escape(str(combo.leg_1.sport).upper())} · {_html.escape(str(combo.leg_1.matchup))}
+                    &nbsp;|&nbsp;
+                    {_html.escape(str(combo.leg_2.sport).upper())} · {_html.escape(str(combo.leg_2.matchup))}
                 </div>
             </div>
-            <div style="text-align:right;">
-                <div style="font-size:1.1rem; font-weight:800; color:{ev_color};">
+            <div style="text-align:right; flex-shrink:0;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:1.3rem;
+                             font-weight:700; color:{ev_color}; letter-spacing:-0.02em; line-height:1.1;">
                     EV {ev_pct:+.1f}%
                 </div>
-                <div style="font-size:0.7rem; color:#9ca3af;">{combo.kelly_size:.2f}u</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem;
+                             color:#8b5cf6; margin-top:3px;">{combo.kelly_size:.2f}u kelly</div>
             </div>
         </div>
+
+        <!-- Math tiles -->
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
-            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
-                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">JOINT PROB</div>
-                <div style="font-size:0.9rem; font-weight:700; color:#e5e7eb;">{prob_pct:.1f}%</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
+                             color:#4b5563; letter-spacing:0.1em;">JOINT PROB</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.92rem;
+                             font-weight:600; color:#d1d5db; margin-top:1px;">{prob_pct:.1f}%</div>
             </div>
-            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
-                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">PAYOUT</div>
-                <div style="font-size:0.9rem; font-weight:700; color:#e5e7eb;">{combo.parlay_payout:.2f}×</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
+                             color:#4b5563; letter-spacing:0.1em;">PAYOUT</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.92rem;
+                             font-weight:600; color:#d1d5db; margin-top:1px;">{combo.parlay_payout:.2f}×</div>
             </div>
-            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
-                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">SCORE</div>
-                <div style="font-size:0.9rem; font-weight:700; color:#8b5cf6;">{combo.parlay_score:.1f}</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
+                             color:#4b5563; letter-spacing:0.1em;">SCORE</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.92rem;
+                             font-weight:600; color:#8b5cf6; margin-top:1px;">{combo.parlay_score:.1f}</div>
             </div>
         </div>
     </div>
@@ -482,15 +534,35 @@ def _parlay_card(combo: ParlayCombo, rank: int) -> str:
 # ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
-st.title("🔴 Live Lines")
-st.markdown(
-    '<span style="font-size:0.75rem; color:#6b7280;">Global bet ranking by edge%. '
-    f'Grade A ≥{MIN_EDGE*100:.1f}% (0.25×K) &nbsp;·&nbsp; '
-    f'B ≥{GRADE_B_MIN_EDGE*100:.1f}% (0.12×K) &nbsp;·&nbsp; '
-    f'C ≥{GRADE_C_MIN_EDGE*100:.1f}% (track) &nbsp;·&nbsp; '
-    'Collar: −180/+150 | Kelly 0.25×</span>',
-    unsafe_allow_html=True,
-)
+
+# --- Global design system injection ---
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+html, body, [class*="css"] { font-family: 'IBM Plex Sans', sans-serif; }
+code, pre, .mono { font-family: 'IBM Plex Mono', monospace !important; }
+h1, h2, h3 { font-family: 'IBM Plex Sans', sans-serif !important; letter-spacing: -0.02em; }
+</style>
+""", unsafe_allow_html=True)
+
+# --- Page header ---
+st.html(f"""
+<div style="margin-bottom:6px;">
+  <div style="display:flex; align-items:baseline; gap:10px;">
+    <span style="font-family:'IBM Plex Sans',sans-serif; font-size:1.55rem;
+                 font-weight:700; color:#f3f4f6; letter-spacing:-0.03em;">Live Lines</span>
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem;
+                 color:#f59e0b; letter-spacing:0.12em; font-weight:600;
+                 background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2);
+                 border-radius:4px; padding:2px 7px;">LIVE</span>
+  </div>
+  <div style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem;
+               color:#4b5563; margin-top:3px; letter-spacing:0.04em;">
+    A ≥{MIN_EDGE*100:.1f}% · B ≥{GRADE_B_MIN_EDGE*100:.1f}% · C ≥{GRADE_C_MIN_EDGE*100:.1f}%
+    &nbsp;|&nbsp; collar −180/+150 &nbsp;|&nbsp; kelly 0.25×
+  </div>
+</div>
+""")
 
 # --- Filters ---
 col_f1, col_f2, col_f3, col_f4 = st.columns([2, 2, 2, 3])
@@ -504,7 +576,7 @@ with col_f3:
 with col_f4:
     auto_refresh = st.toggle("Auto-refresh (60s)", value=False, key="ll_auto")
 
-st.markdown("---")
+st.html('<div style="height:1px; background:rgba(255,255,255,0.05); margin:8px 0 10px;"></div>')
 
 # --- Injury Alert (sidebar input — static model, user is data source) ---
 with st.sidebar:
@@ -675,23 +747,73 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         near_miss = [c for c in candidates if c.grade == "NEAR_MISS" and not c.kill_reason]
         killed = [c for c in candidates if c.kill_reason]
 
-        # Stats row — grade-aware counts
-        s_col1, s_col2, s_col3, s_col4, s_col5, s_col6 = st.columns(6)
-        with s_col1:
-            st.metric("Grade A (Full)", len(grade_a))
-        with s_col2:
-            st.metric("Grade B (Mod.)", len(grade_b))
-        with s_col3:
-            st.metric("Grade C (Track)", len(grade_c))
-        with s_col4:
-            st.metric("Near Miss", len(near_miss))
-        with s_col5:
-            st.metric("Killed", len(killed))
-        with s_col6:
-            remaining_str = str(remaining) if remaining >= 0 else "—"
-            st.metric("API Quota Left", remaining_str)
-
-        st.markdown("---")
+        # Stats row — grade-aware counts (custom HTML tiles)
+        remaining_str = str(remaining) if remaining >= 0 else "—"
+        quota_color = (
+            "#22c55e" if remaining > 5000
+            else ("#f59e0b" if remaining > 1000
+            else ("#ef4444" if remaining >= 0 else "#4b5563"))
+        )
+        st.html(f"""
+        <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:7px;
+                    margin-top:4px; margin-bottom:14px;">
+            <div style="background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.18);
+                        border-radius:8px; padding:9px 11px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                             color:#92400e; letter-spacing:0.14em; margin-bottom:4px;">GRADE A</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                             font-weight:700; color:#f59e0b; line-height:1;">{len(grade_a)}</div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.55rem;
+                             color:#78350f; margin-top:3px;">full stake</div>
+            </div>
+            <div style="background:rgba(59,130,246,0.07); border:1px solid rgba(59,130,246,0.18);
+                        border-radius:8px; padding:9px 11px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                             color:#1d4ed8; letter-spacing:0.14em; margin-bottom:4px;">GRADE B</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                             font-weight:700; color:#3b82f6; line-height:1;">{len(grade_b)}</div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.55rem;
+                             color:#1e3a5f; margin-top:3px;">reduced stake</div>
+            </div>
+            <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
+                        border-radius:8px; padding:9px 11px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                             color:#374151; letter-spacing:0.14em; margin-bottom:4px;">GRADE C</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                             font-weight:700; color:#6b7280; line-height:1;">{len(grade_c)}</div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.55rem;
+                             color:#374151; margin-top:3px;">tracking only</div>
+            </div>
+            <div style="background:rgba(55,65,81,0.1); border:1px solid rgba(55,65,81,0.18);
+                        border-radius:8px; padding:9px 11px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                             color:#374151; letter-spacing:0.14em; margin-bottom:4px;">NEAR MISS</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                             font-weight:700; color:#4b5563; line-height:1;">{len(near_miss)}</div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.55rem;
+                             color:#374151; margin-top:3px;">no edge</div>
+            </div>
+            <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.14);
+                        border-radius:8px; padding:9px 11px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                             color:#7f1d1d; letter-spacing:0.14em; margin-bottom:4px;">KILLED</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                             font-weight:700; color:#ef4444; line-height:1;">{len(killed)}</div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.55rem;
+                             color:#7f1d1d; margin-top:3px;">kill switch</div>
+            </div>
+            <div style="background:rgba(34,197,94,0.05); border:1px solid rgba(34,197,94,0.12);
+                        border-radius:8px; padding:9px 11px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                             color:#14532d; letter-spacing:0.14em; margin-bottom:4px;">API QUOTA</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                             font-weight:700; color:{quota_color}; line-height:1;">{remaining_str}</div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.55rem;
+                             color:#14532d; margin-top:3px;">credits left</div>
+            </div>
+        </div>
+        <div style="height:1px; background:rgba(255,255,255,0.05); margin-bottom:14px;"></div>
+        """)
 
         # ----------------------------------------------------------------
         # Grade A — full slate (amber, standard sizing)
@@ -721,16 +843,22 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         # Grade B — moderate value (blue banner + cards)
         # ----------------------------------------------------------------
         if grade_b:
+            _mt_b = "16px" if grade_a else "0"
             st.html(f"""
-            <div style="background:#0f1f35;border:1px solid #1e40af;border-radius:6px;
-                        padding:10px 16px;margin-bottom:10px;margin-top:{'16px' if grade_a else '0'};">
-                <span style="color:#60a5fa;font-weight:700;font-size:0.82rem;">
-                    🔵 GRADE B — MODERATE VALUE
-                </span>
-                <span style="color:#93c5fd;font-size:0.75rem;margin-left:8px;">
-                    Edge ≥1.5%. Positive EV — books slightly misaligned. Reduced stake (~0.12× Kelly).
-                    May bet at your discretion. Log and track for calibration.
-                </span>
+            <div style="display:flex; align-items:center; gap:12px; padding:10px 14px;
+                        background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.18);
+                        border-radius:8px; margin-bottom:10px; margin-top:{_mt_b};">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:0.52rem; font-weight:700;
+                             color:#3b82f6; letter-spacing:0.14em; white-space:nowrap;">GRADE B</span>
+                <div style="width:1px; height:14px; background:rgba(59,130,246,0.3); flex-shrink:0;"></div>
+                <div>
+                    <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.75rem;
+                                 font-weight:600; color:#60a5fa;">Moderate Value</span>
+                    <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.72rem;
+                                 color:#3b82f6; margin-left:8px;">
+                        Edge ≥1.5% — reduced stake (~0.12× Kelly). Log and track for calibration.
+                    </span>
+                </div>
             </div>
             """)
             for rank, bet in enumerate(grade_b, start=len(grade_a) + 1):
@@ -740,16 +868,21 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         # Grade C — tracking only (slate banner + cards)
         # ----------------------------------------------------------------
         if grade_c:
-            st.html(f"""
-            <div style="background:#111827;border:1px solid #374151;border-radius:6px;
-                        padding:10px 16px;margin-bottom:10px;margin-top:12px;">
-                <span style="color:#9ca3af;font-weight:700;font-size:0.82rem;">
-                    🟡 GRADE C — TRACKING ONLY
-                </span>
-                <span style="color:#6b7280;font-size:0.75rem;margin-left:8px;">
-                    Edge ≥0.5%. Thin positive EV. Log with stake=$0 for data collection.
-                    Do not bet. Useful for calibration once 30-bet gate is hit.
-                </span>
+            st.html("""
+            <div style="display:flex; align-items:center; gap:12px; padding:10px 14px;
+                        background:rgba(107,114,128,0.06); border:1px solid rgba(107,114,128,0.14);
+                        border-radius:8px; margin-bottom:10px; margin-top:12px;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:0.52rem; font-weight:700;
+                             color:#6b7280; letter-spacing:0.14em; white-space:nowrap;">GRADE C</span>
+                <div style="width:1px; height:14px; background:rgba(107,114,128,0.25); flex-shrink:0;"></div>
+                <div>
+                    <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.75rem;
+                                 font-weight:600; color:#9ca3af;">Tracking Only</span>
+                    <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.72rem;
+                                 color:#6b7280; margin-left:8px;">
+                        Edge ≥0.5% — thin positive EV. Log with stake=$0. Calibration data only.
+                    </span>
+                </div>
             </div>
             """)
             offset_c = len(grade_a) + len(grade_b) + 1
@@ -762,14 +895,14 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         if near_miss and not grade_a:  # only show near-misses if nothing actionable above
             nm_top = sorted(near_miss, key=lambda b: b.edge_pct, reverse=True)[:5]
             st.html("""
-            <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;
-                        padding:10px 16px;margin-bottom:10px;margin-top:12px;">
-                <span style="color:#4b5563;font-weight:700;font-size:0.82rem;">
-                    ⊘ NEAR MISS — MARKET DATA ONLY
-                </span>
-                <span style="color:#374151;font-size:0.75rem;margin-left:8px;">
-                    Edge &lt;0.5%. Books tightly aligned — no positive EV. Shown for transparency.
-                    These are NOT bets. Do not log or stake.
+            <div style="display:flex; align-items:center; gap:12px; padding:10px 14px;
+                        background:rgba(17,24,39,0.6); border:1px solid rgba(31,41,55,0.8);
+                        border-radius:8px; margin-bottom:10px; margin-top:12px;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:0.52rem; font-weight:700;
+                             color:#4b5563; letter-spacing:0.14em; white-space:nowrap;">NEAR MISS</span>
+                <div style="width:1px; height:14px; background:rgba(75,85,99,0.3); flex-shrink:0;"></div>
+                <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.72rem; color:#4b5563;">
+                    Edge &lt;0.5% — no positive EV. Market data only. Do not log or stake.
                 </span>
             </div>
             """)
@@ -877,13 +1010,17 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         # so parlay scanner sees full universe even when sharp filter is set.
         parlay_combos = build_parlay_combos(candidates, max_results=5)
         if parlay_combos:
-            st.markdown("---")
-            st.markdown(
-                '<span style="font-size:0.85rem; font-weight:700; color:#8b5cf6;">'
-                "PARLAY COMBOS — Positive EV only · Independence verified · Kelly capped 0.5u"
-                "</span>",
-                unsafe_allow_html=True,
-            )
+            st.html("""
+            <div style="height:1px; background:rgba(255,255,255,0.05); margin:14px 0 12px;"></div>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:0.52rem; font-weight:700;
+                             color:#8b5cf6; letter-spacing:0.14em; white-space:nowrap;">PARLAY COMBOS</span>
+                <div style="flex:1; height:1px; background:rgba(139,92,246,0.15);"></div>
+                <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.65rem; color:#6b7280;">
+                    Positive EV only &nbsp;·&nbsp; Independence verified &nbsp;·&nbsp; Kelly capped 0.5u
+                </span>
+            </div>
+            """)
             for i, combo in enumerate(parlay_combos, start=1):
                 st.html(_parlay_card(combo, i))
 

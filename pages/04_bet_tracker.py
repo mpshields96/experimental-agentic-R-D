@@ -96,62 +96,97 @@ def _bet_card(bet: dict, idx: int) -> str:
     price_str = f"{price:+d}" if price > 0 else str(price)
     mkt = MARKET_DISPLAY.get(bet.get("market_type", ""), bet.get("market_type", "").upper())
     sport = bet.get("sport", "?").upper()
-
+    grade = bet.get("grade", "") or ""
     logged_at = bet.get("logged_at", "")[:16].replace("T", " ")
 
     # Escape all user-controlled strings before HTML injection (stored XSS prevention)
     _target  = html.escape(str(bet.get("target", bet.get("matchup", "")) or ""))
     _matchup = html.escape(str(bet.get("matchup", "") or ""))
 
+    # Grade pill
+    grade_pill = ""
+    if grade in ("A", "B", "C"):
+        _gcfg = {
+            "A": ("#f59e0b", "rgba(245,158,11,0.08)", "rgba(245,158,11,0.2)"),
+            "B": ("#3b82f6", "rgba(59,130,246,0.08)",  "rgba(59,130,246,0.2)"),
+            "C": ("#6b7280", "rgba(107,114,128,0.08)", "rgba(107,114,128,0.2)"),
+        }
+        gc, gbg, gbd = _gcfg[grade]
+        grade_pill = (
+            f'<span style="font-family:\'IBM Plex Mono\',monospace; font-size:0.48rem;'
+            f' font-weight:700; color:{gc}; letter-spacing:0.12em; background:{gbg};'
+            f' border:1px solid {gbd}; border-radius:3px; padding:1px 5px; margin-left:6px;">'
+            f'GRADE {grade}</span>'
+        )
+
     return f"""
     <div style="
-        background: #1a1d23;
-        border: 1px solid #2d3139;
-        border-left: 4px solid {color};
-        border-radius: 8px;
-        padding: 12px 16px;
+        background: linear-gradient(160deg, #1c1f28 0%, #171a22 100%);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-left: 3px solid {color};
+        border-radius: 10px;
+        padding: 13px 17px 11px;
         margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.18),
+                    inset 0 1px 0 rgba(255,255,255,0.04);
+        font-family: 'IBM Plex Sans', sans-serif;
     ">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div>
-                <span style="font-size:0.6rem; color:#6b7280; letter-spacing:0.1em; font-weight:600;">
-                    {sport} · {mkt}
-                </span>
-                <div style="font-size:0.95rem; font-weight:700; color:#e5e7eb; margin-top:2px;">
+        <!-- Header row -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px;">
+            <div style="flex:1; min-width:0; padding-right:12px;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap;">
+                    <span style="font-family:'IBM Plex Mono',monospace; font-size:0.52rem;
+                                 color:#4b5563; letter-spacing:0.12em; font-weight:600;">
+                        {sport} · {mkt}
+                    </span>
+                    {grade_pill}
+                </div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:1.0rem;
+                             font-weight:700; color:#f3f4f6; letter-spacing:-0.01em; line-height:1.25;">
                     {_target}
                 </div>
-                <div style="font-size:0.7rem; color:#9ca3af;">
-                    {_matchup}
-                </div>
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.7rem;
+                             color:#6b7280; margin-top:2px;">{_matchup}</div>
             </div>
-            <div style="text-align:right;">
-                <div style="font-size:1.1rem; font-weight:800; color:{color};">{label}</div>
-                <div style="font-size:1.0rem; font-weight:700; color:{profit_color};">{profit_str}</div>
+            <div style="text-align:right; flex-shrink:0;">
+                <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.88rem;
+                             font-weight:700; color:{color}; letter-spacing:-0.01em;">{label}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:1.1rem;
+                             font-weight:700; color:{profit_color}; letter-spacing:-0.02em;
+                             line-height:1.1; margin-top:2px;">{profit_str}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.58rem;
+                             color:#4b5563; margin-top:3px;">{logged_at}</div>
             </div>
         </div>
-        <div style="
-            display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr;
-            gap:6px; margin-top:10px;
-        ">
-            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
-                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">PRICE</div>
-                <div style="font-size:0.85rem; font-weight:600; color:#e5e7eb;">{price_str}</div>
+        <!-- Math tiles -->
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px;">
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 9px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
+                             color:#4b5563; letter-spacing:0.1em;">PRICE</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.88rem;
+                             font-weight:600; color:#d1d5db; margin-top:1px;">{price_str}</div>
             </div>
-            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
-                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">STAKE</div>
-                <div style="font-size:0.85rem; font-weight:600; color:#e5e7eb;">${stake:.2f}</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 9px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
+                             color:#4b5563; letter-spacing:0.1em;">STAKE</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.88rem;
+                             font-weight:600; color:#d1d5db; margin-top:1px;">${stake:.2f}</div>
             </div>
-            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
-                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">EDGE</div>
-                <div style="font-size:0.85rem; font-weight:600; color:#22c55e;">+{edge:.1f}%</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 9px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
+                             color:#4b5563; letter-spacing:0.1em;">EDGE</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.88rem;
+                             font-weight:600; color:#22c55e; margin-top:1px;">+{edge:.1f}%</div>
             </div>
-            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
-                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">CLV</div>
-                <div style="font-size:0.85rem; font-weight:600; color:{clv_color};">{clv_str}</div>
-            </div>
-            <div style="background:#0e1117; border-radius:4px; padding:5px 8px;">
-                <div style="font-size:0.55rem; color:#6b7280; letter-spacing:0.08em;">LOGGED</div>
-                <div style="font-size:0.7rem; color:#9ca3af;">{logged_at}</div>
+            <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.04);
+                        border-radius:6px; padding:6px 9px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
+                             color:#4b5563; letter-spacing:0.1em;">CLV</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.88rem;
+                             font-weight:600; color:{clv_color}; margin-top:1px;">{clv_str}</div>
             </div>
         </div>
     </div>
@@ -161,7 +196,30 @@ def _bet_card(bet: dict, idx: int) -> str:
 # ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
-st.title("📋 Bet Tracker")
+
+# --- Global design system injection ---
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+html, body, [class*="css"] { font-family: 'IBM Plex Sans', sans-serif; }
+code, pre, .mono { font-family: 'IBM Plex Mono', monospace !important; }
+h1, h2, h3 { font-family: 'IBM Plex Sans', sans-serif !important; letter-spacing: -0.02em; }
+</style>
+""", unsafe_allow_html=True)
+
+# --- Page header ---
+st.html("""
+<div style="margin-bottom:6px;">
+  <div style="display:flex; align-items:baseline; gap:10px;">
+    <span style="font-family:'IBM Plex Sans',sans-serif; font-size:1.55rem;
+                 font-weight:700; color:#f3f4f6; letter-spacing:-0.03em;">Bet Tracker</span>
+  </div>
+  <div style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem;
+               color:#4b5563; margin-top:3px; letter-spacing:0.04em;">
+    P&amp;L · CLV · calibration history
+  </div>
+</div>
+""")
 
 # --- P&L Summary bar ---
 try:
@@ -176,27 +234,65 @@ win_rate = summary.get("win_rate", 0)   # already 0-100 from get_pnl_summary
 roi = summary.get("roi_pct", 0)
 avg_clv = (summary.get("avg_clv") or 0) * 100   # stored as decimal, display as %
 
-s1, s2, s3, s4, s5 = st.columns(5)
-with s1:
-    st.metric("Total Bets", total_bets)
-with s2:
-    st.metric("Record", f"{wins}W – {losses}L")
-with s3:
-    st.metric("Win Rate", f"{win_rate:.1f}%" if total_bets else "—")
-with s4:
-    roi_str = f"{roi:+.1f}%" if total_bets else "—"
-    st.metric("ROI", roi_str)
-with s5:
-    clv_str = f"{avg_clv:+.2f}%" if total_bets else "—"
-    st.metric("Avg CLV", clv_str)
+win_rate_color = "#22c55e" if win_rate >= 50 else ("#ef4444" if total_bets else "#6b7280")
+roi_color = "#22c55e" if roi > 0 else ("#ef4444" if roi < 0 else "#6b7280")
+clv_color_s = "#22c55e" if avg_clv > 0 else ("#ef4444" if avg_clv < 0 else "#6b7280")
+roi_display = f"{roi:+.1f}%" if total_bets else "—"
+win_rate_display = f"{win_rate:.1f}%" if total_bets else "—"
+clv_display = f"{avg_clv:+.2f}%" if total_bets else "—"
 
-st.markdown("---")
+st.html(f"""
+<div style="display:grid; grid-template-columns:repeat(5,1fr); gap:7px;
+            margin-top:4px; margin-bottom:14px;">
+    <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
+                border-radius:8px; padding:9px 11px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">TOTAL BETS</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                     font-weight:700; color:#9ca3af; line-height:1;">{total_bets}</div>
+    </div>
+    <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
+                border-radius:8px; padding:9px 11px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">RECORD</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:1.1rem;
+                     font-weight:700; color:#d1d5db; line-height:1;">{wins}W&nbsp;–&nbsp;{losses}L</div>
+    </div>
+    <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
+                border-radius:8px; padding:9px 11px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">WIN RATE</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                     font-weight:700; color:{win_rate_color}; line-height:1;">{win_rate_display}</div>
+    </div>
+    <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
+                border-radius:8px; padding:9px 11px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">ROI</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                     font-weight:700; color:{roi_color}; line-height:1;">{roi_display}</div>
+    </div>
+    <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
+                border-radius:8px; padding:9px 11px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
+                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">AVG CLV</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
+                     font-weight:700; color:{clv_color_s}; line-height:1;">{clv_display}</div>
+    </div>
+</div>
+<div style="height:1px; background:rgba(255,255,255,0.05); margin-bottom:14px;"></div>
+""")
 
 # --- Two-column layout: Log form LEFT, Pending bets RIGHT ---
 log_col, pending_col = st.columns([1, 1], gap="large")
 
 with log_col:
-    st.subheader("Log a Bet")
+    st.html("""
+    <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.95rem;
+                font-weight:700; color:#f3f4f6; letter-spacing:-0.02em; margin-bottom:8px;">
+        Log a Bet
+    </div>
+    """)
 
     with st.form("log_bet_form", clear_on_submit=True):
         f1, f2 = st.columns(2)
@@ -253,11 +349,12 @@ with log_col:
         notes_input = st.text_input("Notes (optional)", key="bt_notes")
 
         # --- Analytics metadata (for 07_analytics.py correlation charts) ---
-        st.markdown(
-            "<div style='font-size:0.6rem; text-transform:uppercase; letter-spacing:0.1em;"
-            " color:#6b7280; margin: 8px 0 4px;'>Analytics Metadata</div>",
-            unsafe_allow_html=True,
-        )
+        st.html("""
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
+                     text-transform:uppercase; letter-spacing:0.14em; color:#374151;
+                     border-top:1px solid rgba(255,255,255,0.05); margin:12px 0 6px;
+                     padding-top:10px;">Analytics Metadata</div>
+        """)
         a1, a2, a3 = st.columns(3)
         with a1:
             sharp_score_input = st.number_input(
@@ -345,24 +442,29 @@ with log_col:
                     st.error(f"Failed to log bet: {exc}")
 
 with pending_col:
-    st.subheader("Pending Bets")
+    st.html("""
+    <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.95rem;
+                font-weight:700; color:#f3f4f6; letter-spacing:-0.02em; margin-bottom:8px;">
+        Pending Bets
+    </div>
+    """)
     try:
         pending = get_bets(result_filter="pending", db_path=DB_PATH)
     except Exception:
         pending = []
 
     if not pending:
-        st.html(
-            """
-            <div style="
-                background:#1a1d23; border:1px solid #2d3139;
-                border-radius:6px; padding:24px; text-align:center;
-                color:#6b7280; font-size:0.85rem;
-            ">
-                No pending bets.<br>Log a bet on the left.
+        st.html("""
+        <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05);
+                    border-radius:8px; padding:24px; text-align:center;">
+            <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.82rem;
+                         color:#4b5563; line-height:1.6;">
+                No pending bets.<br>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem;
+                              color:#374151;">Log a bet on the left to start tracking.</span>
             </div>
-            """
-        )
+        </div>
+        """)
     else:
         for bet in pending:
             bet_id = bet.get("id")
@@ -425,10 +527,15 @@ with pending_col:
                     except Exception as exc:
                         st.error(f"Failed: {exc}")
 
-st.markdown("---")
+st.html('<div style="height:1px; background:rgba(255,255,255,0.05); margin:14px 0 12px;"></div>')
 
 # --- Full history table ---
-st.subheader("Bet History")
+st.html("""
+<div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.95rem;
+            font-weight:700; color:#f3f4f6; letter-spacing:-0.02em; margin-bottom:10px;">
+    Bet History
+</div>
+""")
 
 filter_col, sort_col, _ = st.columns([2, 2, 3])
 with filter_col:
@@ -453,15 +560,14 @@ except Exception as exc:
     st.warning(f"Could not load bets: {exc}")
 
 if not all_bets:
-    st.html(
-        """
-        <div style="
-            background:#1a1d23; border:1px solid #2d3139;
-            border-radius:6px; padding:20px; text-align:center;
-            color:#6b7280; font-size:0.85rem;
-        ">No bets match the current filters.</div>
-        """
-    )
+    st.html("""
+    <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05);
+                border-radius:8px; padding:20px; text-align:center;">
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.82rem; color:#4b5563;">
+            No bets match the current filters.
+        </div>
+    </div>
+    """)
 else:
     import pandas as pd
 
@@ -516,19 +622,26 @@ else:
     pnl_color = "#22c55e" if total_pnl > 0 else "#ef4444"
     st.html(
         f"""
-        <div style="
-            background:#1a1d23; border:1px solid #2d3139;
-            border-radius:6px; padding:10px 16px; margin-top:6px;
-            display:flex; gap:24px; font-size:0.8rem;
-        ">
-            <span style="color:#6b7280;">
-                Showing <strong style="color:#e5e7eb;">{len(all_bets)}</strong> bets
+        <div style="display:flex; gap:20px; align-items:center; padding:9px 14px; margin-top:6px;
+                    background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05);
+                    border-radius:8px;">
+            <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.72rem; color:#4b5563;">
+                Showing&nbsp;
+                <span style="font-family:'IBM Plex Mono',monospace; font-weight:600;
+                              color:#9ca3af;">{len(all_bets)}</span>
+                &nbsp;bets
             </span>
-            <span style="color:#6b7280;">
-                Total staked: <strong style="color:#e5e7eb;">${total_stake:.2f}</strong>
+            <div style="width:1px; height:12px; background:rgba(255,255,255,0.06);"></div>
+            <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.72rem; color:#4b5563;">
+                Total staked:&nbsp;
+                <span style="font-family:'IBM Plex Mono',monospace; font-weight:600;
+                              color:#9ca3af;">${total_stake:.2f}</span>
             </span>
-            <span style="color:#6b7280;">
-                Net P&amp;L: <strong style="color:{pnl_color};">{'+' if total_pnl > 0 else ''}${total_pnl:.2f}</strong>
+            <div style="width:1px; height:12px; background:rgba(255,255,255,0.06);"></div>
+            <span style="font-family:'IBM Plex Sans',sans-serif; font-size:0.72rem; color:#4b5563;">
+                Net P&amp;L:&nbsp;
+                <span style="font-family:'IBM Plex Mono',monospace; font-weight:700;
+                              color:{pnl_color};">{'+' if total_pnl > 0 else ''}${total_pnl:.2f}</span>
             </span>
         </div>
         """

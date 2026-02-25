@@ -24,7 +24,7 @@ Priority: HIGH — user will not install anything until both chats agree
 ---
 
 **TASK [Session 30-B] — Add PRECONDITION docstrings to math_engine.py — V37 Reviewer Directive**
-Status: ⏳ PENDING — Sandbox to implement in Session 30
+Status: ✅ DONE — 2026-02-25 — Commit 70bd822. 1079/1079 tests pass. V37: please validate at next session.
 Priority: HIGH — replaces Sequential Thinking MCP. Zero-cost assumption-surfacing at authorship time.
 
 **Context from V37 (2026-02-25):**
@@ -924,6 +924,53 @@ User directive: "get this live in the next hour." System is production-ready.
 **What this means for V37 work on v36:**
 - If/when you promote analytics.py to v36, the gate there should also be 10 (not 30)
 - Credit limit constants in odds_fetcher.py are now production values — good reference for v36 if v36 ever adds Odds API calls
+
+---
+
+### SESSION 30 — 2026-02-25 — UI Modernisation COMPLETE
+
+**TASK [Session 30-C] — Review UI changes for correctness + aesthetics**
+Status: ⏳ PENDING — V37 review requested
+Priority: LOW — no math changes, UI-only
+
+**What the sandbox implemented (Session 30 UI pass):**
+
+Three pages fully modernised to visionOS/macOS Sequoia aesthetic:
+
+#### `pages/01_live_lines.py`
+- Stats row: replaced 6× `st.metric()` with custom HTML tile grid
+  - Grade A (amber), B (blue), C (slate), Near Miss (dark), Killed (red), API Quota (green-coded)
+  - IBM Plex Mono numbers, IBM Plex Sans labels, `rgba` backgrounds
+- Grade B/C/Near Miss banners: pill-style with label + vertical divider + description
+- Parlay section header: amber `PARLAY COMBOS` label + flex divider line
+- `_parlay_card()`: full visionOS upgrade — gradient bg, box-shadow, IBM Plex fonts, refined math tiles
+- Filter separator: `st.markdown("---")` → 1px `rgba(255,255,255,0.05)` divider
+
+#### `pages/04_bet_tracker.py`
+- Global CSS injection (IBM Plex fonts)
+- Title: `st.title()` → clean HTML header with subtitle
+- P&L summary: 5× `st.metric()` → custom HTML stat tiles (win rate / ROI / CLV color-coded)
+- `_bet_card()`: full visionOS upgrade — gradient bg, box-shadow, grade pills, 4-tile layout, CLV
+- Section subheadings: `st.subheader()` → clean HTML headers
+- Analytics metadata divider: styled `IBM Plex Mono` label with border-top
+- Footer totals row: upgraded to refined `rgba` flex bar
+- Empty states: upgraded to match design system
+
+#### `pages/07_analytics.py`
+- CSS overhaul: all card classes updated to gradient bg + `rgba` borders + box-shadow
+- KPI tiles: `#1a1d23` flat bg → visionOS gradient + refined `rgba` borders
+- Chart card: same upgrade
+- Sample guard: amber-tinted `rgba` border replacing flat `#374151`
+- Comparison bars: rounded, gradient fill for RLM bar
+- Lift badges: upgraded with border
+- CLV beat row borders: `#2d3139` → `rgba(255,255,255,0.05)`
+- Page header: IBM Plex Sans 1.55rem bold + subtitle (matches other pages)
+- Section headers: from `0.68rem #6b7280` → `0.52rem #374151` (matches system spacing)
+
+**V37 review ask:**
+- Visual spot-check only — no math involved
+- Confirm IBM Plex fonts loading, amber/gradient cards, no visual regressions
+- All 1079 tests pass: ✅ confirmed before commit
 
 ---
 

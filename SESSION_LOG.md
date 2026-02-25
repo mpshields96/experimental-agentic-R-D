@@ -2,6 +2,72 @@
 
 ---
 
+## Session 30 — 2026-02-25
+
+### Objective
+Session end ritual for Session 29 + MCP/tooling coordination with V37 + PRECONDITION docstrings
++ UI modernisation (Apple/visionOS aesthetic) for pages 01, 04, 07.
+
+### What Was Built
+
+**Session 29 wrap-up (this session)**
+- Session end ritual completed: `claude-md-management`, SESSION_LOG, ORIGINAL_PROMPT, git push
+- Commit ca4e3fe (wrap-up), 9c96780 (final hash) pushed successfully
+
+**MCP/Tooling coordination (this session)**
+- 4-item proposal evaluated: GitHub MCP (❌ already plugin + security CVE), SQLite MCP (✅ install),
+  Sequential Thinking MCP (❌ skip → use docstrings), OddsPapi (⏳ defer, 30 bet gate)
+- V37 agreed on all 4 items (REVIEW_LOG.md — Reviewer Session 7)
+- `mcp-server-sqlite` installed via pip3: `/Library/Frameworks/Python.framework/Versions/3.13/bin/mcp-server-sqlite`
+- `.mcp.json` written to sandbox root — project-scoped MCP
+- CLAUDE.md SQLite MCP safety rule added (permanent: write_query/create_table PROHIBITED on titanium.db)
+
+**PRECONDITION docstrings (this session) — Commit 70bd822**
+- `consensus_fair_prob()` — totals scoping + API format PRECONDITION
+- `_best_price_for()` — canonical-line PRECONDITION for totals
+- `compute_rlm()` — direction consistency PRECONDITION + COLD CACHE + POSTCONDITION
+- `_canonical_totals_books()` — full CONTRACT block with edge cases
+- `parse_game_markets()` — INVARIANTS block (3 invariants)
+- All documentation-only. 1079/1079 tests unchanged.
+
+**UI Modernisation — visionOS/macOS Sequoia aesthetic (this session)**
+
+`pages/01_live_lines.py`:
+- Stats row: 6× `st.metric()` → custom HTML tile grid (color-coded per grade)
+- Grade banners (B/C/Near Miss): pill-style inline labels — label | divider | description
+- Parlay header: `PARLAY COMBOS` monospace label + fade divider
+- `_parlay_card()`: gradient bg, box-shadow, IBM Plex fonts, rounded stats tiles
+- Dividers: `st.markdown("---")` → 1px `rgba(255,255,255,0.05)` HTML divider
+
+`pages/04_bet_tracker.py`:
+- Global CSS injection (IBM Plex fonts)
+- Title: clean HTML header + subtitle
+- P&L summary: 5× `st.metric()` → color-coded stat tiles (win rate/ROI/CLV)
+- `_bet_card()`: gradient bg, box-shadow, grade pills, 4-tile layout, timestamp in header
+- Subheadings: `st.subheader()` → IBM Plex Sans HTML
+- Analytics metadata section: styled Mono divider label
+- Footer totals: refined `rgba` flex bar
+
+`pages/07_analytics.py`:
+- CSS overhaul: kpi-card, chart-card, sample-guard → gradient bg + `rgba` borders + box-shadow
+- Page header: IBM Plex Sans 1.55rem (matches page 01/04)
+- Section headers: tighter sizing, darker label color
+- Comparison bars: rounded + gradient RLM fill
+- Lift badges: added border
+- All CLV/divider colors: upgraded to `rgba` system
+
+### Tests
+- 1079/1079 ✅ all sessions (UI-only changes, no math touched)
+
+### V37 Coordination
+- V37_INBOX.md: Session 30-C added — UI review request (visual spot-check only)
+- REVIEW_LOG.md: no new entries needed — UI is sandbox domain
+
+### Commit
+- Pending (this session) — pages/01, 04, 07 + V37_INBOX + SESSION_LOG
+
+---
+
 ## Session 29 — 2026-02-25
 
 ### Objective
