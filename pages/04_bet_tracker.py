@@ -270,18 +270,23 @@ with log_col:
                  "Caesars", "PointsBet", "bet365", "Other"],
                 key="bt_book",
             )
-        a4, a5, a6 = st.columns(3)
+        a4, a5, a6, a7 = st.columns(4)
         with a4:
             rlm_fired_input = st.checkbox("RLM Confirmed", value=False, key="bt_rlm_fired")
         with a5:
-            signal_input = st.text_input(
-                "Signal (e.g. B2B_EDGE)", value="", key="bt_signal",
-                placeholder="B2B_EDGE / RLM_CONFIRMED",
+            days_to_game_input = st.number_input(
+                "Days to Game", value=0.0, step=0.5, min_value=0.0,
+                key="bt_days_to_game",
             )
         with a6:
+            signal_input = st.text_input(
+                "Signal", value="", key="bt_signal",
+                placeholder="B2B_EDGE",
+            )
+        with a7:
             tags_input = st.text_input(
                 "Tags (comma-sep)", value="", key="bt_tags",
-                placeholder="NUCLEAR,RLM_CONFIRMED",
+                placeholder="NUCLEAR,RLM",
             )
 
         submitted = st.form_submit_button("Log Bet", use_container_width=True, type="primary")
@@ -306,6 +311,7 @@ with log_col:
                         rlm_fired=rlm_fired_input,
                         tags=tags_input.strip(),
                         book=book_input,
+                        days_to_game=float(days_to_game_input),
                         line=float(line_input),
                         signal=signal_input.strip(),
                         db_path=DB_PATH,

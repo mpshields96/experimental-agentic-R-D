@@ -30,7 +30,7 @@ from __future__ import annotations
 from typing import Optional
 import math
 
-MIN_RESOLVED = 30  # calibration gate — matches calibration.py
+MIN_RESOLVED = 30  # calibration gate — matches MIN_BETS_FOR_CALIBRATION in calibration.py
 
 
 # ---------------------------------------------------------------------------
