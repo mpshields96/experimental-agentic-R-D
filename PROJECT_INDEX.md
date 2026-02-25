@@ -1,26 +1,30 @@
 # Project Index: Titanium-Agentic Sandbox
 
-Generated: 2026-02-25 (Session 28 wrap) | Tests: 1103/1103 ✅ | Last commit: e294539 (pushed)
+Generated: 2026-02-25 (Session 29) | Tests: 1079/1079 ✅ | Last commit: pending push
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
 
 ---
 
-## ⚠️ ACTIVE CRITICAL BUG — READ BEFORE ANY WORK
+## ✅ SESSION 29 AUDIT COMPLETE — NO ACTIVE CRITICAL BUGS
 
-**parse_game_markets() totals consensus bug** — blocks all live betting on totals.
-Live scan showed BOTH Over 7.0 AND Under 6.5 for EDM @ ANA as Grade B simultaneously.
-Root cause: `consensus_fair_prob()` mixes books quoting different total lines (6.5 vs 7.0).
-V37 hard audit requested (V37_INBOX.md). Fix is Session 29 Priority #1.
+**Totals consensus bug: FIXED.** `_canonical_totals_books()` now scopes both `consensus_fair_prob()`
+and `_best_price_for()` to the modal total line. EDM @ ANA symptom verified eliminated.
+
+**RLM direction bug: FIXED.** `compute_rlm()` now uses signed drift (not abs). RLM fires only on
+line shortening against public — not on any movement.
+
+**Dead code removed:** `run_nemesis()` (241 lines, never called, narrative constants), `calculate_edge()`
+(dead function), dead Poisson precompute block. Test count: 1103 → 1079 (-31 dead tests, +7 regression).
 
 ---
 
-## 📋 Priority Order (Session 29+)
+## 📋 Priority Order (Session 30+)
 
-**#1 — Fix parse_game_markets() totals consensus bug** (see V37_INBOX for audit spec)
-**#2 — UI modernisation** (modern Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
-**#3 — Live run** (only after #1 fixed and validated)
+**#1 — UI modernisation** (modern Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
+**#2 — Live run** (totals bug fixed — live betting on totals now unblocked)
+**#3 — Analytics unlock** — 6 more resolved bets needed (gate = 10)
 
 ---
 
@@ -97,7 +101,7 @@ python3 scripts/grade_bet.py
 
 ## 📦 Core Modules — Key API
 
-### math_engine.py (249 tests) — THE BRAIN
+### math_engine.py (225 tests) — THE BRAIN
 
 ```python
 # Data model
@@ -112,7 +116,7 @@ assign_grade(bet: BetCandidate) -> None  # mutates in-place
 # Core pipeline (call once per game dict, not per games list)
 parse_game_markets(game: dict, sport: str, ..., min_edge: float) -> list[BetCandidate]
 
-# Consensus (⚠️ BUGGY for totals — mixes different book lines)
+# Consensus — FIXED Session 29: canonical line scoped, pass filtered _totals_bks not raw bookmakers
 consensus_fair_prob(team, market_key, side, bookmakers) -> (prob, std, n_books)
 
 # Kill switches
@@ -213,7 +217,7 @@ get_calibration_report(db_path) -> CalibrationReport  # Brier, ROC-AUC, edge acc
 
 | Module | Tests | Module | Tests |
 |--------|-------|--------|-------|
-| math_engine | 249 | calibration | 46 |
+| math_engine | 225 | calibration | 46 |
 | tennis_data | 96 | scheduler | 40 |
 | king_of_the_court | 74 | probe_logger | 36 |
 | nba_pdo | 66 | price_history_store | 36 |
@@ -221,7 +225,7 @@ get_calibration_report(db_path) -> CalibrationReport  # Brier, ROC-AUC, edge acc
 | injury_data | 59 | nhl_data | 34 |
 | odds_fetcher | 51 | weather_feed | 24 |
 | efficiency_feed | 51 | | |
-| analytics | 51 | **TOTAL** | **1103** |
+| analytics | 51 | **TOTAL** | **1079** |
 | parlay_builder | 47 | | |
 | clv_tracker | 46 | | |
 

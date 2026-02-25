@@ -20,40 +20,20 @@
 
 ---
 
-## 🔴 PENDING — Session 28 (2026-02-25) — HARD AUDIT REQUESTED
+## ✅ DONE — Session 28 (2026-02-25) — V37 Reviewer Session 5
 
 ### Task: Audit parse_game_markets() totals consensus logic
+**Status: ✅ DONE — 2026-02-25 — Both root causes identified, Layer 2 fix applied to v36**
 
-**Priority: CRITICAL — blocks all live betting on totals markets**
+**Root cause confirmed (both failures):**
+1. `consensus_fair_prob()` for totals mixes fair probs from books at DIFFERENT lines (e.g. 6.5 AND 7.0). No-vig prob for Over 6.5 ~56% mixed with Over 7.0 ~46% → polluted average ~51%. Then best price is found at line 7.0. You're comparing a probability anchored to 6.5 against a price anchored to 7.0. False edge.
+2. `_deduplicate_markets` key included `abs(line)` → Over 7.0 and Under 6.5 had DIFFERENT keys → both survived dedup. Mathematical impossibility (can't have positive edge on both sides of a total).
 
-**Bug discovered during first live scan (2026-02-25):**
-The pipeline flagged BOTH Over and Under for the same game as Grade B value bets simultaneously:
-- EDM @ ANA: Under 6.5 @ +124 → edge=3.3% (Grade B)
-- EDM @ ANA: Over 7.0 @ +105 → edge=3.3% (Grade B)
+**Fixes applied:**
+- **v36 Layer 2 hotfix (DONE):** `bet_ranker.py:183` — totals dedup key drops line. Key is now `(event_id, market_type)` for totals. +6 tests in `test_validation.py::TestTotalsDedupCrossLine`. 257/257 passing. ✅
+- **Sandbox Layer 1 (REQUIRED — sandbox must implement):** Modal line pinning in `consensus_fair_prob()` for totals. Filter to books at modal line only. Best price must also come from modal-line books only. Full spec in REVIEW_LOG.md → V37 REVIEWER SESSION 5 → BUG 1.
 
-You cannot have positive edge on both sides of a game. If the model says both sides have value, the model is broken.
-
-**What we need from V37:**
-
-1. **Read `core/math_engine.py` — specifically `parse_game_markets()` totals section.**
-   How is "consensus" computed when books hang different total lines (e.g. some at 6.5, some at 7.0)?
-
-2. **Identify the failure mode.** Is the engine:
-   a) Comparing Under 6.5 odds vs consensus PRICE for 6.5 (correct), but multiple books hang different lines so no clean consensus exists?
-   b) Comparing different line variants against each other (incorrect — apples vs oranges)?
-   c) Missing a same-game deduplication guard that should drop one side when both pass?
-
-3. **Check: does V36 have this bug too?** Run `grep -n "totals" ~/Projects/titanium-v36/math_engine.py` and check how V36 handles multi-line totals consensus.
-
-4. **Propose fix.** Options:
-   - Collapse all books' totals to the modal/consensus line, then compare both sides at that line only
-   - Add post-parse guard: if same game has Over AND Under with positive edge, keep only the higher-edge side
-   - Both
-
-5. **Write findings to REVIEW_LOG.md** with specific line numbers and proposed patch.
-
-**File to audit:** `~/ClaudeCode/agentic-rd-sandbox/core/math_engine.py`
-**Latest commit:** e69397a (pushed to GitHub)
+**Sandbox action required:** Implement Layer 1 (modal line pinning) before next live scan. Add `TestTotalsLinePinning` tests. This is the proper structural fix. Layer 2 (dedup) is a downstream safety net — it reduces damage but doesn't eliminate the false-edge signal upstream.
 
 ---
 
@@ -135,6 +115,68 @@ The user wants the app "functionally usable to a large degree on iOS as well" (i
 
 > This section is updated by the sandbox builder at each session end.
 > V37: check this section every time you start a session.
+
+---
+
+### SESSION 29 — 2026-02-25 — Layer 1 fix COMPLETE + full audit applied
+
+**TASK [Session 29] — Validate Layer 1 totals fix + audit changes**
+Status: ⏳ PENDING — V37 please validate at next session
+Priority: HIGH (blocks live totals betting)
+
+**What the sandbox implemented this session (full audit + cleanup):**
+
+#### 1. ✅ LAYER 1 FIX APPLIED: Totals canonical line scoping
+This is the fix V37 requested in Session 28 / Reviewer Session 5.
+
+**Implementation (`core/math_engine.py`):**
+- Added `_canonical_totals_books()` inner helper inside `parse_game_markets()`:
+  - Iterates all books' totals markets, counts line occurrences via `Counter`
+  - Returns `(modal_line, filtered_books)` — only books quoting the most common line
+- Modified `_best_price_for()`: added optional `bks` parameter (defaults to `all_bks`)
+  - Allows totals best-price search to be restricted to canonical-line books only
+- Rewrote totals loop: calls `_canonical_totals_books()` first, passes `_totals_bks`
+  to BOTH `consensus_fair_prob()` and `_best_price_for()` — same scoped set for both
+- Early exit if no canonical line found (`if not _totals_bks: break`)
+
+**Verification:** Original EDM @ ANA symptom reproduced and confirmed fixed. No simultaneous Over+Under positive edge on mixed-line game.
+
+**Approach alignment with your spec (V37 Reviewer Session 5):** Your spec said:
+> "Identify the modal line. Only include books posting the modal line in `consensus_fair_prob` for totals. Compare `_best_price_for` only from books at that same line."
+Implementation matches exactly. The `_canonical_totals_books()` helper is essentially your `_modal_total_line()` spec, extended to also return the filtered book list.
+
+#### 2. ✅ RLM DIRECTION BUG FIXED
+`compute_rlm()`: `drift = abs(current_prob - open_prob)` → `drift = current_prob - open_prob`
+Bug: `abs()` stripped sign → RLM fired on ANY movement (both sharpening AND lengthening)
+Fix: signed drift → only fires when implied prob RISES (line got more expensive for bettor)
+This is the correct interpretation of RLM.
+
+#### 3. ✅ DEAD CODE DELETED: run_nemesis() — 241 lines removed
+`run_nemesis()` was never called anywhere in the codebase. The function contained hardcoded
+probability constants (0.20, 0.25, 0.35, 0.41) with no mathematical derivation — pure narrative
+dressed as math. The `adjustment` field it returned was never consumed downstream.
+`sc:analyze` + `superpowers:systematic-debugging` + `sc:spec-panel` all independently flagged
+this as the clearest example of "narrative > math" violation in the codebase.
+
+#### 4. ✅ DEAD FUNCTION DELETED: calculate_edge()
+calculate_edge() was never called — edge is computed inline everywhere. Removed entirely.
+
+#### 5. ✅ DEAD POISSON PRECOMPUTE DELETED
+`_poisson_over_prob` / `_poisson_under_prob` were computed at hardcoded `total_line=2.5`
+and never read. The actual per-candidate Poisson computation happens correctly at `best_line`.
+Removed the dead precompute block entirely.
+
+**Tests: 1103 → 1079 (net -24)**
+- Removed 5 TestCalculateEdge tests (dead function)
+- Removed 26 TestRunNemesis tests (dead function)
+- Added 4 TestTotalsCanonicalLineFix regression tests
+- Added 3 TestRLMDirectionFix regression tests
+- All 1079 pass ✅
+
+**V37 actions requested:**
+1. **Review `_canonical_totals_books()` implementation** — confirm it matches your Layer 1 spec intent. Any edge cases missed? (Tiebreak between equal-count lines; single-book game; all books at unique lines.)
+2. **Run v36 regression against sandbox** — does v36's Layer 2 dedup (your Session 28 fix) still work correctly alongside our Layer 1 fix? These should complement each other.
+3. **Flag any discrepancies** in REVIEW_LOG.md as usual.
 
 ---
 

@@ -296,20 +296,6 @@ def no_vig_probability(odds_a: int, odds_b: int) -> tuple[float, float]:
 # Edge calculation
 # ---------------------------------------------------------------------------
 
-def calculate_edge(model_win_prob: float, market_odds: int) -> float:
-    """
-    Edge = model win probability - market implied probability.
-
-    Positive edge = we think we win more often than the market implies.
-    Only edges >= MIN_EDGE (3.5%) pass through to bet selection.
-
-    >>> round(calculate_edge(0.55, -110), 4)
-    0.0262
-    >>> calculate_edge(0.48, -110) < 0
-    True
-    """
-    return model_win_prob - implied_probability(market_odds)
-
 
 def calculate_profit(stake: float, american_odds: int) -> float:
     """
@@ -1010,10 +996,13 @@ def compute_rlm(
 
     open_prob = implied_probability(open_price)
     current_prob = implied_probability(current_price)
-    drift = abs(current_prob - open_prob)
+    # Signed drift: positive = implied prob increased = price got MORE EXPENSIVE for bettor.
+    # RLM fires only when the line moved AGAINST the public (price worsened for public side).
+    # Using abs() was a bug — it fired on ANY movement including normal public-following moves.
+    drift = current_prob - open_prob
 
     if drift >= 0.03 and public_on_side:
-        # Price moved against the public — sharp activity on the other side
+        # Price moved against the public (got harder to bet) — sharp money on the other side.
         _rlm_fire_count += 1
         return True, drift
 
@@ -1151,254 +1140,6 @@ def clv_grade(clv: float) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Nemesis (adversarial counter-thesis — display only, no score impact)
-# ---------------------------------------------------------------------------
-
-def run_nemesis(bet: BetCandidate, sport: str) -> dict:
-    """
-    Math-driven adversarial counter-thesis for a bet.
-
-    Unlike V36/experimental (which hardcode text with static probability numbers),
-    every case here fires ONLY when a quantifiable condition is detected from
-    BetCandidate fields. No static probability assignment — each probability is
-    derived from the signal magnitude.
-
-    V36/experimental design flaw: cases selected by max(static_prob) regardless
-    of whether the condition actually applies to this specific bet. That's
-    narrative, not math. This version fires zero cases when no condition is met.
-
-    Returns dict:
-        fired_cases: list of (condition, probability, severity) tuples
-        worst_case: highest-severity fired condition string
-        worst_prob: probability of worst fired case (0.0 if none fired)
-        n_flags: count of conditions fired
-        remove: True if any condition reaches KILL severity
-
-    kill conditions (remove=True):
-        - NFL key number AND thin edge (<5%)
-        - Soccer h2h with draw_prob > 0.33 (Poisson computed, not assumed)
-        - Poisson < 30% for chosen soccer total side
-        - NHL totals with no goalie confirmation
-
-    flag conditions (remove=False, display warning):
-        - NFL key number with adequate edge
-        - Edge < 5% (thin margin)
-        - RLM absent on big spread line
-        - Collar proximity (price within 10 of boundary)
-        - NHL goalie status missing on h2h/spreads
-        - NBA B2B road with <8% edge (should already be killed, double-check)
-    """
-    import math as _math
-
-    fired: list[tuple[str, float]] = []  # (condition_text, probability)
-
-    s = sport.upper()
-    mkt = bet.market_type
-    edge = bet.edge_pct
-    price = bet.price
-    line = bet.line
-    signal = (bet.signal or "").lower()
-    kill_reason = (bet.kill_reason or "").lower()
-    breakdown = bet.sharp_breakdown or {}
-
-    # ------------------------------------------------------------------
-    # Universal conditions (all sports)
-    # ------------------------------------------------------------------
-
-    # Thin edge — model barely overcomes the vig
-    if 0 < edge < 0.05:
-        prob = 0.10 + (0.05 - edge) * 4.0  # 0.10→0.30 as edge shrinks 5%→0%
-        prob = min(prob, 0.30)
-        fired.append((f"Edge thin: {edge*100:.1f}% — vig erosion risk at small samples", prob))
-
-    # RLM absent with large spread line (soft-book gap, not sharp confirmed)
-    if mkt == "spreads" and abs(line) >= 7.0 and breakdown.get("rlm", 0) == 0:
-        fired.append(("No RLM confirmation on large spread — public/soft-book price distortion likely", 0.20))
-
-    # Collar proximity — odds near boundary → execution slippage risk
-    if price < 0:
-        dist_to_ceiling = abs(price) - 180  # collar starts at -180
-        if 0 <= dist_to_ceiling <= 15:
-            fired.append((f"Price {price} within 15 of collar ceiling (-180) — line shop required", 0.20))
-    else:
-        dist_to_floor = 150 - price  # collar ends at +150
-        if 0 <= dist_to_floor <= 15:
-            fired.append((f"Price +{price} within 15 of collar floor (+150) — line shop required", 0.20))
-
-    # ------------------------------------------------------------------
-    # NFL
-    # ------------------------------------------------------------------
-    if s == "NFL":
-        # Key number proximity (spreads)
-        if mkt == "spreads":
-            key_numbers = {3.0, 7.0, 10.0, 6.0, 4.0}
-            nearest_key = min(key_numbers, key=lambda k: abs(abs(line) - k))
-            dist = abs(abs(line) - nearest_key)
-            if dist <= 0.5:
-                # At key number — NFL games cluster at exactly 3, 7, 10 pts
-                prob = 0.35 if nearest_key in {3.0, 7.0} else 0.25
-                if edge < 0.05:
-                    # Thin edge + key number = kill condition
-                    fired.append((
-                        f"NFL spread at key number {nearest_key:.0f} AND edge only {edge*100:.1f}% — "
-                        f"push probability ~{int(10 + nearest_key * 2)}% eliminates model edge",
-                        0.41  # above remove threshold
-                    ))
-                else:
-                    fired.append((
-                        f"NFL spread at key number {nearest_key:.0f} — push risk elevates variance",
-                        prob
-                    ))
-
-        # Wind kill already fired via kill_reason — flag duplicate if somehow passed through
-        if mkt == "totals" and "wind" in kill_reason:
-            fired.append(("NFL totals: wind kill should have blocked this — verify scheduler poll", 0.30))
-
-        # Totals weather flag when wind not yet confirmed (first poll)
-        if mkt == "totals" and "wind" not in signal and "wind" not in kill_reason:
-            fired.append(("NFL totals: wind data not yet confirmed — poll weather before sizing", 0.20))
-
-    # ------------------------------------------------------------------
-    # NBA
-    # ------------------------------------------------------------------
-    if s == "NBA":
-        # B2B road with thin edge (kill switch handles >8% gate, this flags borderline)
-        road_team = bet.target.split()[0] if bet.target else ""
-        if bet.rest_days is not None and bet.rest_days == 0 and edge < 0.09:
-            fired.append((
-                f"NBA B2B road: edge {edge*100:.1f}% approaching 8% minimum gate — kill switch proximity",
-                0.25
-            ))
-        # Spread >10 (blowout territory) with absent RLM
-        if mkt == "spreads" and abs(line) >= 10.0 and breakdown.get("rlm", 0) == 0:
-            fired.append(("NBA spread ≥10 without RLM: injury/rest distortion not ruled out", 0.25))
-
-    # ------------------------------------------------------------------
-    # NCAAB
-    # ------------------------------------------------------------------
-    if s == "NCAAB":
-        # Large road spread — small-sample efficiency ratings degrade at extremes
-        if mkt == "spreads" and abs(line) >= 12.0:
-            fired.append((
-                f"NCAAB road spread {line:+.1f}: efficiency ratings thin at large spreads, 3PT variance uncaptured",
-                0.25
-            ))
-        # Totals with absent RLM on slow-tempo lines
-        if mkt == "totals" and abs(line) <= 130.0:
-            fired.append(("NCAAB low total: slow-tempo variance amplifies model uncertainty", 0.20))
-
-    # ------------------------------------------------------------------
-    # NHL
-    # ------------------------------------------------------------------
-    if s == "NHL":
-        # Goalie status absent (should be detected by nhl_kill_switch — flag if passed through)
-        if mkt in {"h2h", "spreads"} and "goalie" not in signal and "goalie" not in kill_reason:
-            fired.append((
-                "NHL: no goalie confirmation in signal — starter variance is single largest NHL factor",
-                0.30
-            ))
-        # Totals without goalie signal — shot profile unknown
-        if mkt == "totals":
-            fired.append(("NHL totals: shot quality vs quantity gap requires confirmed goalie matchup", 0.25))
-
-    # ------------------------------------------------------------------
-    # SOCCER
-    # ------------------------------------------------------------------
-    if s == "SOCCER" or "SOCCER" in s or s in {"EPL", "BUNDESLIGA", "SERIE_A", "LIGUE_1", "LA_LIGA"}:
-        if mkt == "h2h":
-            # Extract Poisson draw probability from signal if available
-            draw_prob_detected: Optional[float] = None
-            if "draw=" in signal:
-                try:
-                    draw_str = signal.split("draw=")[1].split("%")[0].strip()
-                    draw_prob_detected = float(draw_str) / 100.0
-                except (ValueError, IndexError):
-                    pass
-
-            if draw_prob_detected is not None:
-                if draw_prob_detected > 0.33:
-                    fired.append((
-                        f"Soccer h2h: Poisson draw={draw_prob_detected*100:.0f}% (>33%) — "
-                        f"3-way market draw risk exceeds model edge on 2-way h2h",
-                        0.41  # kill threshold
-                    ))
-                elif draw_prob_detected > 0.27:
-                    fired.append((
-                        f"Soccer h2h: Poisson draw={draw_prob_detected*100:.0f}% (elevated) — "
-                        f"draw not fully priced in 2-way moneyline",
-                        0.25
-                    ))
-            else:
-                # No Poisson signal yet — structural flag
-                fired.append(("Soccer h2h: draw probability uncalculated — Poisson cross-check pending", 0.20))
-
-        if mkt == "totals":
-            # Extract Poisson side probability from signal
-            poisson_prob_detected: Optional[float] = None
-            if "poisson" in signal:
-                try:
-                    # Parses: "Poisson Over=42% (xG 2.45)"
-                    p_str = signal.split("=")[1].split("%")[0].strip()
-                    poisson_prob_detected = float(p_str) / 100.0
-                except (ValueError, IndexError):
-                    pass
-
-            if poisson_prob_detected is not None:
-                if poisson_prob_detected < 0.30:
-                    fired.append((
-                        f"Soccer totals: Poisson side probability {poisson_prob_detected*100:.0f}% (<30%) — "
-                        f"model and Poisson diverge, xG does not support this total",
-                        0.41  # kill threshold
-                    ))
-                elif poisson_prob_detected < 0.40:
-                    fired.append((
-                        f"Soccer totals: Poisson side {poisson_prob_detected*100:.0f}% (marginal) — "
-                        f"xG weakly supports position",
-                        0.25
-                    ))
-
-    # ------------------------------------------------------------------
-    # TENNIS
-    # ------------------------------------------------------------------
-    if "TENNIS" in s:
-        if "clay" in kill_reason or "grass" in kill_reason:
-            fired.append(("Tennis: surface kill should have blocked this — verify routing", 0.30))
-        elif "clay" in signal or "grass" in signal:
-            fired.append(("Tennis surface detected in signal — confirm kill switch evaluated", 0.20))
-
-    # ------------------------------------------------------------------
-    # Aggregate result
-    # ------------------------------------------------------------------
-    if not fired:
-        return {
-            "fired_cases": [],
-            "worst_case": "No quantifiable nemesis conditions detected",
-            "worst_prob": 0.0,
-            "n_flags": 0,
-            "remove": False,
-            # V36-compat keys (display layer reads these)
-            "counter": "No quantifiable nemesis conditions detected",
-            "probability": 0.0,
-            "adjustment": 0,
-        }
-
-    worst_prob = max(p for _, p in fired)
-    worst_case = next(txt for txt, p in fired if p == worst_prob)
-
-    return {
-        "fired_cases": fired,
-        "worst_case": worst_case,
-        "worst_prob": worst_prob,
-        "n_flags": len(fired),
-        "remove": worst_prob > 0.40,
-        # V36-compat keys (display layer reads these)
-        "counter": worst_case,
-        "probability": worst_prob,
-        "adjustment": -15 if worst_prob >= 0.35 else (-10 if worst_prob >= 0.25 else -5),
-    }
-
-
-# ---------------------------------------------------------------------------
 # parse_game_markets — game dict → BetCandidate list
 # ---------------------------------------------------------------------------
 
@@ -1467,12 +1208,19 @@ def parse_game_markets(
     # Collect all books (Odds API wraps them under "bookmakers")
     all_bks = bookmakers
 
-    def _best_price_for(team: str, mkt: str) -> tuple[Optional[int], Optional[float], str]:
-        """Find best (highest) price for a team/side across all books."""
+    def _best_price_for(team: str, mkt: str, bks: Optional[list] = None) -> tuple[Optional[int], Optional[float], str]:
+        """Find best (highest) price for a team/side across all books.
+
+        Args:
+            team: Outcome name to match (e.g. "Over", "Under", or team name).
+            mkt:  Market key ("totals", "spreads", "h2h").
+            bks:  Optional pre-filtered book list. Defaults to all_bks.
+        """
+        _source = bks if bks is not None else all_bks
         best_price = None
         best_line = None
         best_book = ""
-        for book in all_bks:
+        for book in _source:
             mmap = {m["key"]: m for m in book.get("markets", [])}
             if mkt not in mmap:
                 continue
@@ -1678,31 +1426,45 @@ def parse_game_markets(
     # NFL wind: pre-compute is_nfl flag for totals + spreads blocks below
     is_nfl = sport.upper() == "NFL"
 
-    # Soccer Poisson: pre-compute 1X2 + over/under probs for soccer totals validation
-    _poisson_over_prob: Optional[float] = None
-    _poisson_under_prob: Optional[float] = None
-    if is_soccer:
-        try:
-            _h_att, _a_att, _h_def, _a_def = efficiency_gap_to_soccer_strength(efficiency_gap)
-            _pr = poisson_soccer(
-                home_attack=_h_att,
-                away_attack=_a_att,
-                home_defense=_h_def,
-                away_defense=_a_def,
-                total_line=2.5,  # default; overridden per candidate below
-                apply_home_advantage=True,
-            )
-            _poisson_over_prob = _pr.over_probability
-            _poisson_under_prob = _pr.under_probability
-        except Exception:
-            pass  # Poisson failure never blocks standard consensus path
-
     # --- Totals ---
+    # Canonical line scoping: books that quote different total lines (e.g. 6.5 vs 7.0
+    # on the same game) must NOT be mixed in a single consensus computation. Mixing them
+    # produces impossible results — both Over 7.0 and Under 6.5 can show positive edge
+    # simultaneously. Fix: find the modal (most-quoted) total line across all books,
+    # restrict ALL totals work — consensus AND best-price — to that canonical set only.
+    def _canonical_totals_books() -> tuple[Optional[float], list]:
+        """Return (modal_total_line, books_quoting_that_line) across all_bks."""
+        from collections import Counter
+        line_counts: Counter = Counter()
+        for book in all_bks:
+            for m in book.get("markets", []):
+                if m["key"] == "totals":
+                    for o in m.get("outcomes", []):
+                        pt = o.get("point")
+                        if pt is not None:
+                            line_counts[pt] += 1
+                            break  # one line per book is sufficient
+        if not line_counts:
+            return None, []
+        canonical = line_counts.most_common(1)[0][0]
+        filtered = [
+            b for b in all_bks
+            if any(
+                m["key"] == "totals"
+                and any(o.get("point") == canonical for o in m.get("outcomes", []))
+                for m in b.get("markets", [])
+            )
+        ]
+        return canonical, filtered
+
+    _canonical_line, _totals_bks = _canonical_totals_books()
     for side in ["Over", "Under"]:
-        cp, std, n_books = consensus_fair_prob("", "totals", side, bookmakers)
+        if not _totals_bks:  # no books quote a consistent canonical line
+            break
+        cp, std, n_books = consensus_fair_prob("", "totals", side, _totals_bks)
         if n_books < MIN_BOOKS:
             continue
-        best_price, best_line, best_book_name = _best_price_for(side, "totals")
+        best_price, best_line, best_book_name = _best_price_for(side, "totals", bks=_totals_bks)
         if best_price is None or not passes_collar(best_price):
             continue
         # NFL wind kill — fires before edge check so we don't waste time

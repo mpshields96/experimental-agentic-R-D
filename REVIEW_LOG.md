@@ -74,6 +74,28 @@
 
 ---
 
+### 🔴 FLAG [V37 R5] — TOTALS CONSENSUS LINE-MIXING BUG — 2026-02-25
+
+**Priority: CRITICAL — BLOCKS all live totals bets**
+
+`consensus_fair_prob()` mixes fair probabilities from books at different lines (e.g. 6.5 + 7.0), then `_best_price_for` picks best price at potentially a different line. Result: false positive edge on BOTH Over and Under simultaneously. Confirmed in live scan (EDM @ ANA: Over 7.0 AND Under 6.5 both Grade B).
+
+**Present in:** sandbox `core/math_engine.py:829-840` AND v36 `edge_calculator.py` totals block.
+
+**Fix Layer 1 (sandbox):** Modal line pinning — `consensus_fair_prob()` for totals must filter to modal line only. Full spec in SESSION LOG → V37 REVIEWER SESSION 5 above.
+
+**Fix Layer 2 (v36, done this session):** Dedup key change in `bet_ranker.py:183` — totals drop line from key so Over 7.0 + Under 6.5 deduplicate to highest-edge side.
+
+**Sandbox: address Layer 1 before next live session. Layer 2 applied to v36 by reviewer.**
+
+---
+
+### 🟡 FLAG [V37 R5] — STALE DOCSTRINGS in `is_session_hard_stop()` — 2026-02-25
+
+Sandbox `core/odds_fetcher.py:242-244` and v36 `odds_fetcher.py:105,158-159` both have inline comments referencing old constant values (1,000/500/1,000) that no longer match the actual constants. Update to reference constant names, not hardcoded numbers. Low urgency — address in next routine session.
+
+---
+
 ### ✅ SANDBOX DIRECTIVE — SPECULATIVE TIER — CLOSED (Session 27, 2026-02-25)
 
 **Status: ADDRESSED BY GRADE TIER SYSTEM** — no further action needed.
@@ -832,6 +854,224 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 ---
 
 ## SESSION LOG (most recent first)
+
+---
+
+### SANDBOX SESSION 29 — 2026-02-25 — Full Audit + Core Bug Fixes
+
+**Skills used:** `sc:analyze`, `superpowers:systematic-debugging`, `sc:spec-panel`,
+`sc:brainstorm`, `superpowers:verification-before-completion`
+
+**Summary:** Full audit of `core/math_engine.py` driven by user directive (Math > Narrative, eliminate bloat). V37 had already confirmed root causes in Reviewer Session 5 — this session implements all fixes.
+
+---
+
+#### FIXES IMPLEMENTED
+
+**1. Totals multi-line consensus bug (BLOCKER — resolved)**
+- `_canonical_totals_books()` inner helper in `parse_game_markets()`: finds modal total line, returns filtered book list
+- Both `consensus_fair_prob()` and `_best_price_for()` now receive the SAME canonical-line book set
+- `_best_price_for()` gains optional `bks` param (default=`all_bks`) to enable scoped search
+- Symptom verification: EDM @ ANA mixed-line game no longer produces simultaneous Over+Under positive edge
+- Test class added: `TestTotalsCanonicalLineFix` (4 tests)
+
+**2. RLM direction bug (HIGH — resolved)**
+- `compute_rlm()` line ~1013: `drift = abs(current_prob - open_prob)` → `drift = current_prob - open_prob`
+- Old code fired RLM on ANY movement; fix fires only when implied prob RISES (line sharpened against public)
+- Test class added: `TestRLMDirectionFix` (3 tests)
+
+**3. Dead code deleted: `run_nemesis()` (241 lines)**
+- Never called anywhere in codebase
+- Contained hardcoded probability constants (0.20, 0.25, 0.35, 0.41) — no mathematical derivation
+- The `adjustment` return field was never consumed downstream
+- Pure narrative dressed as math. Deleted entirely.
+- Removed 26 `TestRunNemesis` tests
+
+**4. Dead function deleted: `calculate_edge()`**
+- Never called — edge computed inline. Removed.
+- Removed 5 `TestCalculateEdge` tests
+
+**5. Dead Poisson precompute deleted**
+- `_poisson_over_prob` / `_poisson_under_prob` set at hardcoded `total_line=2.5`, never read
+- Per-candidate Poisson correctly fires at `best_line` using `_pr2`. Dead block removed.
+
+**6. Two dead kill switches documented (NOT wired in pipeline)**
+- `ncaab_kill_switch()` and `soccer_kill_switch()` are defined but never called in `parse_game_markets()`
+- Root cause: both require data not available from Odds API alone (3PT%, shot quality)
+- NOT deleted — may be wired in future. Left as-is; no code change.
+
+---
+
+#### TEST DELTA
+
+| | Before | After | Delta |
+|---|---|---|---|
+| TestCalculateEdge | 5 | 0 | -5 |
+| TestRunNemesis | 26 | 0 | -26 |
+| TestTotalsCanonicalLineFix | 0 | 4 | +4 |
+| TestRLMDirectionFix | 0 | 3 | +3 |
+| **Total** | **1103** | **1079** | **-24** |
+
+All 1079 pass ✅
+
+---
+
+#### AUDIT FINDINGS NOT YET ACTED ON
+
+1. **ncaab_kill_switch / soccer_kill_switch** — defined but not wired. No STUB comments added. Low urgency.
+2. **pages/01_live_lines.py comment** claims `parse_game_markets deduplicates` — no dedup logic exists. Minor documentation error.
+3. **SHARP_THRESHOLD = 45** — still correct. Requires 5 live sessions + 20 RLM fires before raise.
+
+---
+
+#### ELI5: HOW TO GENERATE SESSION REPORTS USING PLUGIN SKILLS
+
+The user asked: "ELI5 which plugin skills/commands can easily summarize changes and findings as a report."
+
+**Best options available in this sandbox:**
+
+1. **`/wrap-up`** — End-of-session checklist skill. Runs through: what was done, memory updates, CLAUDE.md updates, git commit, session log. Best for "close out this session cleanly."
+
+2. **`sc:save`** — Session lifecycle management. Saves context, updates session state, coordinates handoff. Best for "preserve this session's work for the next chat."
+
+3. **`sc:document`** — Generates focused documentation for a component or feature. Best for "write me a human-readable explanation of what `parse_game_markets` does now."
+
+4. **`sc:git`** — Intelligent commit message generation from diff. Best for "write me a good commit message that captures everything this session changed."
+
+**Recommended workflow for end-of-session report:**
+1. `/sc:git` → generates clean commit message capturing the diff
+2. `/sc:save` → persists session state to memory files
+3. `/wrap-up` → runs full end-of-session checklist
+
+---
+
+#### V37 ACTIONS REQUESTED
+
+1. Validate `_canonical_totals_books()` — does it match your Layer 1 spec? Edge cases to consider: tiebreak when two lines tie (current implementation takes `.most_common(1)[0][0]` — Python Counter tiebreak is insertion order); single-book game (handled — `len(_totals_bks) >= MIN_BOOKS` gates); all books at unique lines (picks most common = any single book — consensus falls through MIN_BOOKS check and loop is no-op).
+
+2. Verify Layer 2 dedup (your v36 fix) is still sound alongside Layer 1. They should be complementary.
+
+3. No new flags for ACTIVE FLAGS section from this session — all changes are fixes, not new additions.
+
+---
+
+### V37 REVIEWER SESSION 5 — 2026-02-25
+
+**Triggered by:** User directive — "hard audit of the betting model/ecosystem, find errors and eliminate bloat. Math > Narrative always. Literal."
+
+**Scope:** Totals consensus bug (PENDING from V37_INBOX Session 28), Session 27 cont. go-live config, full Math > Narrative compliance sweep.
+
+---
+
+#### BUG 1 — CRITICAL: Totals consensus mixes lines → false positive edge on both Over AND Under
+
+**Status: 🔴 CONFIRMED — present in BOTH v36 and sandbox**
+
+**Root cause (two independent failures):**
+
+**Failure A — `consensus_fair_prob()` mixes lines (sandbox `core/math_engine.py:829-840`, v36 `edge_calculator.py:581-650`):**
+When books hang the same total at different lines (e.g. Book A: 6.5, Book B: 7.0), the consensus loop aggregates fair probabilities across ALL books regardless of line. The no-vig prob for Over 6.5 (-150) is ~56%. The no-vig prob for Over 7.0 (+105) is ~46%. Mixed consensus = ~51%. Then `_best_price_for` picks the best Over price across ALL lines = +105 (at 7.0). Edge = 51% - 48.8% = 2.2% (Grade B) — but this is a line-mixing artifact, NOT real edge. The probability is measuring one bet; the price is measuring a different bet.
+
+**Failure B — Dedup key doesn't catch cross-line same-game conflict (v36 `bet_ranker.py:177-183`, sandbox `core/math_engine.py` rank logic):**
+`_deduplicate_markets` key = `(event_id, market_type, round(abs(bet.line), 1))`. Over 7.0 and Under 6.5 have DIFFERENT line keys (7.0 ≠ 6.5) so BOTH survive dedup. This is the direct cause of the "EDM @ ANA: Over 7.0 Grade B AND Under 6.5 Grade B simultaneously" result observed in first live scan.
+
+**Why this matters:** If both sides of a total have positive edge, the model is broken. Real edge on a total is directional — either the market is over/under-pricing the likely scoring level or it isn't. Showing both sides as value bets is mathematically impossible and will result in hedged positions with negative expected value.
+
+**Fix — two-layer defense:**
+
+**Layer 1 (correct structural fix — sandbox):** Line-pin consensus for totals. Identify the modal line (line posted by the plurality of books). Only include books posting the modal line in `consensus_fair_prob` for totals. Compare `_best_price_for` only from books at that same line.
+
+Pseudocode:
+```python
+# In parse_game_markets(), before totals loop:
+def _modal_total_line(bks: list) -> Optional[float]:
+    from collections import Counter
+    lines = []
+    for book in bks:
+        mmap = {m["key"]: m for m in book.get("markets", [])}
+        if "totals" not in mmap:
+            continue
+        for o in mmap["totals"].get("outcomes", []):
+            if o.get("point") is not None:
+                lines.append(round(o["point"], 1))
+    if not lines:
+        return None
+    return Counter(lines).most_common(1)[0][0]
+
+modal_line = _modal_total_line(bookmakers)
+
+# In consensus_fair_prob() for totals — add line filter:
+if o.get("point") is not None and round(o["point"], 1) != modal_line:
+    continue  # skip books at non-modal lines
+```
+
+Then update `_best_price_for("Over"/"Under", "totals")` to only look at outcomes where `o.get("point") == modal_line`.
+
+**Layer 2 (downstream guard — apply to v36 immediately as hotfix):** Change dedup key for totals. In v36 `bet_ranker.py _deduplicate_markets()`:
+```python
+# Change from:
+key = (bet.event_id, bet.market_type, round(abs(bet.line), 1))
+# Change to:
+if bet.market_type in ("totals", "total"):
+    key = (bet.event_id, bet.market_type)  # drop line — same game = same market
+else:
+    key = (bet.event_id, bet.market_type, round(abs(bet.line), 1))
+```
+This ensures Over 7.0 and Under 6.5 from the same game share the same dedup bucket. The higher-edge side wins. This is the minimum viable fix for v36 before next live scan.
+
+**Files to fix:**
+- Sandbox: `core/math_engine.py` — `consensus_fair_prob()` totals block (line 829) + `_best_price_for` call in `parse_game_markets()` (line 1705) + modal line filter
+- v36 immediate hotfix: `bet_ranker.py:183` — dedup key for totals markets
+
+**Tests required:** `TestTotalsLinePinning` in sandbox, `TestTotalsDedupCrossLine` in both. At minimum: fixture with two books at different lines → verify only one side (higher edge) returns.
+
+---
+
+#### BUG 2 — MINOR: Stale docstring values in `is_session_hard_stop()` docstrings
+
+**Status: 🟡 MINOR — incorrect but non-functional**
+
+- Sandbox `core/odds_fetcher.py:242-244`: docstring says `DAILY_CREDIT_CAP (1,000)`, `SESSION_CREDIT_HARD_STOP (500)`, `BILLING_RESERVE (1,000)` — actual values are 300, 200, 150.
+- v36 `odds_fetcher.py:105,158-159`: docstring says `DAILY_CREDIT_CAP (1,000)`, `SESSION_CREDIT_HARD_STOP (500)`, `BILLING_RESERVE (1,000)` — actual values are 100, 80, 50.
+These are confusing for future sessions. Update the docstrings to reference constants by name, not hardcoded values.
+
+---
+
+#### SESSION 27 CONT. GO-LIVE CONFIG — REVIEWED
+
+**Status:** APPROVED with note.
+
+- `DAILY_CREDIT_CAP=300` (sandbox), 100 (v36 drought) — both under user's 1,000/day hard cap. ✅
+- `BILLING_RESERVE=150` (sandbox), 50 (v36 temp) — low due to drought, intentional. v36 must restore to 1,000 on 2026-03-01. ✅
+- Calibration gate 30→10 bets (sandbox only) — sandbox-only change. 4 bets logged, 6 more to unlock analytics. Reasonable for data bootstrapping. Not a Math > Narrative issue. ✅
+- Comment "User can create additional free-tier Odds API accounts" — informal note, no architectural impact. ✅
+
+**Note for v36 on 2026-03-01:** Restore v36 `odds_fetcher.py` constants: `DAILY_CREDIT_CAP=100` stays as-is (user permanent rule), `BILLING_RESERVE=1_000`. Also update stale docstrings at lines 105, 158-159.
+
+---
+
+#### MATH > NARRATIVE COMPLIANCE SWEEP — FULL SCAN
+
+**Result: ✅ CLEAN — no narrative inputs found in scoring or kill functions**
+
+- `calculate_sharp_score()`: inputs = edge_pct, rlm_confirmed, efficiency_gap, rest_edge, injury_leverage. All math-derived. ✅
+- Grade tier `assign_grade()`: input = edge_pct only. Pure math. ✅
+- Kill switches: NBA rest (schedule-derived days), NFL wind (weather API mph), NCAAB 3P reliance (stat %), NHL goalie (confirmed starter bool), Soccer drift (price shift %). All math. ✅
+- Nemesis: display-only annotation, confirmed no score mutation. ✅
+- `B2B fatigue` label in nba_kill_switch docstring: this is a LABEL in a flag string, not a scoring input. The kill condition is `days == 0 AND is_road` — pure math. The word "fatigue" in the flag message is descriptive, not a scoring input. ✅ (no action)
+
+**One concern logged (not a veto, user-sanctioned):** Grade B at ≥1.5% edge is a real-money reduced-stake bet. Edge detection accuracy at 1.5% has not been validated (v36 Session 13 validated the 3.5% floor with ~7.8% real edge requirement). Grade B bets at $50 are user-sanctioned for data collection, but users should know the model's edge detection confidence is untested below 3.5%. This is logged for user awareness, not a rule violation.
+
+---
+
+#### ACTIONS REQUIRED
+
+**Sandbox (Session 28 or next session):**
+1. ⚡ CRITICAL: Fix `consensus_fair_prob()` totals to use modal line pinning (Layer 1 fix above). Add `TestTotalsLinePinning` tests. This is a BLOCKER for live totals bets.
+2. 🟡 Update stale docstring values in `core/odds_fetcher.py` `is_session_hard_stop()` to reference constant names, not hardcoded numbers.
+
+**V37 (this session — immediate hotfix):**
+1. ⚡ Fix `_deduplicate_markets()` in `bet_ranker.py:183` — change totals dedup key to drop line. Applied directly to v36 now.
 
 ---
 
