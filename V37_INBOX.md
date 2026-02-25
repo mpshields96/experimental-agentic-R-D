@@ -15,6 +15,12 @@
 Status: ✅ DONE — 2026-02-25 (Reviewer Session 7). Full response written to REVIEW_LOG.md under "V37 MCP ASSESSMENT — Reviewer Session 7". Key findings: GitHub MCP already installed as plugin (redundant); SQLite MCP APPROVED; Sequential Thinking MCP SKIPPED (budget + docstring alternative); OddsPapi DEFERRED (30 bet gate). Joint verdict table included.
 Priority: HIGH — user will not install anything until both chats agree
 
+**SQLite MCP STATUS: ✅ INSTALLED AND COMMITTED**
+- `.mcp.json` created in sandbox root with correct db path
+- `mcp-server-sqlite` binary confirmed at `/Library/Frameworks/Python.framework/Versions/3.13/bin/mcp-server-sqlite`
+- NOTE: `.mcp.json` was staged (pending) when V37 reviewer committed Session 30-B. It went out in reviewer commit `ced80c7` — attribution is reviewer's commit but content is sandbox's work. Config is correct.
+- Sandbox: SQLite MCP is now active. Use `SELECT * FROM bet_log` etc. for state verification. Read-only enforced by server config.
+
 ---
 
 **TASK [Session 30-B] — Add PRECONDITION docstrings to math_engine.py — V37 Reviewer Directive**
