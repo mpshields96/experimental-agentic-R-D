@@ -955,6 +955,48 @@ The user asked: "ELI5 which plugin skills/commands can easily summarize changes 
 
 ---
 
+### V37 AUDIT — Sandbox Session 29 — 2026-02-25
+
+**Status:** APPROVED — all fixes verified. Math > Narrative sweep: CLEAN. Dead code eliminated. No new flags.
+
+**What was built / changed:**
+- `core/math_engine.py`: `_canonical_totals_books()` inner helper in `parse_game_markets()` — finds modal total line via Counter, returns filtered book list. Both `consensus_fair_prob()` and `_best_price_for()` now receive the SAME canonical-line scoped book set (Layer 1 fix for totals multi-line consensus bug).
+- `core/math_engine.py`: `compute_rlm()` direction fix — `drift = abs(current_prob - open_prob)` → `drift = current_prob - open_prob` (signed). RLM now only fires when implied prob RISES (line sharpened against public). Was incorrectly firing on any movement.
+- `run_nemesis()` (241 lines) **DELETED** — confirmed never called in sandbox pipeline. Contained hardcoded narrative probability constants (0.20, 0.25, 0.35, 0.41) with no mathematical derivation. `adjustment` return field never consumed downstream. Pure narrative dressed as math. Correct deletion.
+- `calculate_edge()` **DELETED** — confirmed never called in production pipeline. Edge computed inline at call sites. Correct deletion.
+- Dead Poisson precompute (`_poisson_over_prob` / `_poisson_under_prob` at hardcoded `total_line=2.5`) **DELETED** — constants computed but never read. Per-candidate Poisson correctly fires at `best_line` using `_pr2`.
+- 4 `TestTotalsCanonicalLineFix` tests added, 3 `TestRLMDirectionFix` tests added.
+- 26 `TestRunNemesis` + 5 `TestCalculateEdge` tests removed (dead code coverage eliminated).
+
+**Math > Narrative check:** ✅ CLEAN.
+- All deletions were narrative-dressed-as-math (hardcoded probability constants with no derivation; function never called).
+- All additions are structural math: modal line detection via Counter (most-frequent-line statistical measure), signed drift for RLM (direction-aware mathematical condition).
+- No narrative inputs exist in scoring functions, kill switches, or grade tiers. Full sweep: CLEAN.
+
+**Layer 1 vs Layer 2 complementarity verified:** ✅ Sound. Session 29 Layer 1 (modal line pinning) prevents false edge generation upstream in `parse_game_markets()`. V37 R5 Layer 2 (totals dedup key drop) prevents impossible dual-side output downstream in `_deduplicate_markets()`. Independent fixes, both necessary, neither redundant. Together: full defense-in-depth.
+
+**RLM direction fix — v36 cross-check:** v36 `compute_rlm()` in `odds_fetcher.py` uses `shift = curr_away_prob - open_away_prob` (signed, not abs) — already correct. No bug exists in v36. Session 29 fix brings sandbox to parity with v36.
+
+**Dead code divergence — v36 vs sandbox (documented, not blocking):**
+- `run_nemesis()`: v36 RETAINS as display-only annotation (called at `bet_ranker.py:150` — Session 12 decision). Sandbox correctly deleted (was never called in sandbox). Not a conflict — different architectural states.
+- `calculate_edge()`: v36 has function but only in `tests/test_edge_calculator.py` (not production pipeline). Flagged for user decision — delete or keep as test utility. Not a blocker.
+
+**Edge case — Counter tiebreak for equal-count total lines:** When two lines appear an equal number of times, Python Counter returns the first-inserted. This is non-deterministic across Python versions but deterministic within a run. Only affects games where two lines are exactly tied in book count — uncommon. No action required; acceptable minor behavior.
+
+**Rules intact:** ✅ SHARP_THRESHOLD=45 unchanged. Collar unchanged. Kelly caps unchanged. No new external packages. No new unofficial APIs.
+
+**Import discipline:** ✅ Net complexity reduced — 300+ lines deleted, no new imports added.
+
+**Test delta:** 1103 → 1079 (−24). Verified: −5 TestCalculateEdge, −26 TestRunNemesis, +4 TestTotalsCanonicalLineFix, +3 TestRLMDirectionFix = net −24. ✅ All 1079/1079 pass.
+
+**Outstanding (from Session 29's own findings, not reviewer-raised):**
+- `ncaab_kill_switch()` + `soccer_kill_switch()` defined but not wired — intentional, data not available from Odds API alone. No action needed.
+- `pages/01_live_lines.py` comment claims "parse_game_markets deduplicates" — minor stale documentation. Low priority.
+
+**Action required:** None. Sandbox may proceed. Layer 1 fix validated.
+
+---
+
 ### V37 REVIEWER SESSION 5 — 2026-02-25
 
 **Triggered by:** User directive — "hard audit of the betting model/ecosystem, find errors and eliminate bloat. Math > Narrative always. Literal."

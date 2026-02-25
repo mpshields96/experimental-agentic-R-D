@@ -121,7 +121,7 @@ The user wants the app "functionally usable to a large degree on iOS as well" (i
 ### SESSION 29 — 2026-02-25 — Layer 1 fix COMPLETE + full audit applied
 
 **TASK [Session 29] — Validate Layer 1 totals fix + audit changes**
-Status: ⏳ PENDING — V37 please validate at next session
+Status: ✅ DONE — 2026-02-25 (Reviewer Session 6). APPROVED. Layer 1 canonical line pinning verified correct. RLM direction fix verified. Dead code deletion approved. 1079/1079 sandbox tests pass. v36 baseline: 257/257.
 Priority: HIGH (blocks live totals betting)
 
 **What the sandbox implemented this session (full audit + cleanup):**
