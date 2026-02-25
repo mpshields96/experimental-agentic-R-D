@@ -7,8 +7,8 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 25 cont. (2nd half) — 2026-02-25 00:30 UTC
-# Session work: export_bets + grade_bet + inactivity auto-stop (P0) + 5 tests + 21/21 stress tests
+# Last updated: Session 27 cont. — 2026-02-25
+# Session work: Grade tier pipeline (A/B/C/NM) + go-live config + grade DB column + UI directive
 # Maintained by: sandbox builder chat
 
 ---
@@ -523,6 +523,12 @@ Fonts:        IBM Plex Mono (monospace) + IBM Plex Sans (body) — never substit
 38. Playwright browser issue: fails when Chrome is already running (extension or user session). "Opening in existing browser session" error, process exits 0. Fix: quit Chrome fully (Cmd+Q) BEFORE running Playwright tests. Code-level stress tests are more reliable anyway — see scripts/stress_test pattern.
 39. BILLING_RESERVE=1000 blocks test keys with <1000 credits on 2nd fetch in same Python process. Workaround: run each sport in a separate process (each starts with `quota.remaining=None`, first fetch always proceeds).
 40. export_bets.py: edge_pct stored as decimal in SQLite (0.172 = 17.2%). Export multiplies by 100 for display. Check: `if edge_raw <= 1.0: edge_pct_display = edge_raw * 100`. Same for clv, kelly_size.
+41. Grade tier system (Session 27): assign_grade() in math_engine.py (NOT UI layer). Grade A(≥3.5%)/B(≥1.5%)/C(≥0.5%)/NEAR_MISS(≥-1%). Kelly scales: B=0.12×, C=0.05×. Log Bet passes grade= to log_bet(). `grade` is a proper DB column in bet_log — queryable for analytics.
+42. Calibration gate lowered: MIN_RESOLVED=10, MIN_BETS_FOR_CALIBRATION=10 (was 30). Analytics unlocks after 10 resolved bets. Currently: 4 logged, 0 resolved.
+43. Credit limits (production-conservative): DAILY_CREDIT_CAP=300, SESSION_SOFT=120, SESSION_HARD=200, BILLING_RESERVE=150. Full 12-sport scan ≈ 15-20 credits. 300/day = ~15+ scans.
+44. V37 SPECULATIVE directive CLOSED: superseded by Grade tier. V37's SPECULATIVE_0.25U (score-based 40-44) is less precise than Grade B (edge-based ≥1.5%). No action needed.
+45. UI directive (permanent, Session 27): Modern Apple aesthetic — visionOS/Sequoia style. Translucent, clean geometry, generous whitespace, precise typography. Function > aesthetics (both matter). Every new page via frontend-design skill. IBM Plex Mono/Sans remain standard.
+46. Form parity rule (RESOLVED Session 27): log_bet() grade= param added → 04_bet_tracker.py grade selectbox added same session. Form always matches backend. Rule 28 now satisfied.
 
 ---
 

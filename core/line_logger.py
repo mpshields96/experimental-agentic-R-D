@@ -54,6 +54,7 @@ Schema: bet_log table (Tab 4 — Bet Tracker)
   days_to_game REAL DEFAULT 0.0     -- timing metric (days before game start)
   line        REAL DEFAULT 0.0       -- spread/total line value (e.g. -4.5, 221.0)
   signal      TEXT DEFAULT ''        -- model signal label (e.g. "B2B_EDGE")
+  grade       TEXT DEFAULT ''        -- confidence tier: "A", "B", "C", "NEAR_MISS"
 
 DO NOT add API calls or Streamlit calls to this file.
 """
@@ -150,6 +151,7 @@ _BET_LOG_MIGRATIONS = [
     "ALTER TABLE bet_log ADD COLUMN days_to_game REAL DEFAULT 0.0",
     "ALTER TABLE bet_log ADD COLUMN line REAL DEFAULT 0.0",
     "ALTER TABLE bet_log ADD COLUMN signal TEXT DEFAULT ''",
+    "ALTER TABLE bet_log ADD COLUMN grade TEXT DEFAULT ''",
 ]
 
 
@@ -630,6 +632,7 @@ def log_bet(
     days_to_game: float = 0.0,
     line: float = 0.0,
     signal: str = "",
+    grade: str = "",
     db_path: Optional[str] = None,
 ) -> int:
     """
@@ -649,6 +652,7 @@ def log_bet(
         days_to_game: Days before game start (timing metric).
         line:         Spread/total line value (e.g. -4.5, 221.0).
         signal:       Model signal label (e.g. "B2B_EDGE", "RLM_CONFIRMED").
+        grade:        Confidence tier from assign_grade(): "A", "B", "C", or "NEAR_MISS".
         db_path:      Optional DB path override.
 
     Returns:
@@ -662,12 +666,12 @@ def log_bet(
             INSERT INTO bet_log
                 (logged_at, sport, matchup, market_type, target,
                  price, edge_pct, kelly_size, stake, notes,
-                 sharp_score, rlm_fired, tags, book, days_to_game, line, signal)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 sharp_score, rlm_fired, tags, book, days_to_game, line, signal, grade)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (now, sport, matchup, market_type, target,
              price, edge_pct, kelly_size, stake, notes,
-             sharp_score, int(rlm_fired), tags, book, days_to_game, line, signal),
+             sharp_score, int(rlm_fired), tags, book, days_to_game, line, signal, grade),
         )
         conn.commit()
         return cursor.lastrowid

@@ -472,6 +472,41 @@ class TestGetPnlSummary:
         assert summary["total_profit"] < 0  # slight net loss at -110 1W1L
 
 
+class TestGradeColumn:
+    """grade field stored and retrieved correctly."""
+
+    def test_grade_a_stored(self, tmp_path):
+        db_path = str(tmp_path / "grade_a.db")
+        init_db(db_path)
+        bet_id = log_bet("NBA", "A @ B", "spread", "A -3.5", -110, 0.04, 0.02,
+                         grade="A", db_path=db_path)
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["grade"] == "A"
+
+    def test_grade_b_stored(self, tmp_path):
+        db_path = str(tmp_path / "grade_b.db")
+        init_db(db_path)
+        log_bet("NBA", "A @ B", "h2h", "A ML", -115, 0.02, 0.01,
+                grade="B", db_path=db_path)
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["grade"] == "B"
+
+    def test_grade_default_empty(self, tmp_path):
+        """Backward compat — existing callers that omit grade get empty string."""
+        db_path = str(tmp_path / "grade_default.db")
+        init_db(db_path)
+        log_bet("NBA", "A @ B", "spread", "A -3.5", -110, 0.04, 0.02,
+                db_path=db_path)  # no grade kwarg
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["grade"] == ""
+
+    def test_grade_migration_idempotent(self, tmp_path):
+        """init_db() can be called twice without error (migration is idempotent)."""
+        db_path = str(tmp_path / "grade_migr.db")
+        init_db(db_path)
+        init_db(db_path)  # second call should not raise
+
+
 if __name__ == "__main__":
     import subprocess
     result = subprocess.run(

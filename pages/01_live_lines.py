@@ -809,7 +809,10 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
                             edge_pct=bet.edge_pct,
                             kelly_size=bet.kelly_size,
                             stake=default_stake,
-                            notes=f"sharp={bet.sharp_score:.0f} grade={bet.grade}",
+                            notes=f"sharp={bet.sharp_score:.0f}",
+                            sharp_score=int(bet.sharp_score),
+                            signal=bet.signal or "",
+                            grade=bet.grade,
                             db_path=DB_PATH,
                         )
                         st.success(f"Logged as bet #{bet_id} → go to Bet Tracker to grade")

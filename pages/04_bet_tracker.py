@@ -300,7 +300,15 @@ with log_col:
             tags_input = st.text_input(
                 "Tags (comma-sep)", value="", key="bt_tags",
                 placeholder="nba,home_dog",
-                help="Comma-separated labels for filtering analytics. Examples: nba,home_dog,rlm or nfl,totals,wind. Tag freely — used for slice-and-dice once 30 bets logged.",
+                help="Comma-separated labels for filtering analytics. Examples: nba,home_dog,rlm or nfl,totals,wind. Tag freely — used for slice-and-dice once 10 bets logged.",
+            )
+
+        b1, b2 = st.columns(2)
+        with b1:
+            grade_input = st.selectbox(
+                "Grade", ["", "A", "B", "C"],
+                key="bt_grade",
+                help="Confidence tier from Live Lines. A=≥3.5% edge (full stake), B=≥1.5% (reduced stake), C=≥0.5% (tracking only). Auto-filled when logging from Live Lines.",
             )
 
         submitted = st.form_submit_button("Log Bet", use_container_width=True, type="primary")
@@ -328,6 +336,7 @@ with log_col:
                         days_to_game=float(days_to_game_input),
                         line=float(line_input),
                         signal=signal_input.strip(),
+                        grade=grade_input,
                         db_path=DB_PATH,
                     )
                     st.success(f"Bet #{bet_id} logged.")
