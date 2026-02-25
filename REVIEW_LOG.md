@@ -127,6 +127,82 @@ Current metrics from 10 log entries (all 2026-02-19):
 - V37 will re-check on 2026-03-04 and report final gate decision to REVIEW_LOG.md.
 - NOTE: Log is stale — last entry was 5 days ago. If the R&D scheduler is no longer running, new entries won't accumulate. User may need to confirm R&D scheduler is active for the gate to be meaningful.
 
+**FLAG [Session 25 UI] — NFL Backup QB listed as LIVE kill switch — NOT WIRED**
+`SYSTEM_GUIDE.md` + `00_guide.py` both list "NFL Backup QB → KILL" as LIVE. `backup_qb` param exists in math_engine.py but is never set from real data — always False. Remove or mark STUB.
+
+**FLAG [Session 25 UI] — STANDARD tier threshold wrong in guide**
+Guide says STANDARD = ≥60 (SYSTEM_GUIDE.md) or ≥54–60 (00_guide.py). Actual implementation: STANDARD = ≥80. Fix both files.
+
+---
+
+### V37 SECURITY & LIVE TEST ADVISORY — 2026-02-24
+*(Written ahead of Session 26 live test + "break it" exercise. User directive: stress test the app, find abuse vectors, confirm pipeline finds real bets.)*
+
+#### 🔴 HIGH PRIORITY — Fix before sharing URL with anyone
+
+**1. No authentication gate**
+The Streamlit Cloud URL is public. Anyone who has it can open the app, click EXECUTE SCAN, and burn Odds API quota at will. Currently there is zero rate limiting or auth.
+- Immediate mitigation: Add Streamlit's built-in password protection (`[passwords]` in `.streamlit/secrets.toml`). One line of config, stops casual abuse.
+- Longer-term: Move EXECUTE SCAN behind a session flag so it can only run once per session refresh. A double-click or rapid re-click currently fires multiple pipeline runs.
+- Note: This is the biggest real-world risk right now. Quota is finite.
+
+**2. API key exposure path via Streamlit error pages**
+If `odds_fetcher.py` raises an unhandled exception (network error, 422 from API), Streamlit renders a full traceback in the UI by default. If the key is embedded in the exception message (e.g. `requests.exceptions.HTTPError: 401 for url: https://api.the-odds-api.com/?apiKey=XXXX`), it leaks publicly.
+- Fix: Wrap all `_get()` calls in try/except that raises a clean user-facing error (`st.error("API unavailable — try again shortly")`) instead of propagating the raw exception.
+- Check: Search for bare `raise` or unhandled `requests.exceptions` in `core/odds_fetcher.py`.
+
+**3. EXECUTE SCAN has no debounce / rate limit**
+`st.button("EXECUTE SCAN")` fires synchronously on every click. Rapid clicking = multiple simultaneous pipeline runs = quota burn + potential race condition on session_state writes (`st.session_state["results"]` and `st.session_state["raw_games"]` written by each).
+- Fix: Set `st.session_state["scan_running"] = True` at scan start, `False` at end. Disable the button while running: `st.button("EXECUTE SCAN", disabled=st.session_state.get("scan_running", False))`.
+
+#### 🟡 MEDIUM PRIORITY — Fix before wider use
+
+**4. Log Bet form: no input validation on numeric fields**
+`price` (American odds), `edge`, `stake` fields — if a user enters a string, an extreme number, or negative stake, `log_bet()` will silently write corrupt data to the DB. This poisons the analytics page.
+- Fix: Add validation before the `log_bet()` call:
+  - Price must be -2000 to +10000 (sane American odds range)
+  - Edge must be 0.0–100.0
+  - Stake must be > 0
+  - Kelly size must be 0.0–5.0
+- These are minimal sanity guards, not complex validators.
+
+**5. SQLite DB path is relative — breaks on working directory change**
+If `line_logger.py` uses a relative path for the SQLite DB (e.g. `"titanium.db"`), the DB location depends on where Streamlit is launched from. Running from a different directory creates a second empty DB, silently losing all bet history.
+- Fix: Use `pathlib.Path(__file__).parent / "titanium.db"` so the DB path is always relative to the module file, not the launch directory.
+- Check: `grep -n "sqlite3.connect\|titanium.db" core/line_logger.py`
+
+**6. Bet Tracker "Grade Bet" can be called on already-graded bets**
+If the grade form doesn't filter out already-resolved bets, a user can re-grade a bet and double-count profit/loss in P&L. Check that `get_bets(status="pending")` is used (not all bets) when populating the grade selectbox.
+
+**7. Analytics page: no handling for NaN/None in profit/stake fields**
+If old bet rows have `profit=None` or `stake=None` (e.g. pre-schema rows), `_roi()` and `_win_rate()` in `core/analytics.py` will fail with TypeError or ZeroDivisionError on `.get("profit", 0.0)` if the value is explicitly NULL vs absent.
+- Fix: Change `b.get("profit", 0.0) or 0.0` (handles None explicitly). Same for stake.
+
+#### 🟢 LOW PRIORITY — Nice to have
+
+**8. Guide page: no "last updated" timestamp**
+`SYSTEM_GUIDE.md` and `00_guide.py` will go stale as the system evolves. Add a `Last updated: Session N` line so users (and the reviewer) can tell if the docs are behind.
+
+**9. Kill switch reference in guide: add STUB/GATE labels**
+Currently all rows show "LIVE" or "COLLAR". Add a third status: "STUB (gate: [date])" for kill switches that are implemented but not yet wired to real data (Backup QB, MLB). This sets honest expectations without removing the row entirely.
+
+**10. Missing collar collar explanation for soccer 3-way**
+`00_guide.py` kill switch table mentions soccer but doesn't call out the wider collar (-250/+400) that applies to 3-way markets vs standard 2-way (-180/+150). Worth one line in the guide so users aren't confused when a soccer moneyline at -200 passes while a basketball ML at -200 gets rejected.
+
+---
+
+#### Live test checklist (for sandbox to run against the real app):
+
+- [ ] Click EXECUTE SCAN twice rapidly — does session state corrupt?
+- [ ] Enter a non-numeric value in the Price field of Log Bet — does it crash or validate?
+- [ ] Enter stake=-100 — does it write to DB or reject?
+- [ ] Open app in two browser tabs simultaneously, run scan in both — any race condition?
+- [ ] Force a network error (disconnect wifi mid-scan) — does the app show a clean error or leak stack trace?
+- [ ] Check that DB is created in the right location regardless of launch directory
+- [ ] Confirm EXECUTE SCAN button shows a spinner/disabled state while running
+
+---
+
 **No other active flags.**
 
 ---
@@ -228,6 +304,63 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 ---
 
 ## SESSION LOG (most recent first)
+
+---
+
+### V37 SUPPLEMENTAL AUDIT — Session 25 UI Extension — 2026-02-24
+*(Covers commits: 6702b55 onboarding guide + ELI5 doc + form tooltips)*
+
+**Status:** APPROVED WITH TWO REQUIRED FIXES before release
+
+**What was built:**
+- `pages/00_guide.py` (NEW) — Live session quick-start guide, loads first in nav
+- `SYSTEM_GUIDE.md` (NEW) — Plain-language ELI5/FAQ, readable on GitHub
+- `pages/04_bet_tracker.py` — help= tooltips on all 7 analytics metadata fields
+
+**Math > Narrative check:** ✅ Guide explains pipeline mechanically. CLV, PDO, RLM, calibration gate all explained with math, not narrative. "Kill switches do not negotiate" is correct framing.
+
+**Form tooltips:** ✅ All 7 analytics metadata fields have contextual help text. Correct.
+
+**FLAG 1 — HIGH (FIX REQUIRED before user reads this):**
+`SYSTEM_GUIDE.md` kill switch table row: `NFL | Backup QB | Win probability models trained on starters are invalid`
+`00_guide.py` kill switch reference: `NFL: ... Backup QB → KILL` — marked **LIVE**
+
+**This is wrong.** `backup_qb` parameter exists in `core/math_engine.py:439` but is NEVER populated with real data anywhere in the pipeline. `nfl_kill_switch(backup_qb=...)` is called with `backup_qb=False` by default because no NFL roster/injury feed exists. The kill switch will NEVER fire on backup QB situations. Telling the user they're protected when they're not is a real-money risk.
+
+Fix: Change the NFL kill switch row to remove "Backup QB" entirely, OR mark it `STUB` with a note: "Not yet wired to a live data source — does not fire." Do NOT mark it LIVE.
+
+**FLAG 2 — HIGH (FIX REQUIRED — wrong Kelly sizing expectations):**
+`00_guide.py:405`: STANDARD grade shows `Sharp Score ≥ 54–60`
+`SYSTEM_GUIDE.md`: STANDARD tier listed as `60–89`
+
+**Both are wrong.** Actual implementation (`core/math_engine.py:363–380`):
+```
+>= 90 → NUCLEAR_2.0U
+>= 80 → STANDARD_1.0U
+else  → LEAN_0.5U  (floor: 45)
+```
+STANDARD threshold is **80, not 60**. A user reading the guide will expect score 65 = STANDARD (1.0u) but the system outputs LEAN (0.5u). Kelly sizing mismatch. The "54–60" in the page appears to be a confusion with win_prob Kelly caps (0.54 for 1.0u, 0.60 for 2.0u) — those are different systems.
+
+Fix: SYSTEM_GUIDE.md: change `60–89` → `80–89`. `00_guide.py`: change `Sharp Score ≥ 54–60` → `Sharp Score ≥ 80`.
+
+**All other content verified correct:**
+- ELI5 pipeline diagram: ✅ accurate
+- Edge example: ✅ mathematically correct (consensus vig-free prob vs best price)
+- Collar explanation: ✅ correct (-180/+150, soccer -250/+400)
+- Kill switch table (except NFL Backup QB): ✅ NBA B2B + PDO, NFL wind, NHL goalie, Tennis surface, Soccer dead rubber + drift, NCAAB 3PT all LIVE correctly
+- Sharp score components table: ✅ 40+25+20+15=100, correct weights
+- NUCLEAR description: ✅ "requires RLM confirmation + injury boost"
+- RLM explanation: ✅ second poll cycle, correct
+- CLV formula: ✅ correct
+- Calibration gate: ✅ 30 bets, correct rationale
+- PDO explanation: ✅ >102 REGRESS, <98 RECOVER — correct
+- Trinity simulation note: ✅ correctly states "mean input must always be efficiency gap, never raw market spread" — aligns with known v36 bug (bug is that v36 passes raw spread, the guide correctly explains what it should be)
+- api-tennis.com note: ✅ correctly states PERMANENTLY banned
+
+**Action required:**
+1. Fix NFL Backup QB in SYSTEM_GUIDE.md and 00_guide.py — remove or mark STUB
+2. Fix STANDARD tier threshold in SYSTEM_GUIDE.md (60→80) and 00_guide.py (54–60 → 80)
+Both are doc-only fixes, no code changes.
 
 ---
 

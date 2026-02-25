@@ -417,12 +417,14 @@ with st.sidebar:
 # Multi-page navigation — programmatic (st.navigation, Streamlit 1.36+)
 # ---------------------------------------------------------------------------
 pages = [
+    st.Page("pages/00_guide.py",          title="Guide",         icon="📖"),
     st.Page("pages/01_live_lines.py",     title="Live Lines",    icon="🔴", default=True),
     st.Page("pages/02_analysis.py",       title="Analysis",      icon="📊"),
     st.Page("pages/03_line_history.py",   title="Line History",  icon="📈"),
     st.Page("pages/04_bet_tracker.py",    title="Bet Tracker",   icon="📋"),
     st.Page("pages/05_rd_output.py",      title="R&D Output",    icon="🔬"),
     st.Page("pages/06_simulator.py",      title="Simulator",     icon="🎲"),
+    st.Page("pages/07_analytics.py",      title="Analytics",     icon="📈"),
 ]
 
 pg = st.navigation(pages)

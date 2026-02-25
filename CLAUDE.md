@@ -387,7 +387,7 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 
 | Gate | Current State | Action when met |
 |---|---|---|
-| SHARP_THRESHOLD raise | 0/5 RLM fires | MANUALLY change 45→50 in math_engine.py |
+| SHARP_THRESHOLD raise | 0/5 live sessions | MANUALLY change 45→50 in math_engine.py after ~5 real live betting sessions |
 | Pinnacle origination | pinnacle_present=False | Add to PREFERRED_BOOKS when consistently True |
 | CLV verdict | 0/30 graded bets | Check clv_summary() verdict |
 | NHL kill switch | ✅ COMPLETE (Session 13) | nhl_data.py + nhl_kill_switch() + scheduler wired |
@@ -495,7 +495,7 @@ KILL SWITCHES ACTIVE (unchanged):
   MLB: DEFERRED Apr 1, 2026 | NCAAF: off-season gate
 
 SYSTEM GATES:
-  RLM fire count:  0 / 5   → do NOT raise SHARP_THRESHOLD yet
+  RLM fire count:  0 / 5 sessions → do NOT raise SHARP_THRESHOLD yet (code tracks 20 RLM events in sidebar)
   Graded bets:     0 / 30  → analytics sample guards active; CLV verdict deferred
   CLV pipeline:    ready — Log Bet form captures all 7 analytics metadata fields
 
