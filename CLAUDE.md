@@ -117,8 +117,11 @@ Git strategy:
 4. Read MASTER_ROADMAP.md Section 9 — today's priority checklist
 5. Run: `python3 -m pytest tests/ -q` — confirm test count and all passing
 6. Run: `git status` — confirm clean sandbox
-7. State session objective in SESSION_LOG.md
-8. Begin work
+7. **Verify NEXT SESSION TARGETS are still pending** — sandbox may have already implemented them.
+   `grep -n` for the target's key function in PROJECT_INDEX.md before planning the build.
+   Session 25 lesson: originator_engine Trinity "fix" was already complete in sandbox — saved a full build cycle.
+8. State session objective in SESSION_LOG.md
+9. Begin work
 
 Do NOT read individual source files unless debugging requires it —
 PROJECT_INDEX.md has the full public API surface.
@@ -138,7 +141,9 @@ PROJECT_INDEX.md has the full public API surface.
 9. **Append session summary to REVIEW_LOG.md** (V37 reviewer reads this — template in REVIEW_LOG.md)
 10. Run `Skill: claude-md-management:revise-claude-md` — update CLAUDE.md with session learnings
 11. Run `Skill: sc:save` — persist session context
-12. Report to human: what was built, test count, next recommended goal
+12. Write pending V37 tasks to V37_INBOX.md (even if only "no new tasks — see REVIEW_LOG.md")
+13. Update `memory/ORIGINAL_PROMPT.md` — LAST THING: update "Latest commit" to final pushed hash
+14. Report to human: what was built, test count, next recommended goal
 
 ---
 
@@ -429,6 +434,7 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 34. **Streamlit help= tooltip**: Any Streamlit widget (number_input, selectbox, checkbox, text_input) accepts `help="..."` → shows a hover tooltip. Use on ALL non-obvious form fields, especially analytics metadata inputs — prevents user confusion without bloating the UI.
 35. **External docs at repo root**: SYSTEM_GUIDE.md pattern — ELI5/FAQ/checklist documents at repo root are readable on GitHub without the app running. Create one for any workflow a non-technical user might need outside a live session.
 36. **UX principle (user permanent directive)**: "UI should be magnificently visually appealing but the ease and logic and functionality is the stronger highlight." Function > aesthetics. Both matter. `pages/00_guide.py` = reference template for amber/dark terminal onboarding style.
+37. **Live-mode prep is proactive**: When user says "going live", "live bets", "testing for real" — immediately verify: (a) 00_guide.py exists, (b) Log Bet form has all fields + tooltips, (c) SYSTEM_GUIDE.md is current, (d) app is running. Do NOT wait to be asked.
 
 ---
 
@@ -468,14 +474,14 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ```
 Test suite:   1062/1062 passing
-Last commit:  6702b55 (Session 25: onboarding guide + ELI5 doc + form tooltips) — PUSHED ✅
+Last commit:  ebfe05f (Session 25 final: ORIGINAL_PROMPT commit hash fix) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App port:     8504 (confirmed — do NOT use 8501/8502/8503)
 
 BUILT (Sessions 1-25 complete):
   18 core modules, 7 pages, 12 active sports
-  Session 25: analytics.py (source-agnostic), 07_analytics.py Phase 1,
-              bet_log schema migration (7 new columns), Log Bet form updated
+  Session 25: analytics.py, 07_analytics.py Phase 1, bet_log schema migration
+              (7 new cols), Log Bet form, 00_guide.py onboarding, SYSTEM_GUIDE.md
   Prior: RLM 2.0, CLV, NHL kill switch, PDO, KOTC, calibration, equity curve,
          parlay builder, injury data, weather feed, originator engine, etc.
 
