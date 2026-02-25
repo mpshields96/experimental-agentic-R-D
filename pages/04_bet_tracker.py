@@ -258,10 +258,12 @@ with log_col:
             sharp_score_input = st.number_input(
                 "Sharp Score (0-100)", value=0, step=1,
                 min_value=0, max_value=100, key="bt_sharp_score",
+                help="Copy from the candidate card. 45–59 = LEAN, 60–89 = STANDARD, 90+ = NUCLEAR. Powers ROI correlation chart in Analytics.",
             )
         with a2:
             line_input = st.number_input(
                 "Line (spread/total)", value=0.0, step=0.5, key="bt_line",
+                help="The spread or total value at time of bet. e.g. -4.5 for a spread, 223.5 for a total. Used for line-movement timing analysis.",
             )
         with a3:
             book_input = st.selectbox(
@@ -269,24 +271,31 @@ with log_col:
                 ["", "Pinnacle", "FanDuel", "DraftKings", "BetMGM",
                  "Caesars", "PointsBet", "bet365", "Other"],
                 key="bt_book",
+                help="Which sportsbook you placed the bet at. Enables per-book ROI breakdown in Analytics.",
             )
         a4, a5, a6, a7 = st.columns(4)
         with a4:
-            rlm_fired_input = st.checkbox("RLM Confirmed", value=False, key="bt_rlm_fired")
+            rlm_fired_input = st.checkbox(
+                "RLM Confirmed", value=False, key="bt_rlm_fired",
+                help="Check if the Live Lines page showed an RLM (Reverse Line Movement) signal on this game. Enables RLM lift analysis — did RLM bets outperform non-RLM?",
+            )
         with a5:
             days_to_game_input = st.number_input(
                 "Days to Game", value=0.0, step=0.5, min_value=0.0,
                 key="bt_days_to_game",
+                help="How many days before tip/kickoff you placed the bet. 0 = day of game, 1 = day before, etc. Timing analysis for future models.",
             )
         with a6:
             signal_input = st.text_input(
                 "Signal", value="", key="bt_signal",
-                placeholder="B2B_EDGE",
+                placeholder="sharp",
+                help="What model signal triggered this bet. Examples: sharp, rlm_confirmed, efficiency_edge, b2b, pdo_regression. Used for signal-type performance slicing.",
             )
         with a7:
             tags_input = st.text_input(
                 "Tags (comma-sep)", value="", key="bt_tags",
-                placeholder="NUCLEAR,RLM",
+                placeholder="nba,home_dog",
+                help="Comma-separated labels for filtering analytics. Examples: nba,home_dog,rlm or nfl,totals,wind. Tag freely — used for slice-and-dice once 30 bets logged.",
             )
 
         submitted = st.form_submit_button("Log Bet", use_container_width=True, type="primary")

@@ -51,6 +51,25 @@ See REVIEW_LOG.md in agentic-rd-sandbox for the full pending list. Current high-
 
 ---
 
+## UX/GUIDE NOTIFICATIONS (sandbox → V37) — 2026-02-24
+
+**[Session 25 end] User onboarding / guide pages built in sandbox:**
+
+The user requested:
+1. **In-app guide** — built: `pages/00_guide.py` (loads first in nav). Live session workflow, field glossary, kill switch reference, gate status, signal grade explanations. Amber/dark terminal aesthetic.
+2. **External ELI5/FAQ document** — built: `SYSTEM_GUIDE.md` at sandbox root. Available on GitHub. Covers: how the system works, what edge/RLM/CLV/sharp score/calibration gate means, FAQ, live session checklist.
+3. **Log Bet form tooltips** — all 7 analytics metadata fields in `04_bet_tracker.py` now have `help=` parameters explaining each field on hover.
+
+**UX philosophy from user (permanent directive):**
+> "I want the UI to be magnificently visually appealing but the ease and logic and functionality of the website to be the even stronger highlight of it."
+
+V37: If you build any new UI for v36, apply this principle. Function > aesthetics. Both matter. IBM Plex Mono + IBM Plex Sans, amber/dark sets the benchmark aesthetic.
+
+**iOS compatibility — logged for future work:**
+The user wants the app "functionally usable to a large degree on iOS as well" (in addition to Mac). Current Streamlit layout is desktop-first. Future work: responsive column layout, touch-friendly button sizes, avoid hover-only interactions. No immediate action needed from V37 — just awareness.
+
+---
+
 ## PROTOCOL CHANGE NOTIFICATIONS (sandbox → V37)
 
 ### New since V37 last session:
