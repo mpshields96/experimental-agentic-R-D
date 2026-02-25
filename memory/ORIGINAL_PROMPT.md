@@ -7,7 +7,7 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 25 — 2026-02-24 — analytics Phase 1 + V37 flag fixes + V37 ping written
+# Last updated: Session 25 cont. — 2026-02-24 — nav bug fix + security hardening + live test prep
 # Maintained by: sandbox builder chat
 
 ---
@@ -161,18 +161,27 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 25 complete — 2026-02-24)
+## 📍 CURRENT PROJECT STATE (Session 25 cont. — 2026-02-24 live test)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      streamlit run app.py --server.port 8504
-Tests:    1062 / 1062 passing ✅ (+51 new analytics tests)
+Tests:    1062 / 1062 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main) — PUSHED ✅
-Latest:   5c739b2 (Session 25 final: CLAUDE.md lessons 33-36 + index update) — PUSHED ✅
-Prior:    6702b55 (Session 25: onboarding guide + ELI5 doc + form tooltips)
+Latest:   0404fe0 (security hardening: HTML escape + result validation + secrets template)
+Prior:    80399d7 (nav fix: app.py Guide+Analytics registration + CLAUDE.md + REVIEW_LOG)
+          5c739b2 (Session 25 final: CLAUDE.md lessons 33-36 + index update)
+          6702b55 (Session 25: onboarding guide + ELI5 doc + form tooltips)
           ed62a5b (Session 25 end: CLAUDE.md updates + session end ritual)
-          8e5c1ff (Session 25: analytics Phase 1 build)
 ```
+
+### ⚠️ ODDS_API_KEY NOT CONFIGURED (as of Session 25 cont.)
+- No `.streamlit/secrets.toml` exists (template at `.streamlit/secrets.toml.example`)
+- No `ODDS_API_KEY` env var set
+- App shows "API Quota Left: 1 / remaining=None" — NO live odds data
+- **TO FIX**: Create `~/ClaudeCode/agentic-rd-sandbox/.streamlit/secrets.toml` with:
+  `ODDS_API_KEY = "your_key_here"` and restart the app.
+- User provided GitHub token in chat; Odds API key not yet provided.
 
 ### Access architecture (final — permanent)
 - Sandbox writes: ~/ClaudeCode/agentic-rd-sandbox/ ONLY — single write domain
