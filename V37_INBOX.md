@@ -405,7 +405,7 @@ This task is DEFERRED to whenever Trinity simulation is actually wired to v36's 
 ---
 
 **TASK [Session 26] — nhl_data promotion to v36**
-Status: ⏳ PENDING — V37 action required
+Status: ✅ DONE — V37 Reviewer Session 4 — 2026-02-25
 Priority: MEDIUM-HIGH (NHL in-season, Feb 2026)
 
 V37 confirmed on 2026-02-24:
@@ -504,6 +504,9 @@ BILLING_RESERVE = 50             # WAS 1000 (test key has ~485; floor at 50)
 - Note: your BILLING_RESERVE lowering is especially critical — a BILLING_RESERVE of 1000 on a test key with ~485 credits will BLOCK ALL FETCHES. Lower to 50.
 - Mark this task DONE in REVIEW_LOG.md after adjusting.
 
+**✅ DONE — V37 Reviewer Session 4 continued — 2026-02-25**
+- `BILLING_RESERVE` lowered 1_000 → 50 in v36 `odds_fetcher.py`. DAILY_CREDIT_CAP=100, SOFT_LIMIT=30, HARD_STOP=80 already set (done in session 4 main work). Restore BILLING_RESERVE to 1_000 after 2026-03-01 quota reset.
+
 ---
 
 ### SESSION 26 FLAGS CLEARED
@@ -546,6 +549,44 @@ When `parse_game_markets()` finds no candidates above the standard 3.5% edge thr
 ### nhl_data promotion — still pending
 
 V37 confirmed NHL import path is `from data.nhl_data`. Promotion task still open (Session 26 didn't touch it — credit emergency + DC fallback took priority). Still MEDIUM-HIGH priority. V37: proceed when ready.
+
+---
+
+### SESSION 27 — Tiered Bet Grade System — 2026-02-25
+
+**TASK [Session 27] — Review: Grade Tier Pipeline (A/B/C/Near-Miss)**
+Status: 🔴 PENDING — needs V37 audit
+Priority: HIGH — this changes core bet output behaviour
+
+**Context (user concern verbatim):**
+> "that's still horrible for us if our betting ecosystem never picks up bets because it's too strict. We still need production. We also need data to run off, no bets isn't helping us."
+
+Root cause: Session 26 live scan (NBA+NCAAB, hotspot) confirmed 0 Grade A bets at 3.5% MIN_EDGE on tightly-aligned primetime markets. Binary pass/fail = zero output on normal days. Zero output = zero data = no calibration path.
+
+**Solution: Grade Tier System (threshold unchanged — tier expansion)**
+
+| Grade | Edge Floor | Kelly | Stake default | Notes |
+|-------|-----------|-------|--------------|-------|
+| A | ≥ 3.5% | 0.25× | $200/$100/$50 (by size) | Full stake — standard bets |
+| B | ≥ 1.5% | 0.12× | $50 capped | Reduced stake — books misaligned |
+| C | ≥ 0.5% | 0.05× | $0 | Tracking only — no stake |
+| Near Miss | ≥ -1.0% | 0.00 | N/A | Market transparency — no Log Bet button |
+
+**Files changed in Session 27:**
+
+1. `core/math_engine.py`: GRADE_B_MIN_EDGE, GRADE_C_MIN_EDGE, NEAR_MISS_MIN_EDGE, KELLY_FRACTION_B, KELLY_FRACTION_C constants + `assign_grade()` function (pure math, testable)
+2. `pages/01_live_lines.py`: Tiered display (banners + grade pills), grade-aware Log Bet stakes, grade-aware Kelly label, updated subtitle, Market Efficient state only fires when ALL tiers empty
+3. `tests/test_math_engine.py`: 26 new tests — TestBetGradeConstants (8) + TestAssignGrade (18). **1099/1099 ✅**
+
+**V37 audit checklist:**
+- [ ] Grade thresholds sound (Grade C is data-only, no real money risk)
+- [ ] Kelly scaling math: B=0.48× of standard, C=0.20× of standard
+- [ ] Grade B $50 cap appropriate vs Grade A max $200
+- [ ] Near-miss + Grade C: no Log Bet button in UI (correct)
+- [ ] assign_grade() in math_engine.py: no Streamlit imports (pure math layer)
+- [ ] 1099/1099 confirmed
+
+**No v36 promotion yet.** Grade tier is sandbox-only until V37 audits.
 
 ---
 

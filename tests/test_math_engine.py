@@ -49,12 +49,19 @@ from core.math_engine import (
     BetCandidate,
     run_nemesis,
     parse_game_markets,
+    assign_grade,
     COLLAR_MIN,
     COLLAR_MAX,
     COLLAR_MIN_SOCCER,
     COLLAR_MAX_SOCCER,
     SOCCER_SPORTS,
     MIN_EDGE,
+    GRADE_B_MIN_EDGE,
+    GRADE_C_MIN_EDGE,
+    NEAR_MISS_MIN_EDGE,
+    KELLY_FRACTION,
+    KELLY_FRACTION_B,
+    KELLY_FRACTION_C,
     SHARP_THRESHOLD,
     RLM_FIRE_GATE,
 )
@@ -2100,6 +2107,189 @@ class TestParseGameMarketsMinEdge:
         default_cands = parse_game_markets(game, "NBA")
         explicit_cands = parse_game_markets(game, "NBA", min_edge=MIN_EDGE)
         assert len(default_cands) == len(explicit_cands)
+
+
+# ---------------------------------------------------------------------------
+# Bet Grade Assignment — tiered confidence system (Session 27, 2026-02-25)
+# ---------------------------------------------------------------------------
+
+def _make_bet(edge_pct: float, kelly_size: float = 0.02) -> BetCandidate:
+    """Helper: minimal BetCandidate for grade assignment tests."""
+    return BetCandidate(
+        sport="NBA",
+        matchup="A @ B",
+        market_type="h2h",
+        target="A ML",
+        line=0.0,
+        price=-110,
+        edge_pct=edge_pct,
+        win_prob=0.55,
+        market_implied=0.524,
+        fair_implied=0.52,
+        kelly_size=kelly_size,
+    )
+
+
+class TestBetGradeConstants:
+    """Grade tier constants sanity checks."""
+
+    def test_grade_a_threshold_equals_min_edge(self):
+        """Grade A floor must match the existing MIN_EDGE constant."""
+        # Grade A is not a separate constant — it's just MIN_EDGE
+        assert MIN_EDGE == pytest.approx(0.035)
+
+    def test_grade_b_threshold(self):
+        assert GRADE_B_MIN_EDGE == pytest.approx(0.015)
+
+    def test_grade_c_threshold(self):
+        assert GRADE_C_MIN_EDGE == pytest.approx(0.005)
+
+    def test_near_miss_threshold(self):
+        assert NEAR_MISS_MIN_EDGE == pytest.approx(-0.01)
+
+    def test_kelly_b_less_than_standard(self):
+        assert KELLY_FRACTION_B < KELLY_FRACTION
+
+    def test_kelly_c_less_than_b(self):
+        assert KELLY_FRACTION_C < KELLY_FRACTION_B
+
+    def test_grade_thresholds_ordered(self):
+        """Thresholds must be strictly descending: A > B > C > NEAR_MISS."""
+        assert MIN_EDGE > GRADE_B_MIN_EDGE > GRADE_C_MIN_EDGE > NEAR_MISS_MIN_EDGE
+
+    def test_bet_candidate_grade_field_default(self):
+        """BetCandidate.grade must default to empty string."""
+        bet = _make_bet(edge_pct=0.04)
+        assert bet.grade == ""
+
+
+class TestAssignGrade:
+    """assign_grade() correctness — grade labels and Kelly scaling."""
+
+    def test_grade_a_at_min_edge(self):
+        """Exactly MIN_EDGE → Grade A."""
+        bet = _make_bet(edge_pct=MIN_EDGE)
+        assign_grade(bet)
+        assert bet.grade == "A"
+
+    def test_grade_a_above_min_edge(self):
+        """Well above threshold → Grade A."""
+        bet = _make_bet(edge_pct=0.06)
+        assign_grade(bet)
+        assert bet.grade == "A"
+
+    def test_grade_a_kelly_unchanged(self):
+        """Grade A must NOT modify kelly_size."""
+        original = 0.025
+        bet = _make_bet(edge_pct=0.04, kelly_size=original)
+        assign_grade(bet)
+        assert bet.kelly_size == pytest.approx(original)
+
+    def test_grade_b_just_above_threshold(self):
+        """GRADE_B_MIN_EDGE + small epsilon → Grade B."""
+        bet = _make_bet(edge_pct=GRADE_B_MIN_EDGE + 0.001)
+        assign_grade(bet)
+        assert bet.grade == "B"
+
+    def test_grade_b_at_threshold(self):
+        """Exactly GRADE_B_MIN_EDGE → Grade B."""
+        bet = _make_bet(edge_pct=GRADE_B_MIN_EDGE)
+        assign_grade(bet)
+        assert bet.grade == "B"
+
+    def test_grade_b_kelly_scaled(self):
+        """Grade B kelly_size must be scaled by KELLY_FRACTION_B / KELLY_FRACTION."""
+        original_kelly = 0.02
+        bet = _make_bet(edge_pct=0.02, kelly_size=original_kelly)
+        assign_grade(bet)
+        expected = round(original_kelly * KELLY_FRACTION_B / KELLY_FRACTION, 4)
+        assert bet.kelly_size == pytest.approx(expected)
+
+    def test_grade_b_kelly_scaling_ratio(self):
+        """Grade B Kelly fraction ratio should be 0.12/0.25 = 0.48."""
+        ratio = KELLY_FRACTION_B / KELLY_FRACTION
+        assert ratio == pytest.approx(0.48)
+
+    def test_grade_c_at_threshold(self):
+        """Exactly GRADE_C_MIN_EDGE → Grade C."""
+        bet = _make_bet(edge_pct=GRADE_C_MIN_EDGE)
+        assign_grade(bet)
+        assert bet.grade == "C"
+
+    def test_grade_c_just_above_threshold(self):
+        """GRADE_C_MIN_EDGE + epsilon → Grade C."""
+        bet = _make_bet(edge_pct=GRADE_C_MIN_EDGE + 0.001)
+        assign_grade(bet)
+        assert bet.grade == "C"
+
+    def test_grade_c_kelly_scaled(self):
+        """Grade C kelly_size must be scaled by KELLY_FRACTION_C / KELLY_FRACTION."""
+        original_kelly = 0.02
+        bet = _make_bet(edge_pct=0.007, kelly_size=original_kelly)
+        assign_grade(bet)
+        expected = round(original_kelly * KELLY_FRACTION_C / KELLY_FRACTION, 4)
+        assert bet.kelly_size == pytest.approx(expected)
+
+    def test_grade_c_kelly_smaller_than_b(self):
+        """Grade C kelly must be smaller than Grade B kelly for same initial kelly."""
+        original = 0.02
+        bet_b = _make_bet(edge_pct=0.02, kelly_size=original)
+        bet_c = _make_bet(edge_pct=0.007, kelly_size=original)
+        assign_grade(bet_b)
+        assign_grade(bet_c)
+        assert bet_c.kelly_size < bet_b.kelly_size
+
+    def test_near_miss_just_above_floor(self):
+        """NEAR_MISS_MIN_EDGE + epsilon → NEAR_MISS grade."""
+        bet = _make_bet(edge_pct=NEAR_MISS_MIN_EDGE + 0.001)
+        assign_grade(bet)
+        assert bet.grade == "NEAR_MISS"
+
+    def test_near_miss_at_floor(self):
+        """Exactly NEAR_MISS_MIN_EDGE → NEAR_MISS grade."""
+        bet = _make_bet(edge_pct=NEAR_MISS_MIN_EDGE)
+        assign_grade(bet)
+        assert bet.grade == "NEAR_MISS"
+
+    def test_near_miss_zero_kelly(self):
+        """Near-miss bets must have kelly_size = 0.0 — never stake."""
+        bet = _make_bet(edge_pct=-0.005, kelly_size=0.025)
+        assign_grade(bet)
+        assert bet.kelly_size == 0.0
+
+    def test_near_miss_negative_edge_still_zero_kelly(self):
+        """Deep negative edge → NEAR_MISS with kelly_size = 0.0."""
+        bet = _make_bet(edge_pct=-0.05, kelly_size=0.01)
+        assign_grade(bet)
+        assert bet.grade == "NEAR_MISS"
+        assert bet.kelly_size == 0.0
+
+    def test_boundary_between_b_and_c(self):
+        """Edge just below GRADE_B_MIN_EDGE → Grade C, not B."""
+        bet = _make_bet(edge_pct=GRADE_B_MIN_EDGE - 0.0001)
+        assign_grade(bet)
+        assert bet.grade == "C"
+
+    def test_boundary_between_c_and_near_miss(self):
+        """Edge just below GRADE_C_MIN_EDGE → NEAR_MISS."""
+        bet = _make_bet(edge_pct=GRADE_C_MIN_EDGE - 0.0001)
+        assign_grade(bet)
+        assert bet.grade == "NEAR_MISS"
+
+    def test_boundary_between_a_and_b(self):
+        """Edge just below MIN_EDGE → Grade B."""
+        bet = _make_bet(edge_pct=MIN_EDGE - 0.0001)
+        assign_grade(bet)
+        assert bet.grade == "B"
+
+    def test_grade_mutates_in_place(self):
+        """assign_grade() must mutate the passed BetCandidate, not return new one."""
+        bet = _make_bet(edge_pct=0.04)
+        original_id = id(bet)
+        result = assign_grade(bet)
+        assert result is None          # must return None (mutates in place)
+        assert id(bet) == original_id  # same object
+        assert bet.grade == "A"
 
 
 # ---------------------------------------------------------------------------

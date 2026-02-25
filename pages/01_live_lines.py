@@ -52,7 +52,14 @@ from core.line_logger import log_bet as _log_bet
 from core.math_engine import (
     BetCandidate,
     MIN_EDGE,
+    GRADE_B_MIN_EDGE,
+    GRADE_C_MIN_EDGE,
+    NEAR_MISS_MIN_EDGE,
+    KELLY_FRACTION,
+    KELLY_FRACTION_B,
+    KELLY_FRACTION_C,
     SHARP_THRESHOLD,
+    assign_grade,
     parse_game_markets,
     sharp_to_size,
 )
@@ -89,28 +96,49 @@ MARKET_DISPLAY = {
 }
 SPORT_OPTIONS = ["All", "NBA", "NFL", "NCAAB", "MLB", "NHL", "Soccer", "Tennis"]
 
-# Data collection threshold: used when zero bets surface at standard MIN_EDGE (3.5%).
-# Slightly below standard to generate bet data without violating core math rules.
-# Bets at this threshold are LOGGED ONLY — label them DATA_COLLECTION, stake $0.
-DC_MIN_EDGE: float = 0.02  # 2.0% — minimum above vig-extraction territory
+# Grade display config — border color + banner text per tier
+# Grade A (≥3.5%): amber — full stake (existing behaviour, unchanged)
+# Grade B (≥1.5%): blue  — reduced stake recommended
+# Grade C (≥0.5%): slate — tracking/data only, $0 stake
+# Near-Miss (≥-1%): dark  — market transparency, never bet
+GRADE_COLORS = {
+    "A":         "#f59e0b",  # amber
+    "B":         "#3b82f6",  # blue
+    "C":         "#6b7280",  # slate
+    "NEAR_MISS": "#374151",  # dark
+}
+GRADE_BANNER = {
+    "B": ("🔵 GRADE B — MODERATE VALUE",
+          f"Edge ≥1.5% but below standard 3.5%. Positive EV — reduced stake recommended "
+          f"(~0.12× Kelly). Log and track. May bet at your discretion."),
+    "C": ("🟡 GRADE C — TRACKING ONLY",
+          f"Edge ≥0.5%. Positive EV but thin. Log with stake=$0 for data collection."),
+    "NEAR_MISS": ("📊 MARKET DATA — No positive edge found",
+                  "Showing top near-miss candidates for transparency. These are NOT bets."),
+}
 
 
 # ---------------------------------------------------------------------------
 # Core pipeline
 # ---------------------------------------------------------------------------
 
-def _run_pipeline(raw: dict, min_edge: float = MIN_EDGE) -> list[BetCandidate]:
+def _run_pipeline(raw: dict, min_edge: float = NEAR_MISS_MIN_EDGE) -> list[BetCandidate]:
     """
-    Process raw Odds API game dict into ranked BetCandidates. Zero API calls.
+    Process raw Odds API game dict into graded BetCandidates. Zero API calls.
 
-    Extracted from _fetch_and_rank so it can be called at both standard and
-    DATA_COLLECTION min_edge thresholds without incurring additional API cost.
+    Always runs at NEAR_MISS_MIN_EDGE (-1%) to capture ALL candidates for
+    tiered display. Grades are assigned after parsing:
+        A (≥3.5%) → full stake  |  B (≥1.5%) → reduced stake
+        C (≥0.5%) → track only  |  NEAR_MISS (≥-1%) → no stake / market data
+
+    The caller filters by grade for display. Passing a custom min_edge overrides
+    (used in tests; production always uses NEAR_MISS_MIN_EDGE for full capture).
 
     Args:
         raw:      Dict from fetch_batch_odds() — {sport_key: [game_dicts]}
-        min_edge: Edge floor. MIN_EDGE (0.035) for standard. DC_MIN_EDGE (0.02) for fallback.
+        min_edge: Edge floor (default: NEAR_MISS_MIN_EDGE).
     Returns:
-        BetCandidates sorted by sharp_score descending.
+        BetCandidates sorted by (grade A→NEAR_MISS, then sharp_score descending).
     """
     candidates: list[BetCandidate] = []
     for sport_key, games in raw.items():
@@ -188,18 +216,26 @@ def _run_pipeline(raw: dict, min_edge: float = MIN_EDGE) -> list[BetCandidate]:
             except Exception:
                 continue
 
-    candidates.sort(key=lambda b: b.sharp_score, reverse=True)
+    # Assign grade + scale kelly for each candidate (math_engine.assign_grade)
+    for bet in candidates:
+        assign_grade(bet)
+
+    # Sort: Grade A first, then B, C, NEAR_MISS; within each grade by sharp_score desc
+    _grade_order = {"A": 0, "B": 1, "C": 2, "NEAR_MISS": 3, "": 4}
+    candidates.sort(key=lambda b: (_grade_order.get(b.grade, 4), -b.sharp_score))
     return candidates
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int, dict]:
+def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
     """
-    Fetch odds, parse all games, return ranked bet candidates.
+    Fetch odds, parse all games through the full tiered pipeline.
+
+    Returns candidates at ALL grade tiers (A/B/C/NEAR_MISS) — the caller
+    filters by grade for display. No separate DC fallback call needed.
 
     Returns:
-        (candidates, error_message, quota_remaining, raw_games_dict)
-        raw_games_dict passed back for DATA_COLLECTION fallback re-processing.
+        (candidates, error_message, quota_remaining)
     """
     try:
         if sports_filter == "Tennis":
@@ -209,11 +245,11 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int, d
         else:
             raw = fetch_batch_odds(sports=[sports_filter], include_tennis=False)
     except Exception as exc:
-        return [], f"API error: {exc}", 0, {}
+        return [], f"API error: {exc}", 0
 
-    candidates = _run_pipeline(raw, MIN_EDGE)
+    candidates = _run_pipeline(raw)  # always uses NEAR_MISS_MIN_EDGE — all grades captured
     remaining = quota.remaining if quota.remaining is not None else -1
-    return candidates, "", remaining, raw
+    return candidates, "", remaining
 
 
 # ---------------------------------------------------------------------------
@@ -224,9 +260,41 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
     size_color = SIZE_COLORS.get(size_key, "#6b7280")
     size_label = SIZE_LABELS.get(size_key, size_key)
 
+    # Grade-aware styling
+    grade = bet.grade or "A"
+    grade_color = GRADE_COLORS.get(grade, "#6b7280")
+    # For non-A grades, override the left border with grade color
+    left_border_color = grade_color if grade != "A" else size_color
+    card_opacity = "0.65" if grade == "NEAR_MISS" else "1.0"
+
+    # Grade pill — only shown for B / C / NEAR_MISS
+    grade_pill_html = ""
+    if grade == "B":
+        grade_pill_html = (
+            '<span style="display:inline-block;background:#1e3a5f;color:#60a5fa;'
+            'border:1px solid #2563eb;border-radius:3px;padding:1px 6px;'
+            'font-size:0.55rem;font-weight:700;letter-spacing:0.1em;margin-left:6px;">'
+            '▼ B · MODERATE VALUE</span>'
+        )
+    elif grade == "C":
+        grade_pill_html = (
+            '<span style="display:inline-block;background:#1f2937;color:#9ca3af;'
+            'border:1px solid #4b5563;border-radius:3px;padding:1px 6px;'
+            'font-size:0.55rem;font-weight:700;letter-spacing:0.1em;margin-left:6px;">'
+            '▼ C · TRACKING ONLY</span>'
+        )
+    elif grade == "NEAR_MISS":
+        grade_pill_html = (
+            '<span style="display:inline-block;background:#111827;color:#6b7280;'
+            'border:1px solid #374151;border-radius:3px;padding:1px 6px;'
+            'font-size:0.55rem;font-weight:700;letter-spacing:0.1em;margin-left:6px;">'
+            '⊘ NEAR MISS</span>'
+        )
+
     edge_pct = bet.edge_pct * 100
     kelly_pct = bet.kelly_size * 100
     win_pct = bet.win_prob * 100
+    edge_color = "#22c55e" if edge_pct >= 3.5 else ("#60a5fa" if edge_pct >= 1.5 else ("#9ca3af" if edge_pct >= 0.5 else "#6b7280"))
 
     # Sharp score bar (0–100)
     sharp_bar_width = min(100, max(0, bet.sharp_score))
@@ -276,11 +344,12 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
     <div style="
         background: #1a1d23;
         border: 1px solid #2d3139;
-        border-left: 4px solid {size_color};
+        border-left: 4px solid {left_border_color};
         border-radius: 8px;
         padding: 14px 16px;
         margin-bottom: 10px;
         position: relative;
+        opacity: {card_opacity};
     ">
         <!-- Header row -->
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -288,7 +357,7 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
                 <span style="
                     font-size:0.6rem; color:#6b7280;
                     letter-spacing:0.1em; font-weight:600;
-                "># {rank} &nbsp;·&nbsp; {_sport} &nbsp;·&nbsp; {mkt_display}</span>
+                "># {rank} &nbsp;·&nbsp; {_sport} &nbsp;·&nbsp; {mkt_display}</span>{grade_pill_html}
                 <div style="
                     font-size:1.0rem; font-weight:700; color:#e5e7eb; margin-top:3px;
                 ">{_target}</div>
@@ -314,7 +383,7 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
         ">
             <div style="background:#0e1117; border-radius:4px; padding:6px 8px;">
                 <div style="font-size:0.6rem; color:#6b7280; letter-spacing:0.08em;">EDGE</div>
-                <div style="font-size:0.95rem; font-weight:700; color:#22c55e;">+{edge_pct:.1f}%</div>
+                <div style="font-size:0.95rem; font-weight:700; color:{edge_color};">{edge_pct:+.1f}%</div>
             </div>
             <div style="background:#0e1117; border-radius:4px; padding:6px 8px;">
                 <div style="font-size:0.6rem; color:#6b7280; letter-spacing:0.08em;">WIN PROB</div>
@@ -416,7 +485,10 @@ def _parlay_card(combo: ParlayCombo, rank: int) -> str:
 st.title("🔴 Live Lines")
 st.markdown(
     '<span style="font-size:0.75rem; color:#6b7280;">Global bet ranking by edge%. '
-    f'Min edge: {MIN_EDGE*100:.1f}% | Collar: −180 to +150 | Kelly: 0.25×</span>',
+    f'Grade A ≥{MIN_EDGE*100:.1f}% (0.25×K) &nbsp;·&nbsp; '
+    f'B ≥{GRADE_B_MIN_EDGE*100:.1f}% (0.12×K) &nbsp;·&nbsp; '
+    f'C ≥{GRADE_C_MIN_EDGE*100:.1f}% (track) &nbsp;·&nbsp; '
+    'Collar: −180/+150 | Kelly 0.25×</span>',
     unsafe_allow_html=True,
 )
 
@@ -538,7 +610,7 @@ fetch_placeholder = st.empty()
 def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
     with fetch_placeholder.container():
         with st.spinner("Fetching odds..."):
-            candidates, error, remaining, raw_games = _fetch_and_rank(sport_filter)
+            candidates, error, remaining = _fetch_and_rank(sport_filter)
 
         if error:
             st.error(error)
@@ -596,89 +668,138 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         if min_sharp > 0:
             candidates = [c for c in candidates if c.sharp_score >= min_sharp]
 
-        # Stats row
-        n_total = len(candidates)
-        n_nuclear = sum(1 for c in candidates if sharp_to_size(c.sharp_score) == "NUCLEAR_2.0U")
-        n_standard = sum(1 for c in candidates if sharp_to_size(c.sharp_score) == "STANDARD_1.0U")
-        n_lean = sum(1 for c in candidates if sharp_to_size(c.sharp_score) == "LEAN_0.5U")
+        # Separate by grade
+        grade_a = [c for c in candidates if c.grade == "A" and not c.kill_reason]
+        grade_b = [c for c in candidates if c.grade == "B" and not c.kill_reason]
+        grade_c = [c for c in candidates if c.grade == "C" and not c.kill_reason]
+        near_miss = [c for c in candidates if c.grade == "NEAR_MISS" and not c.kill_reason]
+        killed = [c for c in candidates if c.kill_reason]
 
-        s_col1, s_col2, s_col3, s_col4, s_col5 = st.columns(5)
+        # Stats row — grade-aware counts
+        s_col1, s_col2, s_col3, s_col4, s_col5, s_col6 = st.columns(6)
         with s_col1:
-            st.metric("Total Bets", n_total)
+            st.metric("Grade A (Full)", len(grade_a))
         with s_col2:
-            st.metric("Nuclear (2u)", n_nuclear, delta=None)
+            st.metric("Grade B (Mod.)", len(grade_b))
         with s_col3:
-            st.metric("Standard (1u)", n_standard, delta=None)
+            st.metric("Grade C (Track)", len(grade_c))
         with s_col4:
-            st.metric("Lean (0.5u)", n_lean, delta=None)
+            st.metric("Near Miss", len(near_miss))
         with s_col5:
+            st.metric("Killed", len(killed))
+        with s_col6:
             remaining_str = str(remaining) if remaining >= 0 else "—"
             st.metric("API Quota Left", remaining_str)
 
         st.markdown("---")
 
-        if not candidates:
-            # DATA COLLECTION FALLBACK — re-process cached raw data at DC_MIN_EDGE (2.0%)
-            # No additional API calls — raw_games was already fetched above.
-            # Bets surfaced here are BELOW standard threshold. Log with stake=$0, tag="DATA_COLLECTION".
-            dc_candidates = []
-            if raw_games:
-                dc_candidates = [
-                    c for c in _run_pipeline(raw_games, DC_MIN_EDGE)
-                    if not c.kill_reason  # only live bets, no KILL-flagged candidates
-                ]
-
-            if dc_candidates:
-                st.html("""
-                <div style="background:#1e1a0e;border:1px solid #78350f;border-radius:6px;
-                            padding:12px 16px;margin-bottom:12px;">
-                    <span style="color:#f59e0b;font-weight:700;font-size:0.85rem;">
-                        ⚠ DATA COLLECTION MODE
-                    </span>
-                    <span style="color:#d97706;font-size:0.8rem;margin-left:8px;">
-                        No bets at standard threshold (≥3.5% edge). Showing ≥2.0% candidates
-                        for model calibration only. Log with stake=$0. Do not bet these.
-                    </span>
+        # ----------------------------------------------------------------
+        # Grade A — full slate (amber, standard sizing)
+        # ----------------------------------------------------------------
+        if grade_a:
+            for rank, bet in enumerate(grade_a, start=1):
+                st.html(_bet_card(bet, rank))
+        elif not grade_b and not grade_c and not near_miss:
+            # Truly nothing at any grade — market efficient state
+            st.html("""
+            <div style="background:#111827;border:1px solid #1f2937;border-radius:6px;
+                        padding:32px 20px;text-align:center;margin-bottom:12px;">
+                <div style="font-size:1.5rem;margin-bottom:8px;">📊</div>
+                <div style="font-size:0.9rem;font-weight:700;color:#9ca3af;margin-bottom:4px;">
+                    MARKET EFFICIENT TODAY
                 </div>
-                """)
-                for rank, bet in enumerate(dc_candidates[:8], start=1):
-                    st.html(_bet_card(bet, rank))
-            else:
-                st.html(
-                    """
-                    <div style="
-                        background: #1a1d23;
-                        border: 1px solid #2d3139;
-                        border-radius: 6px;
-                        padding: 40px 20px;
-                        text-align: center;
-                        color: #6b7280;
-                    ">
-                        <div style="font-size:2rem; margin-bottom:12px;">—</div>
-                        <div style="font-size:0.9rem; font-weight:600; color:#9ca3af; margin-bottom:6px;">
-                            No qualifying bets found
-                        </div>
-                        <div style="font-size:0.75rem; line-height:1.6;">
-                            All candidates failed edge ≥2.0%, collar (−180/+150),
-                            or min-books (≥2) filters.<br>
-                            Check: API key configured? ODDS_API_KEY in environment?
-                        </div>
-                    </div>
-                    """
-                )
+                <div style="font-size:0.75rem;color:#6b7280;line-height:1.6;">
+                    No positive-edge candidates found at any tier after scanning all active sports.<br>
+                    Books are tightly aligned. This is correct model behaviour — no edge = no bet.<br>
+                    Try again closer to game time or after line movement.
+                </div>
+            </div>
+            """)
             return
 
-        # Render cards
-        for rank, bet in enumerate(candidates, start=1):
-            st.html(_bet_card(bet, rank))
+        # ----------------------------------------------------------------
+        # Grade B — moderate value (blue banner + cards)
+        # ----------------------------------------------------------------
+        if grade_b:
+            st.html(f"""
+            <div style="background:#0f1f35;border:1px solid #1e40af;border-radius:6px;
+                        padding:10px 16px;margin-bottom:10px;margin-top:{'16px' if grade_a else '0'};">
+                <span style="color:#60a5fa;font-weight:700;font-size:0.82rem;">
+                    🔵 GRADE B — MODERATE VALUE
+                </span>
+                <span style="color:#93c5fd;font-size:0.75rem;margin-left:8px;">
+                    Edge ≥1.5%. Positive EV — books slightly misaligned. Reduced stake (~0.12× Kelly).
+                    May bet at your discretion. Log and track for calibration.
+                </span>
+            </div>
+            """)
+            for rank, bet in enumerate(grade_b, start=len(grade_a) + 1):
+                st.html(_bet_card(bet, rank))
+
+        # ----------------------------------------------------------------
+        # Grade C — tracking only (slate banner + cards)
+        # ----------------------------------------------------------------
+        if grade_c:
+            st.html(f"""
+            <div style="background:#111827;border:1px solid #374151;border-radius:6px;
+                        padding:10px 16px;margin-bottom:10px;margin-top:12px;">
+                <span style="color:#9ca3af;font-weight:700;font-size:0.82rem;">
+                    🟡 GRADE C — TRACKING ONLY
+                </span>
+                <span style="color:#6b7280;font-size:0.75rem;margin-left:8px;">
+                    Edge ≥0.5%. Thin positive EV. Log with stake=$0 for data collection.
+                    Do not bet. Useful for calibration once 30-bet gate is hit.
+                </span>
+            </div>
+            """)
+            offset_c = len(grade_a) + len(grade_b) + 1
+            for rank, bet in enumerate(grade_c[:8], start=offset_c):
+                st.html(_bet_card(bet, rank))
+
+        # ----------------------------------------------------------------
+        # Near Miss — market transparency (dark banner + dim cards)
+        # ----------------------------------------------------------------
+        if near_miss and not grade_a:  # only show near-misses if nothing actionable above
+            nm_top = sorted(near_miss, key=lambda b: b.edge_pct, reverse=True)[:5]
+            st.html("""
+            <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;
+                        padding:10px 16px;margin-bottom:10px;margin-top:12px;">
+                <span style="color:#4b5563;font-weight:700;font-size:0.82rem;">
+                    ⊘ NEAR MISS — MARKET DATA ONLY
+                </span>
+                <span style="color:#374151;font-size:0.75rem;margin-left:8px;">
+                    Edge &lt;0.5%. Books tightly aligned — no positive EV. Shown for transparency.
+                    These are NOT bets. Do not log or stake.
+                </span>
+            </div>
+            """)
+            offset_nm = len(grade_a) + len(grade_b) + len(grade_c) + 1
+            for rank, bet in enumerate(nm_top, start=offset_nm):
+                st.html(_bet_card(bet, rank))
+
+        # If only killed and near_miss, show killed below
+        if killed and not grade_a and not grade_b and not grade_c:
+            with st.expander(f"🔴 {len(killed)} killed candidates (kill switch fired)"):
+                for rank, bet in enumerate(killed, start=1):
+                    st.html(_bet_card(bet, rank))
+            return
+
+        # Render Log Bet buttons only for Grade A and B (actionable tiers)
+        actionable = grade_a + grade_b
+        for rank, bet in enumerate(actionable, start=1):
 
             btn_col, info_col = st.columns([1, 4])
             with btn_col:
                 if st.button("📋 Log Bet", key=f"log_{rank}_{bet.event_id}", use_container_width=True):
                     try:
                         size_key = sharp_to_size(bet.sharp_score)
-                        # Default stake from size tier
-                        default_stake = {"NUCLEAR_2.0U": 200.0, "STANDARD_1.0U": 100.0, "LEAN_0.5U": 50.0}.get(size_key, 50.0)
+                        # Grade-aware default stake:
+                        # Grade A → full size-tier stake (200/100/50)
+                        # Grade B → capped at $50 (reduced stake tier)
+                        if bet.grade == "A":
+                            default_stake = {"NUCLEAR_2.0U": 200.0, "STANDARD_1.0U": 100.0, "LEAN_0.5U": 50.0}.get(size_key, 50.0)
+                        else:
+                            default_stake = 50.0  # Grade B reduced stake
                         bet_id = _log_bet(
                             sport=bet.sport,
                             matchup=bet.matchup,
@@ -688,7 +809,7 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
                             edge_pct=bet.edge_pct,
                             kelly_size=bet.kelly_size,
                             stake=default_stake,
-                            notes=f"sharp={bet.sharp_score:.0f}",
+                            notes=f"sharp={bet.sharp_score:.0f} grade={bet.grade}",
                             db_path=DB_PATH,
                         )
                         st.success(f"Logged as bet #{bet_id} → go to Bet Tracker to grade")
@@ -709,13 +830,17 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
                         """
                     )
                 with mc2:
+                    _kf_map = {"A": KELLY_FRACTION, "B": KELLY_FRACTION_B, "C": KELLY_FRACTION_C}
+                    _kf = _kf_map.get(bet.grade, KELLY_FRACTION)
+                    _full_kelly = bet.kelly_size / _kf if _kf > 0 else 0.0
                     st.markdown(
                         f"""
-                        **Kelly sizing (0.25×)**
+                        **Kelly sizing ({_kf:.2f}×)**
                         - Win prob: `{bet.win_prob:.4f}`
                         - Price: `{bet.price:+d}` American
-                        - Full Kelly: `{bet.kelly_size/0.25:.4f}` → ×0.25 = `{bet.kelly_size:.4f}`
+                        - Full Kelly: `{_full_kelly:.4f}` → ×{_kf:.2f} = `{bet.kelly_size:.4f}`
                         - Bet size: `{bet.kelly_size*100:.2f}%` of bankroll
+                        - Grade: `{bet.grade}` ({"full" if bet.grade == "A" else "reduced"} stake)
                         """
                     )
                 with mc3:

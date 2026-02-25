@@ -45,7 +45,7 @@ from core.originator_engine import (
 # Constants
 # ---------------------------------------------------------------------------
 
-MIN_EDGE: float = 0.035          # 3.5% minimum edge
+MIN_EDGE: float = 0.035          # 3.5% minimum edge  → Grade A (full stake)
 MIN_BOOKS: int = 2               # minimum books for consensus
 KELLY_FRACTION: float = 0.25     # fractional Kelly multiplier
 SHARP_THRESHOLD: float = 45.0    # minimum Sharp Score to pass (raise to 50-55 after RLM wired)
@@ -53,6 +53,26 @@ COLLAR_MIN: int = -180           # minimum allowed American odds
 COLLAR_MAX: int = 150            # maximum allowed American odds
 COLLAR_MAX_SOCCER: int = 400     # expanded cap for soccer 3-way h2h (dogs/draws reach +350+)
 COLLAR_MIN_SOCCER: int = -250    # expanded floor for soccer heavy favourites
+
+# ---------------------------------------------------------------------------
+# Bet Grade thresholds — tiered confidence system (Session 27, 2026-02-25)
+#
+# Grade A  ≥ 3.5%  (MIN_EDGE)  — Full stake. Model has high confidence.
+# Grade B  ≥ 1.5%              — Reduced stake. Market partially efficient.
+# Grade C  ≥ 0.5%              — Tracking/data only. Positive EV but small.
+# Near-Miss ≥ -1.0%            — No stake. Displayed for market transparency only.
+#
+# Kelly sizing by grade:
+#   A: use existing fractional_kelly() result (KELLY_FRACTION = 0.25x)
+#   B: kelly × KELLY_FRACTION_B / KELLY_FRACTION  → effectively 0.12x
+#   C: kelly × KELLY_FRACTION_C / KELLY_FRACTION  → effectively 0.05x
+#   Near-Miss: kelly shown but strike-through; do not bet
+# ---------------------------------------------------------------------------
+GRADE_B_MIN_EDGE: float = 0.015   # 1.5% — moderate confidence
+GRADE_C_MIN_EDGE: float = 0.005   # 0.5% — data collection / tracking
+NEAR_MISS_MIN_EDGE: float = -0.01  # -1.0% — near-miss transparency display
+KELLY_FRACTION_B: float = 0.12    # Grade B fractional Kelly
+KELLY_FRACTION_C: float = 0.05    # Grade C fractional Kelly (tracking)
 
 # Soccer sports use 3-way h2h (home/away/draw) — need separate consensus logic
 SOCCER_SPORTS: frozenset = frozenset({
@@ -79,6 +99,7 @@ class BetCandidate:
     fair_implied: float     # Vig-free consensus probability
     kelly_size: float       # Fractional Kelly bet size in units
     signal: str = ""        # Tier label: NUCLEAR_2.0U, STANDARD_1.0U, LEAN_0.5U
+    grade: str = ""         # Confidence tier: "A", "B", "C", "NEAR_MISS" — set by pipeline
     event_id: str = ""
     commence_time: str = ""
     book: str = ""          # Source book + n-books note
@@ -93,6 +114,48 @@ class BetCandidate:
     opp_rest_days: Optional[int] = None
     # Consensus width badge — display-only, no score impact (r=+0.020, validated R&D S15)
     std_dev: float = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Bet grade assignment — tiered confidence (Session 27, 2026-02-25)
+# ---------------------------------------------------------------------------
+
+def assign_grade(bet: "BetCandidate") -> None:
+    """
+    Set bet.grade and scale kelly_size for sub-standard tiers. Mutates in place.
+
+    Grade thresholds:
+        A  (≥3.5%)  → Full Kelly (KELLY_FRACTION = 0.25×). Standard production bets.
+        B  (≥1.5%)  → Kelly scaled to KELLY_FRACTION_B (0.12×). Reduced stake.
+        C  (≥0.5%)  → Kelly scaled to KELLY_FRACTION_C (0.05×). Data / tracking only.
+        NEAR_MISS   → kelly_size forced to 0.0. Display only — never stake.
+
+    This function belongs in math_engine (not UI layer) because:
+    - It operates solely on BetCandidate fields (pure math)
+    - It must be testable in isolation from Streamlit
+
+    >>> from core.math_engine import BetCandidate, assign_grade, KELLY_FRACTION
+    >>> bet = BetCandidate(sport="NBA", matchup="X @ Y", market_type="h2h",
+    ...     target="X ML", line=0.0, price=-110, edge_pct=0.04,
+    ...     win_prob=0.55, market_implied=0.524, fair_implied=0.52, kelly_size=0.02)
+    >>> assign_grade(bet)
+    >>> bet.grade
+    'A'
+    """
+    if bet.edge_pct >= MIN_EDGE:
+        bet.grade = "A"
+        # kelly_size already computed at KELLY_FRACTION — no change
+    elif bet.edge_pct >= GRADE_B_MIN_EDGE:
+        bet.grade = "B"
+        if KELLY_FRACTION > 0:
+            bet.kelly_size = round(bet.kelly_size * KELLY_FRACTION_B / KELLY_FRACTION, 4)
+    elif bet.edge_pct >= GRADE_C_MIN_EDGE:
+        bet.grade = "C"
+        if KELLY_FRACTION > 0:
+            bet.kelly_size = round(bet.kelly_size * KELLY_FRACTION_C / KELLY_FRACTION, 4)
+    else:
+        bet.grade = "NEAR_MISS"
+        bet.kelly_size = 0.0  # never size a near-miss bet
 
 
 # ---------------------------------------------------------------------------

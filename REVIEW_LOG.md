@@ -74,6 +74,105 @@
 
 ---
 
+### ⚡ SANDBOX DIRECTIVE — SPECULATIVE TIER — 2026-02-25 (V37 Reviewer Session 4 continued)
+
+**FROM: V37 Reviewer chat**
+**TO: Agentic sandbox — action before next sandbox session**
+
+**Context:** User directed: "We still need production. The model is too strict, generating zero bets. We also need data to run off. No bets isn't helping us. We need to add something that explicitly notes the riskier lines/bets using score/rank."
+
+**Reviewer position:** Three-tier system. Math > Narrative maintained throughout.
+
+#### TIER DEFINITIONS
+
+| Tier | Score Range | Kelly Cap | UI | Notes |
+|------|-------------|-----------|-----|-------|
+| PRODUCTION | ≥45 | Full (LEAN/STANDARD/NUCLEAR) | Normal card | Current behavior |
+| SPECULATIVE | 40–44 | 0.25u hard cap | Orange card + banner | NEW — 6–7.8% edge range |
+| (CALIBRATION-only) | 35–39 | N/A — not shown | Log only | Deferred to a later session |
+
+#### CHANGES ALREADY LIVE IN V36 (do not re-implement, just mirror)
+
+v36 implemented this as of this session:
+
+1. **`edge_calculator.py` — `sharp_to_size()`**:
+   - Score ≥90 → `"NUCLEAR_2.0U"`
+   - Score ≥80 → `"STANDARD_1.0U"`
+   - Score ≥45 → `"LEAN_0.5U"`
+   - Score < 45 → `"SPECULATIVE_0.25U"` ← NEW (was `"PASS"`)
+
+2. **`bet_ranker.py` — `rank_bets()` speculative retry**:
+   ```python
+   # When 0 bets pass SHARP_THRESHOLD=45:
+   if not scored and calibration_threshold is not None and calibration_threshold < SHARP_THRESHOLD:
+       for bet in candidates:
+           if bet.sharp_score >= calibration_threshold:
+               bet.calibration = True
+               bet.kelly_size = min(0.25, bet.kelly_size)  # Hard cap
+               scored.append(bet)
+   ```
+
+3. **`edge_calculator.py` — `BetCandidate`**:
+   - New field: `calibration: bool = False`
+
+4. **Bet card renderer**: SPECULATIVE_0.25U tier config added (orange #F97316 accent, dark orange bg #1A0F00).
+
+5. **App UI banner** when all bets are speculative:
+   - Orange border (#f97316), dark bg (#1a0f00)
+   - Text: "No bets cleared the 45-pt production threshold today. Results below scored ≥40 pts (prior production floor, ~6–7.8% edge). **Maximum position: 0.25u. Verify line movement before placing.**"
+
+#### WHAT SANDBOX SHOULD IMPLEMENT
+
+In `core/math_engine.py`:
+- `sharp_to_size()`: same tier table as above (replace `"PASS"` with `"SPECULATIVE_0.25U"` for scores < 45)
+- `rank_bets()` (or equivalent): same calibration retry block. `calibration_threshold=40.0` default.
+
+In `core/titanium.py` (or equivalent bet model class):
+- Add `calibration: bool = False` field
+
+In UI (`app.py` / pages):
+- If all bets in slate have `calibration=True`: show orange SPECULATIVE MODE banner with 0.25u max warning
+- Card rendering: SPECULATIVE tier gets orange styling
+
+In `core/odds_fetcher.py` (DAILY CAP — also required this session):
+- `DAILY_CREDIT_HARD_CAP = 100` (down from current value)
+- `SESSION_CREDIT_SOFT_LIMIT = 30`
+- `SESSION_CREDIT_HARD_STOP = 80`
+
+**Note:** Math > Narrative. The 40-pt floor is mathematically grounded (prior production floor from v36 Session 13, ~6% edge required). This is NOT a narrative override. Do not add any narrative inputs to the scoring or calibration logic.
+
+---
+
+### ✅ nhl_data.py PROMOTED TO V36 — 2026-02-25 (V37 Reviewer Session 4)
+**STATUS: DONE.** `data/nhl_data.py` added. `nhl_kill_switch()` added to `edge_calculator.py`. `parse_game_markets()` updated. Goalie poll wired in `app.py`. 35 tests in `tests/test_nhl_data.py`. 244/244 passing.
+
+**Calibration_threshold NOTE for sandbox:** v36 `bet_ranker.rank_bets()` now has `calibration_threshold=40.0` parameter. When 0 bets pass SHARP_THRESHOLD=45, bets scoring ≥40 are returned with `calibration=True`. Sandbox may adopt same pattern in `core/math_engine.py` if desired — but NOT required (v36 concern only).
+
+---
+
+### ✅ ZERO-BETS CALIBRATION PROTOCOL — SPEC (V37 Reviewer Session 4)
+
+**User directive:** "If math generates zero bets above threshold, slightly lower threshold for data collection purposes — Math > Narrative always."
+
+**V36 implementation:**
+- Threshold: 45 (production) → 40 (calibration floor — prior production value, Session 13)
+- Trigger: zero bets pass SHARP_THRESHOLD=45 after full scoring pipeline
+- Behavior: re-collect bets scoring ≥40, flag with `calibration=True` on BetCandidate
+- UI: amber banner "CALIBRATION MODE — No bets cleared 45-pt threshold. Results below scored ≥40 pts. Not actionable recommendations."
+- Math rule maintained: 40 = prior production floor (mathematically grounded ~6% edge). Not a narrative override.
+- Gate for calibration disable: once RLM fires ≥5 live sessions (currently 0/5), consider tightening back to 45-only (no calibration retry). Revisit then.
+
+**For sandbox:** No action required. This is a v36-only concern.
+
+---
+
+### ✅ USER DIRECTIVE — DAILY CREDIT CAP REDUCED — 2026-02-25 (V37 Reviewer Session 4)
+**DAILY_CREDIT_CAP: 1000 → 100.** Context: free account until 3/1/26 (~500 credits remaining). After quota reset, 100/day is the permanent ceiling on the 20K/month plan. SESSION_CREDIT_SOFT_LIMIT: 300→30, HARD_STOP: 500→80 (proportional). BILLING_RESERVE stays at 1000 (blocks all calls during quota drought — intentional).
+
+**For sandbox:** `core/odds_fetcher.py` DAILY_CREDIT_HARD_CAP should also be reduced to 100/day. Update before next live session (3/1/26). Session soft/hard stop constants: scale to 30/80 as well.
+
+---
+
 ### ✅ USER DIRECTIVE — INACTIVITY AUTO-STOP — IMPLEMENTED (Session 25 cont.)
 *(User directive: "create an off switch for the API runner and any activity like that — if no user activity for more than 24 hours it needs to automatically stop until a refresh or the user tells you to reinitiate")*
 
@@ -727,6 +826,47 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 
 ---
 
+### V37 REVIEWER SESSION 4 — 2026-02-25
+
+**User directives actioned this session (from sandbox relay + user message):**
+1. **DAILY_CREDIT_CAP 1000 → 100**: User confirmed free account (~500 credits total) until 3/1/26. After reset: 20K/month plan resumes, 100/day cap is the permanent ceiling going forward. BILLING_RESERVE=1000 blocks all live calls during the quota drought — correct behavior.
+2. **Session limits scaled**: SESSION_CREDIT_SOFT_LIMIT 300→30, SESSION_CREDIT_HARD_STOP 500→80 (proportional to new daily cap, prevent dead-code limits exceeding the cap).
+3. **Zero-bets calibration mode**: When 0 bets pass SHARP_THRESHOLD=45, auto-retry at calibration_threshold=40.0, mark returned bets `calibration=True`. UI shows amber banner: "CALIBRATION MODE — Not actionable recommendations." Math > Narrative preserved: 40.0 is the prior production floor (Session 13), not a narrative-driven choice.
+4. **nhl_data.py promoted to v36**: Full promotion per PROMOTION_SPEC.md MODULE 3.
+5. **Stress test + live data collection**: Planned for 3/1/26 (quota reset). Will run full pipeline scan to generate real bets for model calibration.
+
+**V36 changes this session:**
+- `odds_fetcher.py`: DAILY_CREDIT_CAP 1000→100, SOFT_LIMIT 300→30, HARD_STOP 500→80
+- `edge_calculator.py`: `BetCandidate.calibration: bool = False` field added; `nhl_kill_switch()` function added; `parse_game_markets()` now accepts `nhl_goalie_status=None` and applies goalie kill switch when sport=NHL
+- `bet_ranker.py`: `rank_bets()` gains `calibration_threshold: Optional[float] = 40.0` param; calibration retry logic added after Step 1
+- `app.py`: NHL goalie poll wired inline in `run_pipeline()` (free nhle API, zero Odds quota); calibration banner added to results display; `rank_bets()` call explicitly passes `calibration_threshold=40.0`
+- `data/nhl_data.py`: NEW — copy of sandbox `core/nhl_data.py` with v36 import paths
+- `tests/test_nhl_data.py`: NEW — 35 tests covering normalize_team_name, goalie cache, schedule fetch, boxscore parse, starters_for_odds_game, timing gate
+- `tests/test_validation.py`: +7 `TestNHLKillSwitch` tests + +6 `TestCalibrationMode` tests
+- `tests/test_odds_fetcher.py`: Fixed `test_report_no_warning_when_under_cap` (was using 500 used, exceeds new 100 cap; fixed to 50 used)
+
+**Additional changes (session 4 continued — speculative tier):**
+- `edge_calculator.py`: `sharp_to_size()` now returns `"SPECULATIVE_0.25U"` for scores < 45 (was `"PASS"`)
+- `bet_card_renderer.py`: `SPECULATIVE_0.25U` tier config added (orange #F97316 accent, dark bg #1A0F00)
+- `bet_ranker.py`: kelly_size hard-capped at 0.25 for `calibration=True` bets in speculative retry path; docstring updated
+- `app.py`: Banner updated `CALIBRATION MODE` (amber) → `SPECULATIVE MODE` (orange); variable renamed `is_calibration` → `is_speculative`; count label updated "calibration signal" → "speculative signal"
+- `tests/test_validation.py`: +7 `TestSpeculativeTier` tests (sharp_to_size boundaries, kelly cap, signal label, production not capped)
+
+**Test count:** 190 → 244 → 251 (+61 total — 35 nhl_data + 7 nhl_kill_switch + 6 calibration + 7 speculative + 6 unchanged)
+
+**Status:** 251/251 passing ✅
+
+**Architecture check:**
+- Math > Narrative ✅: Calibration threshold=40.0 = prior production value. Not narrative-driven.
+- Import discipline ✅: `data/nhl_data.py` has no imports from edge_calculator, odds_fetcher, or app. Deferred import inside parse_game_markets avoids circular import.
+- API discipline ✅: NHL API is free `api-web.nhle.com`, zero Odds API quota. No new pip dependencies (requests already in requirements.txt).
+- SHARP_THRESHOLD gate ✅: Not raised. Still 0/5 live RLM fires.
+- Collar/edge/Kelly rules ✅: Unchanged.
+
+**Note for sandbox:** nhl_data.py in v36 uses `get_cached_goalie_status()` from the module-level cache (populated by app.py before calculate_edges runs). The `nhl_goalie_status=None` parameter on `parse_game_markets()` allows test injection without touching the module cache — use this pattern in sandbox test fixtures.
+
+---
+
 ### V37 AUDIT — Session 25 cont. — 2026-02-25
 **Status:** APPROVED — no flags. Tactical work, fully within spec.
 
@@ -848,6 +988,36 @@ Both are doc-only fixes, no code changes.
 
 **Issues:** Minor Flag 1 (days_to_game in form) + Minor Flag 2 (doc comment). Neither blocks functionality.
 **Action required:** Fix `days_to_game` form field in `04_bet_tracker.py` in next session (or address before Phase 2). Fix comment in analytics.py line 33. Both are small — one session item, not a full session.
+
+---
+
+### SANDBOX SESSION 27 SUMMARY — 2026-02-25
+
+**Built:**
+- **Grade Tier System** — Tiered bet confidence pipeline replacing binary pass/fail at 3.5%.
+  * Grade A (≥3.5%): full 0.25× Kelly — standard production bets (unchanged)
+  * Grade B (≥1.5%): 0.12× Kelly, $50 default stake — moderate value, may bet at discretion
+  * Grade C (≥0.5%): 0.05× Kelly, $0 stake — data collection + calibration
+  * Near Miss (≥-1.0%): kelly=0, no Log Bet — market transparency display only
+- **`core/math_engine.py`** — Added grade constants (GRADE_B_MIN_EDGE, GRADE_C_MIN_EDGE, NEAR_MISS_MIN_EDGE, KELLY_FRACTION_B, KELLY_FRACTION_C), `BetCandidate.grade: str = ""` field, and `assign_grade()` function (pure math, no UI imports)
+- **`pages/01_live_lines.py`** — Replaced DC fallback with full tiered display: grade banners (blue/slate/dark), grade pill badges on cards, grade-aware Log Bet stakes (Grade A: full size-tier; Grade B: $50 cap), grade-aware Kelly fraction label in math expander, updated subtitle, Market Efficient state fires only when ALL tiers empty
+- **`tests/test_math_engine.py`** — 27 new tests: `TestBetGradeConstants` (8) + `TestAssignGrade` (18) + 1 BetCandidate.grade default check
+
+**Tests:** 1072 → 1099, 100% passing ✅ (+27 grade system tests)
+
+**Architectural decisions:**
+- `assign_grade()` placed in `math_engine.py` (not UI layer) — pure math, testable, no Streamlit dependency
+- `_run_pipeline()` always runs at `NEAR_MISS_MIN_EDGE` — single API fetch captures all four tiers. Caller separates by grade for display.
+- DC fallback (Session 26) retired — replaced by cleaner explicit grade tiers
+- Kelly scaling is mathematically derived from existing fractional_kelly() result (B: ×0.48, C: ×0.20) — not arbitrary
+
+**Gates changed:** None — MIN_EDGE unchanged at 3.5%. Grade A = same threshold as before.
+
+**Flags for reviewer:**
+- Grade B bets now appear in production output. Validate that $50 cap is an acceptable floor for reduced-stake tracking.
+- `days_to_game` form field fix (V37 Session 25 flag) still pending — deferred again. Will tackle in Session 28.
+- `analytics.py` line 33 comment fix (V37 Session 25 flag) still pending — same batch.
+- Odds API credit limits still TEMPORARILY lowered (DAILY_CAP=100). Restore after 2026-03-01 subscription reset.
 
 ---
 
