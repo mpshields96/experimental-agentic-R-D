@@ -402,7 +402,7 @@ with col_main:
     <div class="sig-row">
       <div class="sig-pill-standard">STANDARD</div>
       <div class="sig-detail">
-        <strong>Sharp Score ≥ 54–60.</strong> Solid edge with market confirmation.
+        <strong>Sharp Score ≥ 80.</strong> Solid edge with market confirmation.
         Kelly size: <strong>1.0u</strong>. Main bread-and-butter bet grade.
       </div>
     </div>
@@ -428,7 +428,7 @@ with col_main:
       </div>
       <div class="ks-row">
         <div class="ks-sport">NFL</div>
-        <div class="ks-rule">Wind &gt;20mph → KILL totals. Wind &gt;15mph → force UNDER only. Backup QB → KILL.</div>
+        <div class="ks-rule">Wind &gt;20mph → KILL totals. Wind &gt;15mph → force UNDER only. Backup QB → KILL <em>(STUB — not yet wired to live data)</em>.</div>
         <div class="ks-on">LIVE</div>
       </div>
       <div class="ks-row">

@@ -82,7 +82,7 @@ Kill switches are automatic disqualifiers. If a condition fires, the bet is kill
 | NBA | Road back-to-back with <8% edge | Fatigue destroys road B2B teams in late-game execution |
 | NBA | PDO regression signal | Teams running unsustainably hot/cold on luck will regress — bet against them |
 | NFL | Wind >20mph | High wind wrecks passing game → totals models break down |
-| NFL | Backup QB | Win probability models trained on starters are invalid |
+| NFL | Backup QB *(STUB — not yet wired to live data, does not fire)* | Win probability models trained on starters are invalid |
 | NHL | Starting goalie unconfirmed | Goalie is 85%+ of NHL variance — unknown starter = don't bet |
 | Tennis | Surface mismatch | Clay specialist on grass, grass specialist on clay → model stats meaningless |
 | Soccer | Dead rubber | Team already eliminated/promoted → effort level drops to zero |
@@ -108,7 +108,7 @@ It's the system's overall confidence rating for a bet. Think of it as: *"how muc
 
 **Score → Signal grade:**
 - **45–59**: LEAN — minimum threshold. Small position or skip.
-- **60–89**: STANDARD — solid bet. This is where most bets live.
+- **80–89**: STANDARD — solid bet. This is where most bets live.
 - **90+**: NUCLEAR — rare. Requires RLM confirmation + injury boost to reach. Bet full size.
 
 A score of 90 is only mathematically reachable if: edge gives you ~35+ points, RLM fires (+25), AND an opposing star player is injured (+5 bonus). Without all three, 90 is the ceiling — not a floor.

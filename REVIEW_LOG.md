@@ -74,10 +74,18 @@
 
 ---
 
-### 🔌 USER DIRECTIVE — INACTIVITY AUTO-STOP — 2026-02-24
+### ✅ USER DIRECTIVE — INACTIVITY AUTO-STOP — IMPLEMENTED (Session 25 cont.)
 *(User directive: "create an off switch for the API runner and any activity like that — if no user activity for more than 24 hours it needs to automatically stop until a refresh or the user tells you to reinitiate")*
 
-**STATUS: REQUIRED for sandbox Session 26. Implement alongside daily cap.**
+**STATUS: ✅ DONE by sandbox (Session 25 cont. commit 563af0d — 2026-02-25)**
+- `app.py`: `_touch_activity()` writes `data/last_activity.json` on every page load
+- `core/scheduler.py`: `_poll_all_sports()` skips if idle > 24h
+- Sidebar shows PAUSED status (amber) with idle hours
+- `.gitignore`: `data/last_activity.json` added
+- +5 tests: `TestInactivityAutoStop` in `tests/test_scheduler.py`
+- Total: 1067/1067 passing
+
+**V37 action**: Add `_touch_activity()` to v36's `app.py` (v36 has no scheduler — no Step 2 needed). See V37_INBOX for exact code.
 
 ---
 
@@ -250,6 +258,8 @@ _QUOTA_DAY_FILE = Path(__file__).resolve().parent.parent / "data" / "quota_day.j
 **This is P0. Build before anything else in Session 26.**
 
 **Action for sandbox:** Address daily cap FIRST in Session 26. Then address remaining Security Hardening items (Protections 1-10 from Safety Mandate). Then proceed to Session 26 planned work (nhl_data promotion, originator_engine fix).
+
+**V37 UPDATE — 2026-02-25 (Reviewer Session 3):** Daily cap ✅ DONE (V37 R2). Inactivity auto-stop ✅ DONE (sandbox 563af0d + v36 R3). HTML escape ✅ DONE. originator_engine fix: V37 audit found NO call sites for `run_trinity_simulation` in v36 outside of the module itself — function is defined but not wired to the pipeline. Bug cannot fire. Task DEFERRED to when Trinity simulation is actually wired into edge_calculator.py. nhl_data promotion ⏳ NEXT session.
 
 ---
 
@@ -539,11 +549,9 @@ Expected test count delta: ~+12 tests.
 
 ---
 
-**FLAG [Session 25 UI] — NFL Backup QB listed as LIVE kill switch — NOT WIRED**
-`SYSTEM_GUIDE.md` + `00_guide.py` both list "NFL Backup QB → KILL" as LIVE. `backup_qb` param exists in math_engine.py but is never set from real data — always False. Remove or mark STUB.
+**FLAG [Session 25 UI] — NFL Backup QB listed as LIVE kill switch — NOT WIRED** ✅ CLEARED — Session 26 (2026-02-25). Marked STUB in SYSTEM_GUIDE.md + 00_guide.py.
 
-**FLAG [Session 25 UI] — STANDARD tier threshold wrong in guide**
-Guide says STANDARD = ≥60 (SYSTEM_GUIDE.md) or ≥54–60 (00_guide.py). Actual implementation: STANDARD = ≥80. Fix both files.
+**FLAG [Session 25 UI] — STANDARD tier threshold wrong in guide** ✅ CLEARED — Session 26 (2026-02-25). Fixed to ≥80 in SYSTEM_GUIDE.md (was 60–89) and 00_guide.py (was 54–60).
 
 ---
 
@@ -716,6 +724,41 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 ---
 
 ## SESSION LOG (most recent first)
+
+---
+
+### V37 AUDIT — Session 25 cont. — 2026-02-25
+**Status:** APPROVED — no flags. Tactical work, fully within spec.
+
+**What was built (commits 563af0d, a24a95e, 60b9b73, 1aab03e, 1930bcc, 0404fe0, 80399d7):**
+- Inactivity auto-stop: `core/scheduler.py` + `app.py` `_touch_activity()` — exactly per REVIEW_LOG spec
+- `scripts/export_bets.py` + `scripts/grade_bet.py` — utility scripts, no core logic
+- 4 live bets logged to `data/line_history.db` (OKC -7.5, CLE -17.5, UIC ML, CSU ML)
+- HTML injection + result validation fixes (already covered in SESSION 25 CONTINUATION section of V37_INBOX)
+- DailyCreditLog daily cap enforcement (already covered in V37 Reviewer Session 2)
+- Test count: 1062 → 1067 (+5 inactivity tests)
+
+**Math > Narrative check:** ✅ No scoring, kill-switch, or edge-detection code modified.
+
+**Rules intact:** ✅ SHARP_THRESHOLD=45. RLM 0/5. Collar/edge/Kelly untouched. Gates unchanged.
+
+**Import discipline:** ✅ Activity tracking uses only `json`, `time`, `pathlib` (stdlib). No circular imports.
+
+**API discipline:** ✅ No new external API calls. Inactivity guard actively *reduces* API usage.
+
+**Test pass rate:** ✅ 1067/1067 — +5 inactivity tests. All passing.
+
+**New external packages:** None. stdlib only.
+
+**Architectural drift:** ✅ Pattern matches spec exactly. `data/last_activity.json` gitignored.
+
+**Notes:**
+- Export/grade scripts are user utilities. No production path impact.
+- 4 live bets are data rows, not code. No audit concern.
+- DailyCreditLog was already in REVIEW_LOG.md spec; implementation matches it exactly.
+
+**Issues:** None.
+**Action required for V37:** Add `_touch_activity()` to v36 `app.py` (v36 has no scheduler — no scheduler changes needed). Tracked in V37_INBOX.
 
 ---
 

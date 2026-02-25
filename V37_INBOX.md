@@ -104,8 +104,16 @@ The user wants the app "functionally usable to a large degree on iOS as well" (i
 ### SESSION 25 CONTINUATION TASKS — 2026-02-25 (sandbox → V37)
 
 **TASK [Session 25 cont.] — Add inactivity auto-stop to V37's app.py + scheduler**
-Status: ⏳ PENDING — V37 action required
+Status: ✅ DONE — V37 Reviewer Session 3 — 2026-02-25
 Priority: HIGH (user directive 2026-02-24 — same priority as daily cap guard)
+
+**What V37 did:**
+- Added `_touch_activity()` to v36 `app.py` — writes `data/last_activity.json` on every page load
+- Added `json`, `time`, `Path` imports to app.py
+- Added `data/last_activity.json` to v36's `.gitignore`
+- Added 5 tests in `tests/test_app_utils.py` (new file)
+- v36 test count: 185 → 190 passing ✅
+- Note: v36 has NO scheduler, so no scheduler-side inactivity guard needed. File is written for future use if scheduler is ever added.
 
 Sandbox has implemented this. V37 needs the same pattern:
 
@@ -163,14 +171,13 @@ V37: Mark DONE after implementation + test count update in REVIEW_LOG.md.
 ---
 
 **TASK [Session 25 cont.] — Verify HTML escape pattern on v36 st.html() components**
-Status: ⏳ PENDING — Low urgency V37 review
+Status: ✅ DONE — V37 Reviewer Session 2 — 2026-02-24 (already completed)
 Priority: MEDIUM (cosmetic security hygiene)
 
-Sandbox fixed HTML injection in: pages/04_bet_tracker.py + pages/01_live_lines.py (commit 0404fe0).
-Pattern: `import html; _target = html.escape(str(field_value or ""))` before any f-string HTML injection.
-
-V37: Check any v36 pages that use st.html() with user-supplied text (team names, bet targets, notes).
-If found, apply the same html.escape() fix.
+HTML escape was implemented in V37 Reviewer Session 2 as part of the XSS fix:
+- `app.py`: `import html as _html` already present. `bet_card_renderer.py` uses `_html.escape()`.
+- XSS fix was commit `2ebddf1` — "V37 R2: quota guards + XSS fix — 185/185 tests"
+- v36 is clean. No additional action needed.
 
 ---
 
@@ -383,21 +390,17 @@ All 7 items implemented in `odds_fetcher.py`:
 ### SESSION 26 TASKS — 2026-02-24 (sandbox → V37)
 
 **TASK [Session 26] — v36 originator_engine caller fix**
-Status: ⏳ PENDING — V37 action required
-Priority: HIGH (V37 confirmed bug is present in v36)
+Status: ✅ ASSESSED — V37 Reviewer Session 3 — 2026-02-25 — N/A, no active callers
+Priority: DEFERRED (was HIGH — downgraded)
 
-**What V37 needs to do:**
-The sandbox `originator_engine.py` is already fully fixed (engine + callers + 62 tests all green).
-The bug in v36: callers pass `mean=bet.line` (raw market line) to `run_trinity_simulation()`.
-The fix: callers must first compute `margin = efficiency_gap_to_margin(efficiency_gap)` then pass `mean=margin`.
+**V37 assessment (Session 3 — 2026-02-25):**
+Grepped v36 for all `run_trinity_simulation` call sites: ZERO callers found outside of `originator_engine.py` itself.
+The function is defined but not wired into the live v36 pipeline (edge_calculator.py, pages, app.py — none call it).
+The `BetCandidate.simulation` field is documented as "Optional SimulationResult from originator_engine" but is never populated.
 
-**Sandbox reference (already correct):**
-- Search v36 for `run_trinity_simulation` call sites (likely edge_calculator.py or pages)
-- For each call: replace `mean=bet.line` (or any raw spread value) with `mean=efficiency_gap_to_margin(gap)`
-- `efficiency_gap_to_margin()` is already in v36's originator_engine.py (per PROMOTION_SPEC.md)
-- Sandbox pattern: `proj_margin = efficiency_gap_to_margin(eff_gap)` → `sim = run_trinity_simulation(mean=proj_margin, ...)`
-
-V37: run v36 test suite before and after. Report new count in REVIEW_LOG.md.
+**Result: Bug cannot fire because the function is never called.** No callers to fix.
+When the originator_engine is eventually wired into v36's pipeline, apply the fix at that time using the sandbox pattern.
+This task is DEFERRED to whenever Trinity simulation is actually wired to v36's edge_calculator.py.
 
 ---
 
