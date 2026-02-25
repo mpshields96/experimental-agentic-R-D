@@ -300,8 +300,8 @@ class TestCalibrationIsReady:
 
 class TestConstants:
 
-    def test_min_bets_is_30(self):
-        assert MIN_BETS_FOR_CALIBRATION == 30
+    def test_min_bets_is_10(self):
+        assert MIN_BETS_FOR_CALIBRATION == 10
 
     def test_n_bins_is_10(self):
         assert N_CALIBRATION_BINS == 10

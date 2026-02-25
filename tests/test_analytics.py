@@ -171,7 +171,7 @@ class TestGetBetCounts:
         assert result["losses"] == 1
 
     def test_min_required_value(self):
-        assert get_bet_counts([])["min_required"] == 30
+        assert get_bet_counts([])["min_required"] == MIN_RESOLVED
 
 
 # ---------------------------------------------------------------------------
@@ -180,10 +180,10 @@ class TestGetBetCounts:
 
 class TestSharpROICorrelation:
     def test_inactive_below_threshold(self):
-        bets = _make_resolved(n_win=10, n_loss=10)  # only 20 resolved
+        bets = _make_resolved(n_win=4, n_loss=4)  # only 8 resolved — below MIN_RESOLVED=10
         result = compute_sharp_roi_correlation(bets)
         assert result["status"] == "inactive"
-        assert result["n_resolved"] == 20
+        assert result["n_resolved"] == 8
         assert result["bins"] == []
 
     def test_active_above_threshold(self):
@@ -241,7 +241,7 @@ class TestSharpROICorrelation:
 
 class TestRLMCorrelation:
     def test_inactive_below_threshold(self):
-        bets = [_bet(result="win", rlm=1)] * 14 + [_bet(result="loss", rlm=0)] * 10
+        bets = [_bet(result="win", rlm=1)] * 4 + [_bet(result="loss", rlm=0)] * 4  # 8 < MIN_RESOLVED
         result = compute_rlm_correlation(bets)
         assert result["status"] == "inactive"
 
@@ -302,7 +302,7 @@ class TestRLMCorrelation:
 
 class TestCLVBeatRate:
     def test_inactive_below_threshold(self):
-        bets = [_bet(result="win", clv=0.03)] * 14 + [_bet(result="loss", clv=-0.01)] * 10
+        bets = [_bet(result="win", clv=0.03)] * 4 + [_bet(result="loss", clv=-0.01)] * 4  # 8 < MIN_RESOLVED
         result = compute_clv_beat_rate(bets)
         assert result["status"] == "inactive"
 

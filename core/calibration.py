@@ -44,7 +44,7 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-MIN_BETS_FOR_CALIBRATION: int = 30   # minimum graded bets to activate
+MIN_BETS_FOR_CALIBRATION: int = 10   # minimum graded bets to activate
 N_CALIBRATION_BINS: int = 10         # probability bins for calibration curve
 
 # Default DB path (override via argument)

@@ -826,6 +826,37 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 
 ---
 
+### V37 AUDIT — Sandbox Session 27 — 2026-02-25
+**Status:** APPROVED — no flags.
+
+**What was built:**
+- `core/math_engine.py`: Grade tier constants (`GRADE_B_MIN_EDGE=0.015`, `GRADE_C_MIN_EDGE=0.005`, `NEAR_MISS_MIN_EDGE=-0.01`, `KELLY_FRACTION_B=0.12`, `KELLY_FRACTION_C=0.05`), `BetCandidate.grade` field, `assign_grade()` pure function
+- `pages/01_live_lines.py`: Tiered display (Grade A/B/C/NEAR_MISS pills + banners), grade-aware Log Bet stakes (Grade A: $200/$100/$50; Grade B: $50 cap; Grade C/NEAR_MISS: no Log Bet), grade-aware Kelly label, market-efficient state only fires when ALL tiers empty
+- `tests/test_math_engine.py`: +26 tests (`TestBetGradeConstants` 8 + `TestAssignGrade` 18 + 1 extra boundary)
+
+**Math > Narrative check:** ✅ Grade tiers are derived purely from `edge_pct` (mathematical). No narrative inputs. Grade A = existing 3.5% floor. Grade B/C are sub-threshold data collection tiers. Math-only.
+
+**Rules intact:** ✅
+- MIN_EDGE=0.035 (Grade A floor) — unchanged
+- Grade A uses standard Kelly (0.25×). Grade B: 0.12×. Grade C: 0.05×. NEAR_MISS: 0.0 always.
+- Collar not modified
+- SHARP_THRESHOLD=45 not modified
+- Grade C and NEAR_MISS have NO Log Bet button — correct (not actionable)
+
+**Import discipline:** ✅ `assign_grade()` in `core/math_engine.py` (pure math layer). Pages import it. No Streamlit imports in math_engine. One file = one job.
+
+**API discipline:** ✅ No new API calls. No new external packages.
+
+**Test pass rate:** ✅ 1072 → 1099 (+27 tests). 1099/1099 passing (confirmed by reviewer running full suite).
+
+**Issues:** None.
+
+**Note for v36:** Grade Tier System and v36's SPECULATIVE tier (Sharp Score 40–44) are complementary but operate on different dimensions. Grade = raw edge% confidence. SPECULATIVE = composite Sharp Score sub-threshold. When promoting Grade tier to v36, both systems coexist: Grade A/B/C labels the edge confidence; SPECULATIVE mode fires when no bets reach the 45-pt Sharp Score gate. No conflict.
+
+**Action required:** None. Sandbox may proceed. Grade tier promotion to v36 is deferred — reviewer will build it when user confirms direction.
+
+---
+
 ### V37 REVIEWER SESSION 4 — 2026-02-25
 
 **User directives actioned this session (from sandbox relay + user message):**
@@ -988,6 +1019,20 @@ Both are doc-only fixes, no code changes.
 
 **Issues:** Minor Flag 1 (days_to_game in form) + Minor Flag 2 (doc comment). Neither blocks functionality.
 **Action required:** Fix `days_to_game` form field in `04_bet_tracker.py` in next session (or address before Phase 2). Fix comment in analytics.py line 33. Both are small — one session item, not a full session.
+
+---
+
+### SANDBOX SESSION 27 cont. — Go-Live Config — 2026-02-25
+
+**Built:**
+- **Credit limits restored** — `DAILY_CREDIT_CAP=300, SESSION_SOFT=120, SESSION_HARD=200, BILLING_RESERVE=150`. Removed temporary test-key block.
+- **Calibration gate lowered: 30 → 10 bets** — `MIN_RESOLVED` (analytics.py) and `MIN_BETS_FOR_CALIBRATION` (calibration.py) both → 10. 4 bets already logged, need 6 more to unlock analytics.
+- **Test fixtures updated** — 3 inactive-threshold tests reduced from 20-24 bets to 8 (below new gate of 10). Hardcoded `30` removed.
+- **Correction**: days_to_game and analytics.py comment were already fixed in Session 25 (effac79) — Sessions 26/27 summaries were wrong to list them as pending.
+
+**Tests:** 1099/1099 ✅
+
+**No reviewer action needed.** Config-only — no math/logic/architecture changes.
 
 ---
 

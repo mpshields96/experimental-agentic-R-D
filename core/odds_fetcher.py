@@ -46,17 +46,14 @@ BASE_URL = "https://api.the-odds-api.com/v4/sports"
 #   SESSION_CREDIT_HARD_STOP   — stop ALL fetches for the session when hit
 #   BILLING_RESERVE            — global floor: never let remaining drop below this
 #
-# Math: 10,000 / 30 days = ~333/day. Daily cap=1,000 (3× budget = emergency ceiling).
-# BILLING_RESERVE=1,000 ensures we always have a buffer regardless of session count.
+# Math: 10,000 / 30 days = ~333/day. DAILY_CREDIT_CAP=300 = right at monthly target.
+# Full 12-sport scan ≈ 15-20 credits. 300/day ≈ 15-20 full scans → plenty for normal use.
+# BILLING_RESERVE=150 ensures buffer on any key (subscription or test).
 # ---------------------------------------------------------------------------
-# TEMPORARY UNTIL 2026-03-01 (main subscription depleted — using test key ~485 credits)
-# Main key (01dc7be6): ~1 credit remaining — DO NOT USE for anything
-# Test key (0fe5b22f): ~485 credits remaining — hard daily limit: 100
-# Restore to (1000, 300, 500, 1000) after 3/1/26 subscription reset.
-DAILY_CREDIT_CAP: int = 100           # WAS 1000 — user directive 2026-02-25 (test key mode)
-SESSION_CREDIT_SOFT_LIMIT: int = 30    # WAS 300 — warn after 30 credits this session
-SESSION_CREDIT_HARD_STOP: int = 80     # WAS 500 — hard stop at 80 credits this session
-BILLING_RESERVE: int = 50             # WAS 1000 — test key has ~485; floor at 50
+DAILY_CREDIT_CAP: int = 300           # ~10 full 12-sport scans/day. Conservative ceiling.
+SESSION_CREDIT_SOFT_LIMIT: int = 120  # Warn after ~6 full scans in one session
+SESSION_CREDIT_HARD_STOP: int = 200   # Hard stop — ~10 full scans per session max
+BILLING_RESERVE: int = 150            # Never drop below 150 remaining (any key)
 
 # ---------------------------------------------------------------------------
 # Daily credit log — persisted across restarts

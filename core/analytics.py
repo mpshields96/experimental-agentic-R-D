@@ -18,8 +18,8 @@ Functions:
   get_bet_counts                 — resolved/pending/total (used by sample guards)
 
 Sample-size guard:
-  MIN_RESOLVED = 30  — returned in every result as "min_required".
-  If n_resolved < 30, status="inactive" and analytics values are omitted.
+  MIN_RESOLVED = 10  — returned in every result as "min_required".
+  If n_resolved < MIN_RESOLVED, status="inactive" and analytics values are omitted.
   Callers should check result["status"] before rendering charts.
 
 Import rules: NO imports from core/ except standard library.
@@ -30,7 +30,7 @@ from __future__ import annotations
 from typing import Optional
 import math
 
-MIN_RESOLVED = 30  # calibration gate — matches MIN_BETS_FOR_CALIBRATION in calibration.py
+MIN_RESOLVED = 10  # calibration gate — matches MIN_BETS_FOR_CALIBRATION in calibration.py
 
 
 # ---------------------------------------------------------------------------
