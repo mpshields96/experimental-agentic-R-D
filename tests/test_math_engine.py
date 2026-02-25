@@ -2015,6 +2015,94 @@ class TestNBAPdoIntegration:
 
 
 # ---------------------------------------------------------------------------
+# min_edge parameter on parse_game_markets
+# ---------------------------------------------------------------------------
+
+class TestParseGameMarketsMinEdge:
+    """Tests for the min_edge override parameter added in Session 26 (DC fallback)."""
+
+    def _make_low_edge_game(self) -> dict:
+        """
+        Game where Boston has ~2.77% edge (above DC_MIN_EDGE=2.0%, below MIN_EDGE=3.5%).
+
+        Math (verified against consensus_fair_prob):
+          Books 1-3: Boston -150 / NY +130
+            → no-vig Boston = (150/250) / ((150/250) + (100/230)) ≈ 0.5798
+          Book 4 (outlier): Boston -115 / NY -105
+            → no-vig Boston = (115/215) / ((115/215) + (105/205)) ≈ 0.5108
+          Consensus (mean of 4) = (0.5798×3 + 0.5108) / 4 ≈ 0.5626
+          Best Boston price = -115 (outlier), implied = 115/215 ≈ 0.5349
+          Edge = 0.5626 - 0.5349 ≈ 0.0277 (2.77%)
+        """
+        return {
+            "id": "dc_game_001",
+            "home_team": "Boston Celtics",
+            "away_team": "New York Knicks",
+            "commence_time": "2026-02-25T00:00:00Z",
+            "bookmakers": [
+                _make_bookmaker("dk", "DraftKings", "h2h", [
+                    {"name": "Boston Celtics", "price": -150},
+                    {"name": "New York Knicks", "price": 130},
+                ]),
+                _make_bookmaker("fd", "FanDuel", "h2h", [
+                    {"name": "Boston Celtics", "price": -150},
+                    {"name": "New York Knicks", "price": 130},
+                ]),
+                _make_bookmaker("bm", "BetMGM", "h2h", [
+                    {"name": "Boston Celtics", "price": -150},
+                    {"name": "New York Knicks", "price": 130},
+                ]),
+                _make_bookmaker("br", "BetRivers", "h2h", [
+                    {"name": "Boston Celtics", "price": -115},  # outlier — better price
+                    {"name": "New York Knicks", "price": -105},
+                ]),
+            ],
+        }
+
+    def test_default_min_edge_filters_low_edge_game(self):
+        """Standard call (min_edge=MIN_EDGE=3.5%) excludes ~2.77% edge candidate."""
+        game = self._make_low_edge_game()
+        cands = parse_game_markets(game, "NBA")  # default min_edge=MIN_EDGE
+        live = [c for c in cands if not c.kill_reason]
+        assert len(live) == 0, f"Expected no standard candidates, got {len(live)}"
+
+    def test_dc_min_edge_surfaces_low_edge_candidate(self):
+        """DC threshold (min_edge=0.02) surfaces the ~2.77% edge candidate."""
+        game = self._make_low_edge_game()
+        cands = parse_game_markets(game, "NBA", min_edge=0.02)
+        live = [c for c in cands if not c.kill_reason]
+        assert len(live) >= 1, "DC threshold should surface at least one candidate"
+        # Edge should be above DC floor and below standard floor
+        for c in live:
+            assert c.edge_pct >= 0.02, f"Edge below DC floor: {c.edge_pct}"
+            assert c.edge_pct < MIN_EDGE, f"Edge above standard floor: {c.edge_pct}"
+
+    def test_explicit_zero_min_edge_passes_all_collared(self):
+        """min_edge=0.0 returns any positive-edge candidate passing collar."""
+        game = self._make_low_edge_game()
+        cands_zero = parse_game_markets(game, "NBA", min_edge=0.0)
+        cands_dc = parse_game_markets(game, "NBA", min_edge=0.02)
+        # zero threshold should return ≥ dc threshold count
+        live_zero = [c for c in cands_zero if not c.kill_reason]
+        live_dc = [c for c in cands_dc if not c.kill_reason]
+        assert len(live_zero) >= len(live_dc)
+
+    def test_high_min_edge_returns_empty(self):
+        """min_edge=1.0 (100%) returns no candidates — no book gives 100% edge."""
+        game = self._make_low_edge_game()
+        cands = parse_game_markets(game, "NBA", min_edge=1.0)
+        live = [c for c in cands if not c.kill_reason]
+        assert len(live) == 0, "No bet can have 100% edge"
+
+    def test_default_behavior_unchanged(self):
+        """Calling without min_edge param produces same result as min_edge=MIN_EDGE."""
+        game = self._make_low_edge_game()
+        default_cands = parse_game_markets(game, "NBA")
+        explicit_cands = parse_game_markets(game, "NBA", min_edge=MIN_EDGE)
+        assert len(default_cands) == len(explicit_cands)
+
+
+# ---------------------------------------------------------------------------
 # Run standalone self-test
 # ---------------------------------------------------------------------------
 

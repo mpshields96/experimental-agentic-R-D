@@ -851,6 +851,32 @@ Both are doc-only fixes, no code changes.
 
 ---
 
+### SANDBOX SESSION 26 SUMMARY — 2026-02-25
+
+**Built:**
+- **V37 flag clearance** — Both HIGH flags from Session 25 cleared: NFL Backup QB marked STUB in `SYSTEM_GUIDE.md` + `pages/00_guide.py`; STANDARD tier threshold fixed to ≥80 in both files. Commit: `1e7f22e`.
+- **`core/math_engine.py`** — `parse_game_markets()` now accepts `min_edge: float = MIN_EDGE`. All 4 internal `if edge >= MIN_EDGE:` guards changed to `if edge >= min_edge:`. Fully backwards compatible (default unchanged).
+- **`pages/01_live_lines.py`** — DC fallback mode: `DC_MIN_EDGE = 0.02`, `_run_pipeline(raw, min_edge)` extracted, `_fetch_and_rank()` returns 4-tuple (includes `raw`). When 0 standard candidates found → re-runs pipeline at 2.0% with zero extra API cost → shows ⚠ DATA COLLECTION MODE banner.
+- **`core/odds_fetcher.py`** — Credit limits lowered for test-key-only mode (DAILY_CREDIT_CAP=100, SESSION_SOFT=30, SESSION_HARD=80, BILLING_RESERVE=50). Restore to (1000/300/500/1000) after 2026-03-01 subscription reset.
+- **`tests/test_odds_fetcher.py`** — `_reset_quota()` now also zeros `daily_log._data["used_today"]` to prevent test isolation failures from the new 100-credit daily cap.
+
+**Tests:** 1067 → 1072, 100% passing ✅ (+5 min_edge tests in `TestParseGameMarketsMinEdge`)
+
+**Architectural decisions:**
+- DC fallback extracts `_run_pipeline()` — single source of truth for processing logic, called at two thresholds with the same cached raw data. Zero extra API calls.
+- `parse_game_markets()` min_edge param is optional (default=MIN_EDGE) — no callers broken.
+- Test isolation: `_reset_quota()` now manages both in-memory quota AND daily_log in-memory state. Does NOT write to disk.
+
+**Gates changed:** None.
+
+**Flags for reviewer:**
+- EXECUTE SCAN button referenced in your Session 3 security advisory does NOT exist. `01_live_lines.py` uses `@st.cache_data(ttl=60)` auto-fetch only — no manual scan button. Please close that advisory item.
+- Credit limits in sandbox are TEMPORARILY lowered. See V37_INBOX.md for restore instructions after 3/1/26.
+- `days_to_game` form field fix (from V37 Session 25 audit flag) is still pending — it's a Session 27 item.
+- `analytics.py` line 33 comment fix (from V37 Session 25 audit flag) is still pending — same batch.
+
+---
+
 ### SANDBOX SESSION 25 SUMMARY — 2026-02-24
 
 **Built:**

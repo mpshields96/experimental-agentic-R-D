@@ -89,39 +89,31 @@ MARKET_DISPLAY = {
 }
 SPORT_OPTIONS = ["All", "NBA", "NFL", "NCAAB", "MLB", "NHL", "Soccer", "Tennis"]
 
+# Data collection threshold: used when zero bets surface at standard MIN_EDGE (3.5%).
+# Slightly below standard to generate bet data without violating core math rules.
+# Bets at this threshold are LOGGED ONLY — label them DATA_COLLECTION, stake $0.
+DC_MIN_EDGE: float = 0.02  # 2.0% — minimum above vig-extraction territory
+
 
 # ---------------------------------------------------------------------------
 # Core pipeline
 # ---------------------------------------------------------------------------
-@st.cache_data(ttl=60, show_spinner=False)
-def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
+
+def _run_pipeline(raw: dict, min_edge: float = MIN_EDGE) -> list[BetCandidate]:
     """
-    Fetch odds, parse all games, return ranked bet candidates.
+    Process raw Odds API game dict into ranked BetCandidates. Zero API calls.
 
-    Tennis sport keys are dynamic (tournament-specific). fetch_batch_odds()
-    returns them keyed by raw Odds API sport key (e.g. "tennis_atp_qatar_open"),
-    and we pass that key to parse_game_markets() as tennis_sport_key so the
-    tennis kill switch can derive the court surface.
+    Extracted from _fetch_and_rank so it can be called at both standard and
+    DATA_COLLECTION min_edge thresholds without incurring additional API cost.
 
+    Args:
+        raw:      Dict from fetch_batch_odds() — {sport_key: [game_dicts]}
+        min_edge: Edge floor. MIN_EDGE (0.035) for standard. DC_MIN_EDGE (0.02) for fallback.
     Returns:
-        (candidates, error_message, quota_remaining)
-        candidates is empty list on error or no data.
+        BetCandidates sorted by sharp_score descending.
     """
-    try:
-        # Tennis filter: fetch only tennis keys when sport_filter == "Tennis"
-        if sports_filter == "Tennis":
-            sports = None  # fetch_batch_odds handles tennis dynamically
-            raw = fetch_batch_odds(sports=[], include_tennis=True)
-        elif sports_filter == "All":
-            raw = fetch_batch_odds(sports=None, include_tennis=True)
-        else:
-            raw = fetch_batch_odds(sports=[sports_filter], include_tennis=False)
-    except Exception as exc:
-        return [], f"API error: {exc}", 0
-
     candidates: list[BetCandidate] = []
     for sport_key, games in raw.items():
-        # Determine sport label and tennis_sport_key for kill switch routing
         is_tennis = sport_key.startswith("tennis_atp") or sport_key.startswith("tennis_wta")
         if is_tennis:
             sport_label = "TENNIS_ATP" if "atp" in sport_key else "TENNIS_WTA"
@@ -130,7 +122,6 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
             sport_label = sport_key
             t_sport_key = ""
 
-        # NBA: derive rest days from schedule timestamps (zero extra API calls)
         rest_days_map: dict | None = None
         if sport_key == "NBA" and games:
             try:
@@ -138,8 +129,6 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
             except Exception:
                 rest_days_map = None
 
-        # NBA: fetch PDO regression signal once per sport_key (cached 1hr)
-        # Uses module-level cache — no repeat network hit within TTL
         nba_pdo_data: dict | None = None
         if sport_key == "NBA":
             try:
@@ -154,14 +143,12 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
                 home = game.get("home_team", "")
                 away = game.get("away_team", "")
                 eff_gap = get_efficiency_gap(home, away)
-                # NBA: build per-game PDO dict from sport-level cache
                 game_pdo: dict | None = None
                 if nba_pdo_data and home and away:
                     game_pdo = {
                         k: v for k, v in nba_pdo_data.items()
                         if k in (home, away)
                     } or None
-                # NFL: fetch live wind forecast for home stadium (cached 1hr)
                 wind = 0.0
                 if is_nfl_sport:
                     try:
@@ -176,9 +163,8 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
                     rest_days=rest_days_map,
                     wind_mph=wind,
                     nba_pdo=game_pdo,
+                    min_edge=min_edge,
                 )
-                # Trinity simulation: attach cover_probability to each candidate
-                # Uses efficiency_gap → projected margin as model input (not market line)
                 sport_upper = sport_label.upper().replace("TENNIS_ATP", "NBA").replace("TENNIS_WTA", "NBA")
                 proj_margin = efficiency_gap_to_margin(eff_gap)
                 for bet in bets:
@@ -190,23 +176,44 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
                             sport=sport_upper,
                             line=spread_line,
                             total_line=total_arg,
-                            iterations=2_000,  # fast pass for live scan
+                            iterations=2_000,
                             seed=42,
                         )
                         bet.signal = (bet.signal or "") + f" | Trinity cover={sim.cover_probability*100:.0f}%"
                         if bet.market_type == "totals" and sim.over_probability > 0:
                             bet.signal = (bet.signal or "") + f" over={sim.over_probability*100:.0f}%"
                     except Exception:
-                        pass  # Trinity failure never blocks candidate output
+                        pass
                 candidates.extend(bets)
             except Exception:
-                continue  # individual game parse failure doesn't crash the page
+                continue
 
-    # Sort globally by Sharp Score descending (per CLAUDE.md — NOT edge%)
     candidates.sort(key=lambda b: b.sharp_score, reverse=True)
+    return candidates
 
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int, dict]:
+    """
+    Fetch odds, parse all games, return ranked bet candidates.
+
+    Returns:
+        (candidates, error_message, quota_remaining, raw_games_dict)
+        raw_games_dict passed back for DATA_COLLECTION fallback re-processing.
+    """
+    try:
+        if sports_filter == "Tennis":
+            raw = fetch_batch_odds(sports=[], include_tennis=True)
+        elif sports_filter == "All":
+            raw = fetch_batch_odds(sports=None, include_tennis=True)
+        else:
+            raw = fetch_batch_odds(sports=[sports_filter], include_tennis=False)
+    except Exception as exc:
+        return [], f"API error: {exc}", 0, {}
+
+    candidates = _run_pipeline(raw, MIN_EDGE)
     remaining = quota.remaining if quota.remaining is not None else -1
-    return candidates, "", remaining
+    return candidates, "", remaining, raw
 
 
 # ---------------------------------------------------------------------------
@@ -531,7 +538,7 @@ fetch_placeholder = st.empty()
 def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
     with fetch_placeholder.container():
         with st.spinner("Fetching odds..."):
-            candidates, error, remaining = _fetch_and_rank(sport_filter)
+            candidates, error, remaining, raw_games = _fetch_and_rank(sport_filter)
 
         if error:
             st.error(error)
@@ -611,28 +618,54 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         st.markdown("---")
 
         if not candidates:
-            st.html(
-                """
-                <div style="
-                    background: #1a1d23;
-                    border: 1px solid #2d3139;
-                    border-radius: 6px;
-                    padding: 40px 20px;
-                    text-align: center;
-                    color: #6b7280;
-                ">
-                    <div style="font-size:2rem; margin-bottom:12px;">—</div>
-                    <div style="font-size:0.9rem; font-weight:600; color:#9ca3af; margin-bottom:6px;">
-                        No qualifying bets found
-                    </div>
-                    <div style="font-size:0.75rem; line-height:1.6;">
-                        All candidates failed edge ≥3.5%, collar (−180/+150),
-                        or min-books (≥2) filters.<br>
-                        Check: API key configured? ODDS_API_KEY in environment?
-                    </div>
+            # DATA COLLECTION FALLBACK — re-process cached raw data at DC_MIN_EDGE (2.0%)
+            # No additional API calls — raw_games was already fetched above.
+            # Bets surfaced here are BELOW standard threshold. Log with stake=$0, tag="DATA_COLLECTION".
+            dc_candidates = []
+            if raw_games:
+                dc_candidates = [
+                    c for c in _run_pipeline(raw_games, DC_MIN_EDGE)
+                    if not c.kill_reason  # only live bets, no KILL-flagged candidates
+                ]
+
+            if dc_candidates:
+                st.html("""
+                <div style="background:#1e1a0e;border:1px solid #78350f;border-radius:6px;
+                            padding:12px 16px;margin-bottom:12px;">
+                    <span style="color:#f59e0b;font-weight:700;font-size:0.85rem;">
+                        ⚠ DATA COLLECTION MODE
+                    </span>
+                    <span style="color:#d97706;font-size:0.8rem;margin-left:8px;">
+                        No bets at standard threshold (≥3.5% edge). Showing ≥2.0% candidates
+                        for model calibration only. Log with stake=$0. Do not bet these.
+                    </span>
                 </div>
-                """
-            )
+                """)
+                for rank, bet in enumerate(dc_candidates[:8], start=1):
+                    st.html(_bet_card(bet, rank))
+            else:
+                st.html(
+                    """
+                    <div style="
+                        background: #1a1d23;
+                        border: 1px solid #2d3139;
+                        border-radius: 6px;
+                        padding: 40px 20px;
+                        text-align: center;
+                        color: #6b7280;
+                    ">
+                        <div style="font-size:2rem; margin-bottom:12px;">—</div>
+                        <div style="font-size:0.9rem; font-weight:600; color:#9ca3af; margin-bottom:6px;">
+                            No qualifying bets found
+                        </div>
+                        <div style="font-size:0.75rem; line-height:1.6;">
+                            All candidates failed edge ≥2.0%, collar (−180/+150),
+                            or min-books (≥2) filters.<br>
+                            Check: API key configured? ODDS_API_KEY in environment?
+                        </div>
+                    </div>
+                    """
+                )
             return
 
         # Render cards

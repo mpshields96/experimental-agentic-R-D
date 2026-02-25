@@ -1348,12 +1348,13 @@ def parse_game_markets(
     rest_days: Optional[dict] = None,
     wind_mph: float = 0.0,
     nba_pdo: Optional[dict] = None,
+    min_edge: float = MIN_EDGE,
 ) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
 
     Edge detection: multi-book consensus (see consensus_fair_prob()).
-    Applies: collar filter, min edge (3.5%), min books (2).
+    Applies: collar filter, min edge (min_edge param, default 3.5%), min books (2).
 
     Args:
         game:  Raw game dict from fetch_game_lines() / fetch_batch_odds().
@@ -1467,7 +1468,7 @@ def parse_game_markets(
             if _ncaaf_killed:
                 continue
         edge = cp - implied_probability(best_price)
-        if edge >= MIN_EDGE:
+        if edge >= min_edge:
             kelly = fractional_kelly(cp, best_price)
             public_on_side = best_price < -105
             rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
@@ -1526,7 +1527,7 @@ def parse_game_markets(
             if best_price is None or not passes_collar_soccer(best_price):
                 continue
             edge = cp - implied_probability(best_price)
-            if edge >= MIN_EDGE:
+            if edge >= min_edge:
                 kelly = fractional_kelly(cp, best_price)
                 public_on_side = best_price < -105
                 rlm_confirmed, _rlm_drift = compute_rlm(event_id, outcome_name, best_price, public_on_side)
@@ -1566,7 +1567,7 @@ def parse_game_markets(
                 if _ncaaf_killed_h2h:
                     continue
             edge = cp - implied_probability(best_price)
-            if edge >= MIN_EDGE:
+            if edge >= min_edge:
                 kelly = fractional_kelly(cp, best_price)
                 public_on_side = best_price < -105
                 rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
@@ -1652,7 +1653,7 @@ def parse_game_markets(
                 # Hard kill (wind > 20): skip entirely
                 continue
         edge = cp - implied_probability(best_price)
-        if edge >= MIN_EDGE:
+        if edge >= min_edge:
             kelly = fractional_kelly(cp, best_price)
             # Totals: "Over" tends to be the public side (fans like scoring)
             public_on_side = (side == "Over" and best_price < -105)

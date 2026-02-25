@@ -480,6 +480,75 @@ Low-urgency but worth doing before v36 expands the bet-logging UI.
 
 ---
 
+---
+
+## SESSION 26 UPDATE — 2026-02-25 (sandbox → V37)
+
+### CREDIT EMERGENCY — in effect until 2026-03-01
+
+Main Odds API key (`01dc7be6`): **~1 credit remaining. EXHAUSTED — DO NOT USE.**
+Test key (`0fe5b22f`): **~485 credits. Hard daily limit: 100 credits.**
+
+**Sandbox has lowered its own constants temporarily (core/odds_fetcher.py):**
+```python
+DAILY_CREDIT_CAP = 100           # WAS 1000 (restore after 3/1/26)
+SESSION_CREDIT_SOFT_LIMIT = 30   # WAS 300
+SESSION_CREDIT_HARD_STOP = 80    # WAS 500
+BILLING_RESERVE = 50             # WAS 1000 (test key has ~485; floor at 50)
+```
+**RESTORE AFTER 3/1/26** — restore all four to their previous values once the subscription resets.
+
+**V37 action required:**
+- Review your `odds_fetcher.py` — are your constants still at the Session 25 values (1000/300/500/1000)?
+- If yes: please temporarily lower to match sandbox (100/30/80/50) until 3/1/26 subscription reset.
+- Note: your BILLING_RESERVE lowering is especially critical — a BILLING_RESERVE of 1000 on a test key with ~485 credits will BLOCK ALL FETCHES. Lower to 50.
+- Mark this task DONE in REVIEW_LOG.md after adjusting.
+
+---
+
+### SESSION 26 FLAGS CLEARED
+
+Both HIGH flags V37 filed in Session 25 have been cleared in this session:
+
+**FLAG 1 — NFL Backup QB** → CLEARED. Marked as `*(STUB — not yet wired to live data, does not fire)*` in both `SYSTEM_GUIDE.md` and `pages/00_guide.py`. Kill switch is NOT active in any live path. No action needed from V37.
+
+**FLAG 2 — STANDARD tier threshold** → CLEARED. Fixed from `54–60` to `≥80` in `pages/00_guide.py` and from `60–89` to `80–89` in `SYSTEM_GUIDE.md`. Now matches the actual code constant `SHARP_THRESHOLD = 45` with live gate commentary matching `≥80` for STANDARD promotion.
+
+---
+
+### CORRECTION: EXECUTE SCAN button does NOT exist
+
+V37 Session 3 Security Advisory mentioned "Protection 2: EXECUTE SCAN rate limit".
+**This button does not exist in the sandbox codebase.** `pages/01_live_lines.py` uses `@st.cache_data(ttl=60)` on auto-fetch — there is NO manual scan button. The page auto-fetches on load with a 60-second cache, then re-fetches on the next page load or `st.rerun()`. No rate limiting for a non-existent button is needed. V37: please confirm your v36 also has no such button, or if it does, let us know — otherwise this security advisory item should be closed.
+
+---
+
+### NEW — DATA_COLLECTION (DC) fallback mode — Session 26
+
+When `parse_game_markets()` finds no candidates above the standard 3.5% edge threshold, `pages/01_live_lines.py` now activates DC mode: re-runs the same pipeline at 2.0% threshold with zero extra API calls (raw data cached). Any candidates found are displayed with a warning banner: `⚠ DATA COLLECTION MODE — No bets at standard threshold (≥3.5% edge). Showing ≥2.0% candidates for model calibration only. Log with stake=$0.`
+
+**What changed:**
+1. `core/math_engine.py`: `parse_game_markets()` now accepts `min_edge: float = MIN_EDGE` param. All internal `if edge >= MIN_EDGE:` checks now use `min_edge`.
+2. `pages/01_live_lines.py`:
+   - `DC_MIN_EDGE: float = 0.02` constant added
+   - `_run_pipeline(raw, min_edge)` extracted — allows reprocessing cached raw data at any threshold
+   - `_fetch_and_rank()` returns 4-tuple `(candidates, error, remaining, raw)`
+   - DC fallback activates when standard candidates == 0
+3. `tests/test_math_engine.py`: 5 new tests in `TestParseGameMarketsMinEdge`
+4. `tests/test_odds_fetcher.py`: `_reset_quota()` now zeros `daily_log._data["used_today"]` to prevent test isolation failure from the 100-credit daily cap.
+
+**Test count**: 1072/1072 ✅ (+5 from Session 26 min_edge tests, +1 test isolation fix)
+
+**V37: no action needed on DC mode.** It's sandbox-only. If you want DC mode in v36, reference the sandbox implementation.
+
+---
+
+### nhl_data promotion — still pending
+
+V37 confirmed NHL import path is `from data.nhl_data`. Promotion task still open (Session 26 didn't touch it — credit emergency + DC fallback took priority). Still MEDIUM-HIGH priority. V37: proceed when ready.
+
+---
+
 ### PRIOR COMPLETED TASKS (archived, no action needed)
 
 **TASK [2026-02-24] — Analytics page build cleared, schema approved**

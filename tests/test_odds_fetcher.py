@@ -42,6 +42,9 @@ def _reset_quota() -> None:
     _of_module.quota.remaining = 10_000   # safe remaining — won't trigger billing reserve
     _of_module.quota.last_cost = 0
     _of_module.quota.session_used = 0
+    # Also zero daily log in-memory state so DAILY_CREDIT_CAP doesn't interfere.
+    # The real daily_quota.json is NOT written (no _save()) — only in-memory reset.
+    _of_module.quota.daily_log._data["used_today"] = 0
 
 
 # ---------------------------------------------------------------------------
