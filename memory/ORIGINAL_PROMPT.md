@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 28 — 2026-02-25
-# Session work: Live scan attempted → CRITICAL BUG found in totals consensus logic
-# Priority reset: #1 fix totals bug, #2 UI modernisation, #3 live run
+# Last updated: Session 29 — 2026-02-25
+# Session work: Full math audit — fixed totals consensus bug, RLM direction bug, deleted dead code
+# Priority reset: #1 UI modernisation, #2 live run (totals unblocked), #3 analytics unlock
 # Maintained by: sandbox builder chat
 
 ---
@@ -147,9 +147,10 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file. Write tasks to V37_INBOX.md.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
 
-Current V37 status: **PENDING — hard audit request filed Session 28 (2026-02-25).**
-V37 task: Audit `core/math_engine.py` `parse_game_markets()` totals section.
-Bug: `consensus_fair_prob()` mixes books quoting different total lines → contradictory Over+Under Grade B signals on same game. V37 must identify root cause + propose fix + write findings to REVIEW_LOG.md.
+Current V37 status: **Session 29 sandbox fixed Layer 1 (modal line pinning). Awaiting V37 validation.**
+V37 completed: Reviewer Session 5 audit — identified root cause, implemented Layer 2 dedup fix in v36.
+Sandbox completed: Layer 1 — `_canonical_totals_books()` in `parse_game_markets()`. Both consensus and best-price now scoped to modal total line. EDM@ANA symptom eliminated.
+V37 validation requested: confirm Layer 1 implementation matches their spec from Reviewer Session 5.
 V37 also pending: originator_engine caller fix + nhl_data promotion (lower priority).
 
 ---
@@ -173,30 +174,30 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 28 — 2026-02-25)
+## 📍 CURRENT PROJECT STATE (Session 29 — 2026-02-25)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      NOT running (killed at session end)
-Tests:    1103 / 1103 passing ✅
+Tests:    1079 / 1079 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commits (all PUSHED):
-  - e294539 — Session 28 wrap: V37 hard audit request — parse_game_markets totals bug
+  - f6a4b3c — Session 29: Full math audit — totals fix, RLM direction fix, dead code deleted
+  - e294539 — Session 28 wrap: V37 hard audit request
   - e69397a — Session 27 final: grade DB column + REVIEW_LOG close + session memory
   - 2db65c4 — Go-live config: credit limits + analytics gate (Session 27 cont.)
   - e20b43c — Session 27: Grade tier pipeline (A/B/C/Near-Miss) — 1099 tests
-  - 4ded770 — Session 26: DC fallback + credit limits + V37 flag clearance
 
-🔴 CRITICAL BUG — DO NOT ATTEMPT LIVE RUN UNTIL FIXED:
-  parse_game_markets() totals section mixes books quoting different lines.
-  Result: both Over 7.0 AND Under 6.5 flagged as Grade B on same game.
-  Blocked: all live betting on totals markets.
-  V37 audit in progress (V37_INBOX.md filed).
+✅ SESSION 29 FIXES APPLIED:
+  Totals consensus bug: FIXED (_canonical_totals_books() in parse_game_markets())
+  RLM direction bug: FIXED (signed drift, no longer abs())
+  Dead code removed: run_nemesis() 241 lines, calculate_edge(), dead Poisson precompute
+  Live betting on totals: UNBLOCKED
 
-🔴 PRIORITY ORDER (non-negotiable, user directive):
-  #1 — Fix parse_game_markets() totals consensus bug
-  #2 — UI modernisation (modern Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
-  #3 — Live run (only after #1 fixed + validated)
+📋 PRIORITY ORDER (Session 30):
+  #1 — UI modernisation (modern Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
+  #2 — Live run (totals now unblocked — can log totals bets)
+  #3 — Analytics unlock (need 6 more resolved bets; gate = 10)
 
 Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)
 ```
@@ -244,7 +245,7 @@ Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)
 
 | Module | Purpose | Tests |
 |--------|---------|-------|
-| `math_engine.py` | ALL math — collar, edge, Kelly, sharp score, RLM, CLV, Nemesis | 217 |
+| `math_engine.py` | ALL math — collar, edge, Kelly, sharp score, RLM, CLV. Session 29: totals canonical line scoping, signed RLM drift, dead code removed. | 225 |
 | `odds_fetcher.py` | Odds API wrapper, quota tracking, DailyCreditLog (daily cap), rest days, tennis discovery | 51 |
 | `line_logger.py` | SQLite WAL: lines, snapshots, bets, movements. log_bet() accepts 7 analytics params (sharp_score, rlm_fired, tags, book, days_to_game, line, signal). update_bet_result() validates result. | 31 |
 | `scheduler.py` | APScheduler: poll loop, inactivity guard (24h), NHL goalie hook, purge | 40 |

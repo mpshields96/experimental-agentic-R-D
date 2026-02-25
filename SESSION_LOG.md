@@ -2,6 +2,46 @@
 
 ---
 
+## Session 29 — 2026-02-25
+
+### Objective
+Full math audit of core/math_engine.py. Fix parse_game_markets() totals consensus bug (contradictory
+simultaneous Over+Under edge). Fix RLM direction bug (abs() → signed drift). Remove 241 lines of dead
+narrative code (run_nemesis, calculate_edge, Poisson precompute). Session end wrap-up + push.
+
+### What Was Built / Fixed
+- **core/math_engine.py** — _canonical_totals_books() helper: finds modal total line via Counter,
+  scopes both consensus_fair_prob() and _best_price_for() to same line set. Eliminates cross-line
+  false edge — mathematically impossible to have simultaneous positive edge on both sides after fix.
+- **core/math_engine.py** — RLM direction fix: `drift = current_prob - open_prob` (signed). Positive
+  = price sharpened (smart money). Negative = price lengthened (public). abs() was causing false RLM
+  on BOTH directions — now correctly identifies only smart-money line movement.
+- **core/math_engine.py** — Dead code removed: run_nemesis() (241 lines + 5 narrative constants),
+  calculate_edge() (outer wrapper with no callers), dead Poisson precompute block.
+- **tests/test_math_engine.py** — +7 regression tests (TestTotalsCanonicalLineFix ×4,
+  TestRLMDirectionFix ×3). −31 dead tests (TestCalculateEdge ×5, TestRunNemesis ×26).
+  Test suite: 1103 → 1079 (−31 dead, +7 regression) ✅
+- **V37_INBOX.md** — Session 29 completion notice + Layer 1 validation request
+- **REVIEW_LOG.md** — Session 29 audit summary + ELI5 skill guide + V37 action items
+- **CLAUDE.md** — Lessons 43/45 updated; lessons 46 (signed RLM) and 47 (narrative constants = cancer) added; CURRENT PROJECT STATE updated to Session 29; version header updated.
+- **memory/MEMORY.md** — Test count updated, critical bug section replaced with Session 29 summary, Next Session Targets updated.
+- **memory/ORIGINAL_PROMPT.md** — Full session 29 state, module table, commit hash, next targets.
+
+### V37 Coordination
+- V37 notified via V37_INBOX.md: validate _canonical_totals_books() matches Layer 1 spec
+- V37 action items written to REVIEW_LOG.md
+
+### Tests
+1103 → 1079 passing ✅ (net: −24 = −31 dead tests, +7 regression tests)
+
+### Commits
+- f6a4b3c — Session 29: full math audit + bug fixes + dead code removal — PUSHED ✅
+
+### Live Bet Status
+4 logged (0 resolved). Analytics gate = 10 resolved bets. Totals bets NOW UNBLOCKED.
+
+---
+
 ## Session 25 — 2026-02-24
 
 ### Objective

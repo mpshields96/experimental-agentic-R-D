@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 28 | Last updated: 2026-02-25
+## Version: Session 29 | Last updated: 2026-02-25
 ## For: New agentic R&D chat initialization
 
 ---
@@ -451,9 +451,11 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 40. **Inactivity guard breaks existing scheduler tests**: After adding an inactivity check at the top of `_poll_all_sports()`, any test that calls that function will silently skip if `data/last_activity.json` doesn't exist (returns `float("inf")`). Fix: add `@patch("core.scheduler._get_hours_since_activity", return_value=0.0)` to every `TestPollAllSports` / `TestTriggerPollNow` / `TestNhlGoaliePoll` method. Pattern: add this patch whenever adding any early-return guard to a function that already has tests.
 41. **Playwright fails when Chrome + extension running**: MCP Playwright uses the system Chrome binary. If Chrome is already open with the Claude in Chrome extension, Playwright exits with code 0 ("Opening in existing browser session") without loading the URL. Fix: `Cmd+Q` to fully quit Chrome, then Playwright works. Alternative: use code-level stress tests instead of browser tests during active sessions.
 42. **Grade tier system** (Session 27): `assign_grade(bet)` lives in `core/math_engine.py` (NOT UI layer). Mutates BetCandidate in-place. A(≥3.5%)/B(≥1.5%,0.12K)/C(≥0.5%,0.05K)/NEAR_MISS(≥-1%). `grade` is a proper TEXT column in `bet_log` — queryable. `log_bet()` accepts `grade=` param. `04_bet_tracker.py` has matching selectbox.
-43. **CRITICAL — totals consensus bug** (Session 28): `consensus_fair_prob()` for totals iterates ALL books regardless of the total line they quote. When Book A quotes 6.5 and Book B quotes 7.0, the consensus is a meaningless blend. `_best_price_for()` then picks best price without checking line alignment. Result: BOTH Over 7.0 AND Under 6.5 can show positive edge on the same game simultaneously. Fix: scope consensus AND best-price to the modal (most common) total line across books. V37 auditing — see V37_INBOX.md.
+43. **Totals multi-line consensus — FIXED Session 29**: `_canonical_totals_books()` (inner helper in `parse_game_markets()`) finds the modal total line using `Counter`, returns `(canonical_line, filtered_books)`. Both `consensus_fair_prob()` and `_best_price_for()` receive the same `_totals_bks` filtered set. `_best_price_for()` gained optional `bks` param (defaults to `all_bks`). This prevents cross-line false edge — it is mathematically impossible to have positive edge on both Over and Under of the same game after this fix. V37 has been notified to validate implementation matches their Layer 1 spec.
 44. **fetch_batch_odds() call signature** (Session 28): Takes friendly sport NAMES (`["NBA", "NHL"]`), NOT raw Odds API keys. Returns `dict[sport_name, list[game_dict]]`. ALWAYS iterate `for sport, games in result.items(): for game in games: parse_game_markets(game, sport, ...)`. NEVER pass the full games list to `parse_game_markets()` — it takes ONE game dict. This mistake produces `AttributeError: 'list' object has no attribute 'get'`.
-45. **Test fixture blind spot** (Session 28 lesson): All test fixtures for totals use a single canonical line per game. No test has ever introduced Book A at 6.5 / Book B at 7.0 on the same game. This is why the totals consensus bug shipped undetected. When building math engine tests, always include multi-line totals fixture (same game, different books, different lines). This is now a gap that Session 29 must close.
+45. **Multi-line totals test fixture is now mandatory** (Session 29): `TestTotalsCanonicalLineFix` in `test_math_engine.py` is the reference. Always include a test where Book A quotes 6.5 and Book B quotes 7.0 on the same game when testing totals math. The cross-edge invariant test (`test_mixed_lines_do_not_produce_simultaneous_positive_edge`) must remain in the suite permanently — it is the regression guard for the most subtle totals bug class.
+46. **RLM drift must be signed, never abs()** (Session 29 fix): `compute_rlm()` drift = `current_prob - open_prob`. Positive = price got more expensive for bettor (line sharpened = sharp action). Negative = price improved for bettor (line lengthened = public drift). Using `abs()` caused RLM to fire on BOTH directions — effectively random. The signed version correctly identifies only smart-money line movement.
+47. **Narrative probability constants are cancer** (Session 29 audit): `run_nemesis()` had constants 0.20, 0.25, 0.35, 0.41 with no mathematical derivation, no callers, and `adjustment` field never consumed. Pattern to audit for in future: any function whose probability/weight constants cannot be derived from first-principles math is narrative dressed as math. Delete it. The system's core mandate is Math > Narrative — no exceptions for even well-intentioned heuristic functions.
 
 ---
 
@@ -489,31 +491,28 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 28 — 2026-02-25)
+## 🚦 CURRENT PROJECT STATE (as of Session 29 — 2026-02-25)
 
 ```
-Test suite:   1103/1103 passing ✅
-Last commit:  fcfdee5 (.claude/launch.json added) — PUSHED ✅
+Test suite:   1079/1079 passing ✅
+Last commit:  f6a4b3c (Session 29: full math audit + bug fixes) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App port:     8504 | launch: ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
 
-🔴 CRITICAL BUG — BLOCKS LIVE BETTING ON TOTALS:
-  parse_game_markets() consensus_fair_prob() for totals mixes all books regardless
-  of which total line they're quoting (e.g. 6.5 vs 7.0 on same game).
-  Result: BOTH Over 7.0 AND Under 6.5 can show Grade B simultaneously.
-  This is mathematically impossible. V37 audit in progress (V37_INBOX.md).
-  DO NOT log any totals bets until this is fixed.
+✅ SESSION 29 COMPLETE — all critical bugs fixed:
+  Totals consensus bug: FIXED (_canonical_totals_books() in parse_game_markets())
+  RLM direction bug: FIXED (signed drift — no longer uses abs())
+  Dead code removed: run_nemesis() 241 lines, calculate_edge(), dead Poisson precompute
+  Live betting on totals: UNBLOCKED
 
-🔴 SESSION 29 PRIORITY ORDER (user directive — non-negotiable):
-  #1 Fix parse_game_markets() totals consensus bug
-  #2 UI modernisation (Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
-  #3 Live run (only after #1 fixed + validated)
+📋 SESSION 30 PRIORITY ORDER:
+  #1 UI modernisation (Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
+  #2 Live run (totals unblocked — can now log totals bets)
+  #3 Analytics unlock (need 6 more resolved bets; gate = 10)
 
-BUILT (Sessions 1-28):
+BUILT (Sessions 1-29):
   18 core modules, 7 pages, 12 active sports, 2 scripts
-  Sessions 26-28: Grade tier (A/B/C/NM), assign_grade(), grade DB column,
-                  go-live config, credit guards, V37 bridge, inactivity guard,
-                  export_bets.py, grade_bet.py, analytics Phase 1
+  Session 29: totals canonical line fix, RLM direction fix, dead code audit
 
 LIVE BET STATUS (4 logged, 0 resolved — analytics locked until 10 resolved):
   id=1: OKC -7.5 @ -115 | id=2: CLE -17.5 @ +120
@@ -547,4 +546,4 @@ SYSTEM GATES:
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 28, 2026-02-25*
+*Last updated: Session 29, 2026-02-25*
