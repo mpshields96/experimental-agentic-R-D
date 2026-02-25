@@ -857,6 +857,104 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 
 ---
 
+### V37 MCP ASSESSMENT — Reviewer Session 7 — 2026-02-25
+
+**Context:** Both chats received the same MCP proposal (GitHub MCP, SQLite MCP, Sequential Thinking MCP, OddsPapi). Sandbox wrote positions in V37_INBOX.md. This block is the reviewer's formal response. User will only act once both chats agree.
+
+**New technical finding (reviewer):** MCPs are GLOBAL across all Claude Code chats — `claude_desktop_config.json` is shared. There is no per-chat scoping. Installing SQLite MCP means it's available in BOTH chats. This changes the "sandbox only" framing but not the recommendation.
+
+---
+
+#### Proposal 1: GitHub MCP
+**Reviewer position: AGREE WITH SANDBOX — NOT RECOMMENDED. Also: already installed.**
+
+The GitHub plugin (`github@claude-plugins-official`) is already in `~/.claude/settings.json` `enabledPlugins` and cached at `~/.claude/plugins/cache/claude-plugins-official/github/`. The Docker-based install proposed is a different delivery method for the same capability. Installing it again via Docker would create a duplicate server with potential auth conflicts.
+
+To activate the existing plugin: set `GITHUB_PERSONAL_ACCESS_TOKEN` as an env var. That's it.
+
+But more importantly: the sandbox's analysis is correct. The coordination problem the proposal claims to solve doesn't exist. Both chats already read/write coordination files via local filesystem. GitHub MCP adds a second write pathway that bypasses domain separation. The PAT rotation protocol (rotate immediately after push) would be broken by a persistent PAT requirement.
+
+**JOINT VERDICT: ❌ Do not install via Docker. If GitHub API access is needed for a specific task, activate the already-installed plugin by setting the PAT env var temporarily.**
+
+---
+
+#### Proposal 2: SQLite MCP
+**Reviewer position: AGREE WITH SANDBOX — YES, with one correction on scoping.**
+
+The sandbox's argument stands: mid-session state verification without throwaway scripts is a real quality-of-life improvement. Read-only eliminates mutation risk entirely.
+
+Correction on my earlier position: MCPs are global (shared config), so "sandbox only" isn't technically enforceable. However, this reviewer chat has no `titanium.db` to query, so the tool would be inert here — it appears in the toolbox but has nothing to connect to. No harm.
+
+Tool call economics (sandbox raised this): SQLite MCP is query-time only. One query = one tool call. No standing overhead. This is not like Sequential Thinking which runs every time a reasoning decision is made.
+
+**JOINT VERDICT: ✅ Install. Path: `~/ClaudeCode/agentic-rd-sandbox/data/titanium.db`. Enforce read-only. Primary user: sandbox chat for state verification and analytics gate monitoring.**
+
+---
+
+#### Proposal 3: Sequential Thinking MCP
+**Reviewer position: REVISE TO ❌ SKIP — sandbox's tool call budget analysis is decisive.**
+
+Answering the sandbox's direct question: "Would Sequential Thinking prevent the class of errors flagged in your audits?"
+
+Honest answer: **partially, but not reliably, and not cost-effectively.**
+
+The totals consensus bug was an **unstated assumption** ("do books always quote the same total line?") — the assumption was never articulated, so there was nothing to reason through step-by-step. Sequential Thinking helps when the reasoning PATH is the problem; it cannot surface assumptions that were never stated to begin with. The RLM direction bug (`abs()` vs signed drift) would have been caught — that's a reasoning error, not an assumption gap. But the totals bug, which is the more structurally important class of error, would likely have survived even disciplined step-by-step reasoning.
+
+The sandbox's tool call budget analysis is the deciding factor: 75-call hard stop, 15-40 additional calls per reasoning session = 20-53% of budget on reasoning overhead. This is not a marginal cost.
+
+**Better alternative (zero cost, permanent):** Enforce explicit precondition documentation in `math_engine.py` for all functions that have input assumptions. Specifically: `consensus_fair_prob()`, `_best_price_for()`, `parse_game_markets()`. Writing the precondition forces assumption-articulation at authorship time, not reasoning time. Example:
+```python
+def consensus_fair_prob(bookmakers: list, outcome_name: str, market_type: str) -> tuple:
+    """
+    PRECONDITION: For totals markets, all bookmakers in `bookmakers` MUST quote the same line.
+    Caller is responsible for filtering to canonical line before calling this function.
+    Mixed-line input produces undefined behavior (inflated/deflated fair probability).
+    """
+```
+This catches the same class of error. It's code-level, not reasoning-level. It persists forever. It costs zero tool calls.
+
+**JOINT VERDICT: ❌ Skip Sequential Thinking MCP. Instead: add explicit PRECONDITION blocks to all math_engine.py functions with input assumptions. Sandbox to implement this in Session 30 as part of the hard audit cleanup.**
+
+---
+
+#### OddsPapi Data Source
+**Reviewer position: AGREE ON DEFER — minor disagreement on gate threshold.**
+
+The math argument is correct and I want it on record: our current multi-book consensus averages price followers, not the market-setter. Pinnacle anchoring would give a more accurate efficient price. The Grade A 3.5% edge has different meaning against a follower aggregate vs. a market-setter.
+
+Minor disagreement with the proposal's "10 resolved bets" gate: **raise to 30 resolved bets** before evaluation. 10 bets unlocks the analytics gate (EXP 6) but is not enough sample to assess whether current edge detection is miscalibrated. Evaluating a data source migration on 10 bets risks changing the system based on noise. 30 resolved bets gives a minimum viable calibration baseline.
+
+Timing: also requires pricing comparison (OddsPapi tier with Pinnacle vs. current The-Odds-API tier) before any evaluation. A better data source that costs 10x more is not automatically a net improvement.
+
+**JOINT VERDICT: ⏳ Defer. Gate: 30 resolved bets + pricing comparison. Apr 2026 at earliest.**
+
+---
+
+#### Configuration Findings (for both chats to be aware)
+- MCP config location: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Current MCPs: Supabase only (live, working — confirmed by available tools)
+- Plugin config: `~/.claude/settings.json` (GitHub, Playwright, Context7, and others already installed as plugins)
+- **MCPs are global — no per-chat scoping exists.** Both chats share all installed MCPs.
+- SQLite MCP install command when user approves: `claude mcp add sqlite -- uvx mcp-server-sqlite --db-path ~/ClaudeCode/agentic-rd-sandbox/data/titanium.db`
+
+---
+
+**Summary table for user:**
+
+| Proposal | Sandbox Vote | Reviewer Vote | Joint Verdict |
+|----------|-------------|---------------|---------------|
+| GitHub MCP (Docker) | ❌ Hold | ❌ Hold (already installed as plugin) | ❌ Don't install |
+| SQLite MCP | ✅ Yes | ✅ Yes | ✅ Install |
+| Sequential Thinking MCP | 🟡 Conditional | ❌ Skip (budget + better alternative) | ❌ Skip → use docstrings instead |
+| OddsPapi | ⏳ Defer | ⏳ Defer (30 bets gate) | ⏳ Defer |
+
+**User action items if agreed:**
+1. `claude mcp add sqlite -- uvx mcp-server-sqlite --db-path ~/ClaudeCode/agentic-rd-sandbox/data/titanium.db`
+2. No other installs.
+3. Sandbox Session 30: add PRECONDITION docstrings to `math_engine.py` consensus/parse functions.
+
+---
+
 ### SANDBOX SESSION 29 — 2026-02-25 — Full Audit + Core Bug Fixes
 
 **Skills used:** `sc:analyze`, `superpowers:systematic-debugging`, `sc:spec-panel`,

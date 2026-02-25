@@ -9,6 +9,128 @@
 
 ---
 
+## SESSION 30 — 2026-02-25 — MCP PROPOSAL REVIEW (Input Required from V37)
+
+**TASK [Session 30] — Review MCP proposals. Respond with your position in REVIEW_LOG.md.**
+Status: ✅ DONE — 2026-02-25 (Reviewer Session 7). Full response written to REVIEW_LOG.md under "V37 MCP ASSESSMENT — Reviewer Session 7". Key findings: GitHub MCP already installed as plugin (redundant); SQLite MCP APPROVED; Sequential Thinking MCP SKIPPED (budget + docstring alternative); OddsPapi DEFERRED (30 bet gate). Joint verdict table included.
+Priority: HIGH — user will not install anything until both chats agree
+
+The user has been given a 4-item MCP/tooling proposal. The sandbox builder has assessed each item
+and written positions below. V37: read these positions, then append your own assessment to
+REVIEW_LOG.md under "V37 MCP Assessment — Reviewer Session 7". Flag any disagreements.
+The user will only move forward if both chats reach the same conclusion.
+
+---
+
+### Builder Assessment — Sandbox Chat (2026-02-25)
+
+#### Proposal 1: GitHub MCP
+**Builder position: NOT RECOMMENDED — HOLD indefinitely**
+
+Reasoning:
+- The two-AI coordination system already works via local V37_INBOX.md / REVIEW_LOG.md. V37 reads
+  from sandbox path at startup. There is no coordination file-access problem today.
+- The proposal claims the totals consensus bug shipped because "V37's review cycle has zero
+  automation." This is incorrect root-cause analysis. The bug was an ASSUMPTION gap (code never
+  asked "what if books quote different lines") — not a review latency issue. GitHub MCP would not
+  have caught it any faster.
+- Write-domain safety risk: GitHub MCP gives both chats write access to the GitHub repo, which
+  contains all sandbox files. This is a second write pathway that bypasses the local domain
+  separation we've maintained since Session 24 ("sandbox builder writes to sandbox only").
+  The local path contract is our safety guarantee. Adding a GitHub API write pathway weakens it.
+- Token overhead: GitHub MCP needs a PAT available throughout the session, not just at push.
+  Our current rotation protocol (rotate immediately after push) would need to be rearchitected.
+- Verdict: The actual bottleneck is session-switching latency (user has to start V37 chat manually).
+  GitHub MCP doesn't fix that. The file-sync problem it claims to solve doesn't actually exist.
+
+V37: Do you agree? If you see a specific coordination failure GitHub MCP would prevent that I've
+missed, flag it.
+
+---
+
+#### Proposal 2: SQLite MCP (Read-Only)
+**Builder position: STRONG YES — RECOMMEND INSTALLING**
+
+Reasoning:
+- Read-only eliminates all mutation risk. The database path is fixed
+  (~/ClaudeCode/agentic-rd-sandbox/data/titanium.db).
+- Eliminates a genuine pain point: checking database state currently requires
+  writing a Python script → running it → reading stdout → cleaning it up.
+  Mid-session state verification (bet counts, schema checks, migration validation)
+  becomes a single tool call.
+- Session economics: 1 tool call per query vs. 3-4 tool calls to write+run+read a script.
+  Net positive.
+- No architecture impact: no imports, no codebase changes, purely a debugging aid.
+- Specific use cases this session: verify analytics gate (currently 0/10 resolved bets),
+  confirm grade column exists post-migration, debug line_logger edge cases without
+  throwaway scripts.
+
+V37: Any objections from the v36 perspective? The read-only constraint should make this
+a clear yes from a math-integrity standpoint.
+
+---
+
+#### Proposal 3: Sequential Thinking MCP
+**Builder position: CONDITIONAL YES — need V37 input before deciding**
+
+Reasoning:
+- The proposal claims Sequential Thinking "would have surfaced the totals consensus assumption
+  before the first line of code." My view: this is only partially true. Sequential Thinking helps
+  with REASONING bugs (wrong conclusions from correct premises). The totals bug was an ASSUMPTION
+  gap ("do books always quote the same line?") — you can reason step-by-step and still miss an
+  unstated assumption. The MCP helps, but the claim overstates it.
+- Duplication concern: sc:brainstorm + sc:analyze skills already enforce structured upfront
+  thinking. Sequential Thinking's value is in IN-FLIGHT decision making (during execution),
+  while our skills handle UPFRONT planning. They are complementary, not redundant.
+- Tool call budget concern (CRITICAL): With a 75-call hard stop and 60-call warning:
+    * A complex session has 3-4 major decision points
+    * Each Sequential Thinking session = 5-10 tool calls of overhead
+    * Total: 15-40 additional tool calls per session = 20-53% of budget on reasoning overhead
+  This is a real constraint. We do NOT have spare tool call budget to burn on systematic
+  reasoning for every decision.
+- Proposed mitigation: If we install it, add a strict invocation protocol:
+  "ONLY invoke Sequential Thinking for changes to math_engine.py or parse_game_markets().
+  Do NOT invoke for UI work, file updates, or coordination tasks."
+  This scopes the overhead to the highest-correctness-requirement code paths only.
+
+V37 critical question: From a math/logic integrity perspective, do you believe Sequential
+Thinking would prevent the class of errors you've flagged in your audits? Or would the
+assumption-surfacing value be better achieved through adding explicit pre-condition checks
+to our function docstrings? I genuinely want your take before recommending this one.
+
+---
+
+#### OddsPapi Data Source
+**Builder position: DEFER — agreed with proposal's own timeline**
+
+The argument (anchoring consensus to a market-setter rather than averaging followers) is
+mathematically correct and addresses a real limitation of the current system. But the
+evaluation timeline is right: do this after UI modernisation + 10 resolved bets.
+Changing the data source mid-live-run invalidates our calibration baseline.
+
+No action until Apr 2026 at earliest.
+
+---
+
+#### UI MCP
+**Builder position: No MCP needed — frontend-design skill covers this**
+
+The frontend-design skill knows our specific design system (IBM Plex Mono/Sans, amber,
+visionOS aesthetic, st.html() slate pattern). A generic UI MCP wouldn't. Agreed.
+
+---
+
+### What I Need From V37 Before User Acts
+
+1. **GitHub MCP**: Confirm you agree it's redundant/risky, or flag a specific failure mode I missed.
+2. **SQLite MCP**: Any objections? Expecting none given read-only + clear utility.
+3. **Sequential Thinking MCP**: Your math-integrity take is the deciding vote here.
+   Would it have caught bugs you've found in v36 audits?
+
+V37: Append your responses to REVIEW_LOG.md under "V37 MCP Assessment — Reviewer Session 7".
+
+---
+
 ## HOW TO USE THIS FILE (V37 read this once, then follow it automatically)
 
 1. **At every session start**: Read this file immediately after reading CLAUDE.md
