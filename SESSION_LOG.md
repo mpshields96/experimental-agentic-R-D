@@ -2,6 +2,63 @@
 
 ---
 
+## Session 31 — 2026-02-25
+
+### Objective
+Streamlit Cloud deploy + startup bug fixes + user UX feedback review + savepoint.
+
+### What shipped
+- **Streamlit Cloud live**: `titaniumv37agentic.streamlit.app` — first live deployment of sandbox UI
+- **`app.py` — `_init_dbs()`**: Added unconditional DB schema init before scheduler.
+  Fixes `sqlite3.OperationalError` on fresh Streamlit Cloud deploy (tables didn't exist).
+- **`core/scheduler.py`** — Fixed `init_price_history_db(db_path)` bug: was passing
+  `line_history.db` path to price_history init. Now calls no-arg default (price_history.db).
+- **`core/odds_fetcher.py`** — V37-flagged docstring cleanup: replaced `(1,000)/(500)/(1,000)`
+  with constant name references (`DAILY_CREDIT_CAP`, `SESSION_CREDIT_HARD_STOP`, `BILLING_RESERVE`).
+
+### Tests
+1079 → 1079 (no new tests — doc + bug fixes only). All passing ✅
+
+### User feedback logged (see task backlog below)
+
+**Commits:** `19927bd` (DB init fix + scheduler path + docstring), `7c17acc` (V37 inbox update) — PUSHED ✅
+
+---
+
+### SESSION 31 — Task Backlog (user feedback 2026-02-25)
+
+**Priority 1 — Session 32 (next session):**
+- [ ] **Agentic workflow**: Claude-in-the-loop betting advisory. I read live candidates via
+  SQLite MCP, surface recommendations in chat, user approves/skips, I log via log_bet().
+  Actual bet placement always manual. Covers: scan → recommend → approve → log → resolve.
+  Guide page Steps 1-7 should describe this hybrid flow.
+- [ ] **Game start times**: Add CST-converted commence_time to bet cards in `01_live_lines.py`.
+  `commence_time` is already in `BetCandidate` — just not rendered. Convert UTC → CST on display.
+- [ ] **Pinnacle probe widget**: Always ABSENT for US markets (Pinnacle doesn't accept US customers,
+  not on Odds API US tier). Remove or replace with something useful (book coverage count, books live).
+- [ ] **Collar map legend overlap**: R&D output page — legends overlapping on the collar map.
+  CSS/layout bug. Fix positioning.
+
+**Priority 2 — Session 32-33:**
+- [ ] **Player props — zero-cost path**: Second free Odds API account (500 credits/month) dedicated
+  to props only. Called on-demand (not every poll) when Claude flags a game worth checking.
+  Also evaluate ActionNetwork unofficial API as props scraper layer.
+- [ ] **Guide page update**: Rewrite Steps 1-7 to reflect the new agentic workflow (Claude does
+  steps 1-6, user approves at key gates, step 7 = bet placement manual at sportsbook).
+
+**Priority 3 — Future (no date):**
+- [ ] **Simulator ELI5 guide**: Add a plain-language helper/tooltip guide to the simulator page.
+  User unfamiliar with how to use it. "What does this do?", worked example, parameter descriptions.
+- [ ] **Louisiana sportsbooks note**: Current PREFERRED_BOOKS already covers all LA-legal books
+  (DK, FD, BetMGM, BetRivers, Caesars). No change needed. Consider adding a "LA-available" badge
+  or filter in future UI pass.
+
+**Confirmed not needed:**
+- Odds API replacement: already best value for single subscription
+- Louisiana books: current list is correct (all five operate in LA)
+
+---
+
 ## Session 30 — 2026-02-25
 
 ### Objective

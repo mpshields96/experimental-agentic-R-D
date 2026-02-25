@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 29 — 2026-02-25
-# Session work: Full math audit — fixed totals consensus bug, RLM direction bug, deleted dead code
-# Priority reset: #1 UI modernisation, #2 live run (totals unblocked), #3 analytics unlock
+# Last updated: Session 31 — 2026-02-25
+# Session work: Streamlit Cloud deploy (titaniumv37agentic.streamlit.app) + DB init fix + user feedback review
+# Priority reset: #1 Agentic workflow (Claude-in-the-loop), #2 CST game times + Pinnacle widget removal, #3 live run
 # Maintained by: sandbox builder chat
 
 ---
@@ -178,29 +178,38 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
-App:      NOT running (killed at session end)
+App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
 Tests:    1079 / 1079 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commits (ca4e3fe wrap-up local only — push at Session 30 start with new token):
-  - ca4e3fe — Session 29 wrap-up: CLAUDE.md v29, SESSION_LOG, ORIGINAL_PROMPT (NOT PUSHED)
-  - f6a4b3c — Session 29: Full math audit — totals fix, RLM direction fix, dead code deleted (PUSHED)
-  - e294539 — Session 28 wrap: V37 hard audit request
-  - e69397a — Session 27 final: grade DB column + REVIEW_LOG close + session memory
-  - 2db65c4 — Go-live config: credit limits + analytics gate (Session 27 cont.)
-  - e20b43c — Session 27: Grade tier pipeline (A/B/C/Near-Miss) — 1099 tests
+Latest commits (all PUSHED):
+  - 7c17acc — Session 31: V37 inbox update — deploy + feedback
+  - 19927bd — Session 31: DB init fix (app.py _init_dbs), scheduler path bug, docstrings
+  - 5557995 — Session 30 cont: push Session 30 UI + V37 inbox
+  - 59dc786 — Session 30: visionOS UI pass (pages 01, 04, 07)
+  - 70bd822 — Session 30-B: PRECONDITION docstrings in math_engine.py
 
-✅ SESSION 29 FIXES APPLIED:
-  Totals consensus bug: FIXED (_canonical_totals_books() in parse_game_markets())
-  RLM direction bug: FIXED (signed drift, no longer abs())
-  Dead code removed: run_nemesis() 241 lines, calculate_edge(), dead Poisson precompute
-  Live betting on totals: UNBLOCKED
+✅ SESSION 30-31 COMPLETE:
+  UI modernisation: DONE (pages 01, 04, 07 — visionOS aesthetic)
+  Streamlit Cloud: LIVE (titaniumv37agentic.streamlit.app)
+  DB init bug: FIXED (_init_dbs() in app.py, scheduler path bug fixed)
+  V37 inbox: UPDATED (Session 31-B pending V37 review)
 
-📋 PRIORITY ORDER (Session 30):
-  #1 — UI modernisation (modern Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
-  #2 — Live run (totals now unblocked — can log totals bets)
-  #3 — Analytics unlock (need 6 more resolved bets; gate = 10)
+📋 PRIORITY ORDER (Session 32):
+  #1 — Agentic workflow: Claude-in-the-loop advisory (SQLite MCP reads live candidates,
+       surfaces recs in chat, user approves, Claude logs via log_bet())
+  #2 — CST game times on bet cards (commence_time already in BetCandidate, just not rendered)
+  #3 — Pinnacle probe widget: remove or replace (always ABSENT for US markets)
+  #4 — Collar map legend overlap fix (R&D output page)
+  #5 — Live run + analytics unlock (4 bets logged, 0 resolved, need 6 more resolved for gate=10)
+
+Future sessions:
+  - Player props: second free Odds API account (500 credits/month), on-demand event-level calls
+  - Guide page Steps 1-7 rewrite (reflect agentic workflow)
+  - Simulator ELI5 guide
 
 Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)
+Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 remaining (floor=150).
+  User willing to upgrade to $50/month ONLY if objectively superior + fully meets requirements.
 ```
 
 ### ✅ ODDS_API_KEY IS CONFIGURED

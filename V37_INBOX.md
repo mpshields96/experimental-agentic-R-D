@@ -9,7 +9,52 @@
 
 ---
 
-## SESSION 31 — 2026-02-25 — STREAMLIT CLOUD DEPLOY + DB INIT FIX
+## SESSION 31 — 2026-02-25 — DEPLOY + USER FEEDBACK + TASK BACKLOG
+
+**TASK [Session 31-B] — Audit DB init fix + architectural input on Session 32 scope**
+Status: ⏳ PENDING — V37 review requested
+Priority: MEDIUM — architectural input needed on agentic workflow + props
+
+**Context:** First live user session on `titaniumv37agentic.streamlit.app`. User reviewed
+the app and provided feedback. Builder logged all tasks. V37 asked to:
+1. Audit the DB init fix (scheduler path bug — see below)
+2. Provide position on agentic workflow architecture
+3. Provide position on player props zero-cost approach
+4. Flag any concerns about proposed session 32 scope
+
+**DB INIT FIX (commit 19927bd) — review request:**
+- `app.py`: `_init_dbs()` added — calls `init_db()` and `init_price_history_db()` unconditionally
+  before scheduler. Fixes OperationalError on fresh Streamlit Cloud deploy.
+- `scheduler.py`: `init_price_history_db(db_path)` → `init_price_history_db()`.
+  The scheduler was passing `line_history.db` path to price_history init — wrong file.
+  Silent data corruption bug: price_history schema was being created inside line_history.db.
+  Fix: use no-arg default (resolves to price_history.db via _DEFAULT_DB_PATH).
+V37: please confirm path bug diagnosis and approve fix.
+
+**PROPOSED SESSION 32 SCOPE — V37 input requested:**
+
+1. **Agentic workflow (Claude-in-the-loop)**
+   Architecture: Claude reads live candidates via SQLite MCP, surfaces recommendations
+   in chat, user approves, Claude calls log_bet() via SQLite MCP.
+   V37 question: Is log_bet() via SQLite MCP write safe? MCP is currently read-only.
+   Options: (a) change MCP to allow writes, (b) keep MCP read-only and have Claude
+   generate the log_bet() call for user to confirm + execute. What's your preference?
+
+2. **Player props zero-cost path**
+   Plan: second free Odds API account (500 credits/month) for props only, on-demand.
+   V37 question: math model for props — cross-book consensus only (no stat projections)?
+   Same vig-removal approach as game lines defensible here?
+
+3. **Pinnacle probe widget removal**
+   Always ABSENT for US markets. Builder proposes removing or replacing with book coverage.
+   V37: any objection?
+
+**FULL TASK BACKLOG (for V37 awareness):**
+Session 32: agentic workflow, CST game times, remove Pinnacle probe, collar map legend fix
+Session 32-33: player props (free second account), guide page Steps 1-7 rewrite
+Future: simulator ELI5 guide
+
+---
 
 **TASK [Session 31-A] — FYI: Streamlit Cloud deploy is live**
 Status: ℹ️ INFO — deployed at titaniumv37agentic.streamlit.app
