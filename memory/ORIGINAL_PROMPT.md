@@ -168,9 +168,9 @@ Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      streamlit run app.py --server.port 8504
 Tests:    1062 / 1062 passing ✅ (+51 new analytics tests)
 GitHub:   mpshields96/experimental-agentic-R-D (main) — PUSHED ✅
-Latest:   Session 25 end (CLAUDE.md updates + PROJECT_INDEX.md — committing now)
-Prior:    834ad6f (coordination files: REVIEW_LOG.md + V37_INBOX.md)
-          effac79 (V37 flag fixes: days_to_game form + analytics.py comment)
+Latest:   5c739b2 (Session 25 final: CLAUDE.md lessons 33-36 + index update) — PUSHED ✅
+Prior:    6702b55 (Session 25: onboarding guide + ELI5 doc + form tooltips)
+          ed62a5b (Session 25 end: CLAUDE.md updates + session end ritual)
           8e5c1ff (Session 25: analytics Phase 1 build)
 ```
 
