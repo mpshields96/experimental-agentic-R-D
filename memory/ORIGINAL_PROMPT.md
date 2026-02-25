@@ -7,8 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 27 cont. — 2026-02-25
-# Session work: Grade tier pipeline (A/B/C/NM) + go-live config + grade DB column + UI directive
+# Last updated: Session 28 — 2026-02-25
+# Session work: Live scan attempted → CRITICAL BUG found in totals consensus logic
+# Priority reset: #1 fix totals bug, #2 UI modernisation, #3 live run
 # Maintained by: sandbox builder chat
 
 ---
@@ -146,9 +147,10 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file. Write tasks to V37_INBOX.md.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
 
-Current V37 status: **APPROVED — no outstanding flags as of Session 25 cont. (2026-02-25).**
-V37 completed: credit guards implemented (185/185 tests in v36). V37 inbox marked DONE.
-V37 next tasks: originator_engine caller fix + nhl_data promotion + inactivity auto-stop (see V37_INBOX.md).
+Current V37 status: **PENDING — hard audit request filed Session 28 (2026-02-25).**
+V37 task: Audit `core/math_engine.py` `parse_game_markets()` totals section.
+Bug: `consensus_fair_prob()` mixes books quoting different total lines → contradictory Over+Under Grade B signals on same game. V37 must identify root cause + propose fix + write findings to REVIEW_LOG.md.
+V37 also pending: originator_engine caller fix + nhl_data promotion (lower priority).
 
 ---
 
@@ -171,20 +173,32 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 25 cont. — 2026-02-25)
+## 📍 CURRENT PROJECT STATE (Session 28 — 2026-02-25)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
-App:      streamlit run app.py --server.port 8504 (RUNNING on pid 38577)
-Tests:    1067 / 1067 passing ✅
+App:      NOT running (killed at session end)
+Tests:    1103 / 1103 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commit (NOT YET PUSHED — commit this session's work first):
-  - Unpushed: inactivity auto-stop + export_bets + grade_bet + 5 tests + gitignore + CSV
-Prior commits (pushed):
-  - 1930bcc — ORIGINAL_PROMPT.md update
-  - 1aab03e — DailyCreditLog + CLAUDE.md + V37_INBOX.md (daily cap enforcement)
-  - 0404fe0 — security hardening: HTML escape + result validation + secrets template
-  - 80399d7 — nav fix: Guide+Analytics in st.navigation() + CLAUDE.md + REVIEW_LOG
+Latest commits (all PUSHED):
+  - e294539 — Session 28 wrap: V37 hard audit request — parse_game_markets totals bug
+  - e69397a — Session 27 final: grade DB column + REVIEW_LOG close + session memory
+  - 2db65c4 — Go-live config: credit limits + analytics gate (Session 27 cont.)
+  - e20b43c — Session 27: Grade tier pipeline (A/B/C/Near-Miss) — 1099 tests
+  - 4ded770 — Session 26: DC fallback + credit limits + V37 flag clearance
+
+🔴 CRITICAL BUG — DO NOT ATTEMPT LIVE RUN UNTIL FIXED:
+  parse_game_markets() totals section mixes books quoting different lines.
+  Result: both Over 7.0 AND Under 6.5 flagged as Grade B on same game.
+  Blocked: all live betting on totals markets.
+  V37 audit in progress (V37_INBOX.md filed).
+
+🔴 PRIORITY ORDER (non-negotiable, user directive):
+  #1 — Fix parse_game_markets() totals consensus bug
+  #2 — UI modernisation (modern Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
+  #3 — Live run (only after #1 fixed + validated)
+
+Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)
 ```
 
 ### ✅ ODDS_API_KEY IS CONFIGURED
@@ -529,6 +543,10 @@ Fonts:        IBM Plex Mono (monospace) + IBM Plex Sans (body) — never substit
 44. V37 SPECULATIVE directive CLOSED: superseded by Grade tier. V37's SPECULATIVE_0.25U (score-based 40-44) is less precise than Grade B (edge-based ≥1.5%). No action needed.
 45. UI directive (permanent, Session 27): Modern Apple aesthetic — visionOS/Sequoia style. Translucent, clean geometry, generous whitespace, precise typography. Function > aesthetics (both matter). Every new page via frontend-design skill. IBM Plex Mono/Sans remain standard.
 46. Form parity rule (RESOLVED Session 27): log_bet() grade= param added → 04_bet_tracker.py grade selectbox added same session. Form always matches backend. Rule 28 now satisfied.
+47. CRITICAL BUG — totals consensus (Session 28): consensus_fair_prob() for totals mixes all books regardless of the total line they're quoting. If Book A has total 6.5, Book B has 7.0 — the consensus is a meaningless blend. _best_price_for() then picks the best-priced side without checking it's on the same line as the consensus. Result: Over 7.0 AND Under 6.5 can BOTH show positive edge on the same game simultaneously, which is mathematically impossible in real betting. Fix: consensus and best-price must be scoped to the same canonical line (modal across books).
+48. fetch_batch_odds() call signature (Session 28): takes friendly sport NAMES ("NBA", "NHL"), NOT raw API keys. Returns dict — iterate with `for sport_name, games in games_dict.items(): for game in games: parse_game_markets(game, sport_name, ...)`. Do NOT pass the full games list to parse_game_markets() — it takes ONE game dict.
+49. Priority order (Session 28, user directive, permanent until resolved): #1 Fix totals consensus bug in parse_game_markets(). #2 UI modernisation (Apple/visionOS aesthetic). #3 Live run. Do not invert this order regardless of temptation to go live first.
+50. Full betting logic audit (Session 29 candidate): User directed: investigate whether the math engine has bloat, hallucinated logic, or broken analysis beyond the totals bug. Run sc:analyze on math_engine.py before any fix. Use sc:spec-panel for multi-expert review of consensus model. Goal: spring clean — remove any logic that can't be proven correct, validate all kill switches, confirm edge detection is sound end-to-end.
 
 ---
 

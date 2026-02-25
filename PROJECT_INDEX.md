@@ -1,280 +1,254 @@
-# PROJECT_INDEX.md — Titanium-Agentic
-## Generated: sc:index-repo | 2026-02-25 (updated Session 25 final) | 1067/1067 tests passing
+# Project Index: Titanium-Agentic Sandbox
+
+Generated: 2026-02-25 (Session 28 wrap) | Tests: 1103/1103 ✅ | Last commit: e294539 (pushed)
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
 
 ---
 
-## Project Structure
+## ⚠️ ACTIVE CRITICAL BUG — READ BEFORE ANY WORK
+
+**parse_game_markets() totals consensus bug** — blocks all live betting on totals.
+Live scan showed BOTH Over 7.0 AND Under 6.5 for EDM @ ANA as Grade B simultaneously.
+Root cause: `consensus_fair_prob()` mixes books quoting different total lines (6.5 vs 7.0).
+V37 hard audit requested (V37_INBOX.md). Fix is Session 29 Priority #1.
+
+---
+
+## 📋 Priority Order (Session 29+)
+
+**#1 — Fix parse_game_markets() totals consensus bug** (see V37_INBOX for audit spec)
+**#2 — UI modernisation** (modern Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
+**#3 — Live run** (only after #1 fixed and validated)
+
+---
+
+## 📁 Directory Structure
 
 ```
 agentic-rd-sandbox/
-├── app.py                          # Streamlit entry point, scheduler init, nav
+├── app.py                   ← Streamlit entry, navigation, scheduler start
 ├── pages/
-│   ├── 00_guide.py                 # Live session quick-start guide (loads first in nav)
-│   ├── 01_live_lines.py            # Bet pipeline, math breakdown, Log Bet, KOTC sidebar
-│   ├── 02_analysis.py              # KPIs, P&L, edge/CLV histograms, line pressure
-│   ├── 03_line_history.py          # Movement cards, sparklines, RLM seed table
-│   ├── 04_bet_tracker.py           # Bet log, grading, P&L, CLV tracker + analytics tooltips
-│   ├── 05_rd_output.py             # Math validation dashboard (pure math_engine)
-│   ├── 06_simulator.py             # Trinity game simulator (NBA/Soccer Poisson mode)
-│   └── 07_analytics.py             # Advanced analytics Phase 1 (sharp/RLM/CLV/equity/rolling/books)
+│   ├── 00_guide.py          ← System guide / onboarding
+│   ├── 01_live_lines.py     ← PRIMARY: live scan, grade tier display, Log Bet
+│   ├── 02_analysis.py       ← Manual analysis tools
+│   ├── 03_line_history.py   ← Line movement charts
+│   ├── 04_bet_tracker.py    ← Manual bet logging + resolution form
+│   ├── 05_rd_output.py      ← R&D output / probe logs
+│   ├── 06_simulator.py      ← Simulation tools
+│   └── 07_analytics.py      ← Analytics dashboard (unlocks at 10 resolved bets)
 ├── core/
-│   ├── math_engine.py              # ALL math — collar, edge, Kelly, sharp score, RLM, CLV, Nemesis
-│   ├── odds_fetcher.py             # Odds API wrapper, quota tracker, rest days
-│   ├── line_logger.py              # SQLite WAL: lines, snapshots, bets, movements
-│   ├── scheduler.py                # APScheduler: poll loop, NHL goalie hook, purge
-│   ├── nhl_data.py                 # Free NHL API: goalie starter detection
-│   ├── tennis_data.py              # Surface classification, player name normalization, win rates
-│   ├── efficiency_feed.py          # Static team efficiency data (250+ teams, 10 leagues)
-│   ├── weather_feed.py             # NFL live wind (Open-Meteo, 32 stadiums, 1hr cache)
-│   ├── originator_engine.py        # Trinity Monte Carlo simulation (20%C/20%F/60%M)
-│   ├── parlay_builder.py           # 2-leg positive-EV parlay finder
-│   ├── injury_data.py              # Static positional impact table (5 sports, 50+ positions)
-│   ├── nba_pdo.py                  # NBA PDO regression signal (nba_api, 1hr TTL, _endpoint_factory)
-│   ├── king_of_the_court.py        # DraftKings Tuesday KOTC analyzer (PRA-ranked)
-│   ├── analytics.py                # Pure analytics functions — source-agnostic list[dict] API
-│   ├── calibration.py              # Sharp score calibration pipeline (activates at 30 bets)
-│   ├── clv_tracker.py              # CLV snapshot CSV log + summary
-│   ├── price_history_store.py      # SQLite open-price store, 14-day purge, multi-session RLM
-│   ├── probe_logger.py             # Bookmaker probe log (JSON)
-│   └── data/__init__.py
+│   ├── math_engine.py       ← ⚠️ PRIMARY MATH — BetCandidate, parse_game_markets, consensus, kill switches
+│   ├── odds_fetcher.py      ← Odds API client, quota tracking, batch fetch
+│   ├── line_logger.py       ← SQLite: bet_log, line_snapshots, price_history
+│   ├── analytics.py         ← Post-facto analytics (Sharp ROI, RLM, CLV, equity)
+│   ├── calibration.py       ← Model calibration: Brier, ROC-AUC, edge accuracy
+│   ├── scheduler.py         ← APScheduler: 5-min polls, NHL goalies, inactivity guard
+│   ├── nba_pdo.py           ← NBA PDO kill switch (shot quality regression)
+│   ├── king_of_the_court.py ← KOTC: top PRA candidate picker (Tuesday NBA)
+│   ├── injury_data.py       ← Injury kill switch (positional leverage)
+│   ├── tennis_data.py       ← Tennis surface inference, kill switch
+│   ├── nhl_data.py          ← NHL goalie status (starter confirmation gate)
+│   ├── efficiency_feed.py   ← Team efficiency gap (structural edge signal)
+│   ├── weather_feed.py      ← NFL wind data (totals kill switch input)
+│   ├── clv_tracker.py       ← Closing line value tracking
+│   ├── originator_engine.py ← Line originator inference
+│   ├── parlay_builder.py    ← Parlay construction
+│   ├── price_history_store.py ← Price movement history
+│   └── probe_logger.py      ← Book probe logging
+├── tests/                   ← 1103 unit tests across 18 files
 ├── scripts/
-│   ├── backup.sh                   # Session-end backup: sandbox + V36 → .backups/ (keep last 5)
-│   ├── export_bets.py              # Export bet_log → data/bet_tracker_log.csv (25 cols, pending-first sort)
-│   └── grade_bet.py                # CLI: grade bet post-game (result, stake, close_price → auto-regen CSV)
-├── tests/                          # 1067 unit tests across 18 test files
-├── data/
-│   ├── bet_tracker_log.csv         # Official bet export — regenerated by export_bets.py or grade_bet.py
-│   ├── last_activity.json          # Activity timestamp (inactivity auto-stop guard — gitignored)
-│   ├── daily_quota.json            # Odds API daily quota tracking (gitignored)
-│   └── (probe_log.json — gitignored)
-├── logs/
-├── V37_INBOX.md                    # Auto-relay inbox for V37 reviewer (sandbox writes, V37 reads at startup)
-├── CLAUDE.md                       # Session rules, tool call limits, stop mechanism
-├── SYSTEM_GUIDE.md                 # ELI5/FAQ external guide (readable on GitHub, no app needed)
-├── MASTER_ROADMAP.md               # Feature backlog by phase/gate
-├── SESSION_LOG.md                  # Per-session changelog
-├── REVIEW_LOG.md                   # Two-AI audit log (both chats read/write)
-├── CONTEXT_SUMMARY.md              # Condensed project context
-└── memory/
-    ├── ORIGINAL_PROMPT.md          # Session transition template for new sandbox chats
-    ├── REVIEWER_PROMPT.md          # V37 reviewer startup prompt (copy to new V37 chat)
-    ├── RESUME_PROMPT.md            # Legacy resume prompt
-    └── NEW_CHAT_INIT_PROMPT.md     # Legacy (superseded by ORIGINAL_PROMPT.md)
+│   ├── grade_bet.py         ← CLI: grade a bet manually
+│   └── export_bets.py       ← CLI: export bet_log to CSV
+├── memory/
+│   ├── ORIGINAL_PROMPT.md   ← Session handoff init prompt (update before every new chat)
+│   ├── RESUME_PROMPT.md     ← Quick resume template
+│   ├── NEW_CHAT_INIT_PROMPT.md
+│   └── REVIEWER_PROMPT.md
+├── V37_INBOX.md             ← Builder → V37 coordination (V37 reads at startup)
+├── REVIEW_LOG.md            ← V37 → Builder findings (builder reads at startup)
+├── SESSION_LOG.md           ← Session history
+├── MASTER_ROADMAP.md        ← Long-term roadmap
+├── CLAUDE.md                ← Rules, access controls, skills mandate
+└── data/
+    ├── titanium.db          ← SQLite: bet_log, line_snapshots, price_history
+    ├── daily_quota.json     ← Odds API daily credit tracking
+    └── probe_log.json       ← Book probe data
 ```
 
 ---
 
-## Entry Points
-
-- **App**: `app.py` — `streamlit run app.py --server.port 8504`
-- **Tests**: `python3 -m pytest tests/ -q` — 1067 tests, ~1.6s
-- **Export bets**: `python3 scripts/export_bets.py` — regenerate data/bet_tracker_log.csv
-- **Grade bet**: `python3 scripts/grade_bet.py --id N --result win/loss --stake X --close PRICE`
-- **Scheduler**: auto-starts via `app.py` session_state guard on first Streamlit load
-
----
-
-## Core Modules
-
-### math_engine.py
-- Path: `core/math_engine.py`
-- Key constants: `MIN_EDGE=0.035`, `KELLY_FRACTION=0.25`, `SHARP_THRESHOLD=45.0`, `COLLAR_MIN=-180`, `COLLAR_MAX=+150`
-- Key exports: `passes_collar`, `passes_collar_soccer`, `implied_probability`, `no_vig_probability`, `no_vig_probability_3way`, `consensus_fair_prob_3way`, `calculate_edge`, `fractional_kelly`, `calculate_sharp_score`, `sharp_to_size`, `run_nemesis`, `parse_game_markets`, `compute_rlm`, `cache_open_prices`, `seed_open_prices_from_db`, `rlm_gate_status`, `calculate_clv`, `clv_grade`
-- Kill switches: `nba_kill_switch`, `nfl_kill_switch`, `ncaab_kill_switch`, `soccer_kill_switch`, `nhl_kill_switch`, `tennis_kill_switch`, `nba_b2b_adjustment`, `ncaaf_kill_switch`
-- parse_game_markets() params: `sport`, `nhl_goalie_status`, `efficiency_gap`, `tennis_sport_key`, `rest_days`, `wind_mph`, `nba_pdo`
-- Purpose: Single source of all betting math. No DB or API imports — pure functions only.
-
-### odds_fetcher.py
-- Path: `core/odds_fetcher.py`
-- Key exports: `fetch_game_lines`, `fetch_batch_odds`, `fetch_active_tennis_keys`, `compute_rest_days_from_schedule`, `probe_bookmakers`, `available_sports`, `QuotaTracker`, `quota`
-- Purpose: The Odds API HTTP layer. Quota tracking, exponential backoff, rest-day computation.
-
-### line_logger.py
-- Path: `core/line_logger.py`
-- DB: `data/line_history.db` (SQLite WAL)
-- Key exports: `init_db`, `upsert_line`, `log_snapshot`, `get_movements`, `get_upcoming_movements`, `get_line_history`, `get_open_prices_for_rlm`, `log_bet`, `update_bet_result`, `get_bets`, `get_pnl_summary`, `count_snapshots`
-- `log_bet()` analytics params (Session 25): `sharp_score`, `rlm_fired`, `tags`, `book`, `days_to_game`, `line`, `signal` — all optional with defaults
-- Migration: `_BET_LOG_MIGRATIONS` — idempotent `ALTER TABLE ADD COLUMN` in `init_db()`, safe on existing DBs
-- Purpose: Persistent store for line snapshots, movements, and bet log.
-
-### scheduler.py
-- Path: `core/scheduler.py`
-- Key exports: `start_scheduler`, `stop_scheduler`, `trigger_poll_now`, `get_status`, `is_running`, `reset_state`
-- Internal: `_poll_all_sports`, `_poll_nhl_goalies`, `_purge_old_price_history`, `_get_hours_since_activity`
-- Constants: `INACTIVITY_TIMEOUT_HOURS=24` — skips all API calls if no Streamlit activity for >24h
-- `get_status()` keys: `idle_hours`, `inactive`, `inactivity_timeout_hours` (added Session 25)
-- Purpose: APScheduler wrapper; polls odds every N minutes, hooks NHL goalie check within 90-min game window. Inactivity auto-stop prevents API drain when app is open but user is absent.
-
-### nhl_data.py
-- Path: `core/nhl_data.py`
-- Key exports: `get_starters_for_odds_game`, `get_nhl_starters_for_game`, `get_nhl_game_ids_for_date`, `normalize_team_name`, `cache_goalie_status`, `get_cached_goalie_status`
-- Purpose: Free NHL Stats API — detects confirmed goalie starters, zero Odds API quota cost.
-
-### tennis_data.py
-- Path: `core/tennis_data.py`
-- Key exports: `surface_from_sport_key`, `is_tennis_sport_key`, `normalize_player_name`, `extract_last_name`, `surface_label`, `is_upset_surface`, `get_player_surface_rate`, `surface_mismatch_severity`, `get_surface_risk_summary`
-- Data: ATP_SURFACE_WIN_RATES (48 entries), WTA_SURFACE_WIN_RATES (42 entries)
-- Purpose: Surface classification + player win-rate lookup for tennis kill switch.
-
-### efficiency_feed.py
-- Path: `core/efficiency_feed.py`
-- Key exports: `get_team_data`, `get_efficiency_gap`, `list_teams`
-- Coverage: 250+ teams, 10 leagues (NBA/NCAAB/NFL/MLB/MLS/EPL/Bundesliga/Ligue1/SerieA/LaLiga)
-- Purpose: Static embedded team efficiency data — zero external dependency.
-
-### weather_feed.py
-- Path: `core/weather_feed.py`
-- Key exports: `get_stadium_wind`, `NFL_STADIUMS`
-- Source: Open-Meteo free API, 32 NFL stadiums, 1hr cache
-- Purpose: NFL wind data for totals kill switch (>20mph KILL, >15mph FORCE_UNDER).
-
-### originator_engine.py
-- Path: `core/originator_engine.py`
-- Key exports: `efficiency_gap_to_margin`, `run_trinity_simulation`, `SimulationResult`
-- Formula: 20% consensus + 20% first-principles + 60% Monte Carlo
-- Purpose: Trinity game simulator — cover probability for spread/total bets.
-
-### parlay_builder.py
-- Path: `core/parlay_builder.py`
-- Key exports: `american_to_decimal`, `parlay_ev`, `parlay_kelly`, `build_parlay_combos`, `format_parlay_summary`, `ParlayCombo`
-- Rules: 2-leg max, same-event/matchup/KILL blocked, same-sport 5% EV haircut
-- Purpose: Finds positive-EV parlay combinations from current BetCandidate list.
-
-### injury_data.py
-- Path: `core/injury_data.py`
-- Key exports: `injury_kill_switch`, `evaluate_injury_impact`, `list_high_leverage_positions`, `InjuryReport`
-- Coverage: 5 sports (NBA/NFL/NHL/MLB/Soccer), 50+ positions, NCAAB→NBA / NCAAF→NFL aliases
-- Thresholds: KILL ≥3.5pt | FLAG ≥2.0pt | silence below
-- Purpose: Static positional impact table — no unofficial API, zero quota cost.
-
-### nba_pdo.py
-- Path: `core/nba_pdo.py`
-- Key exports: `compute_pdo`, `classify_pdo`, `get_all_pdo_data`, `get_team_pdo`, `pdo_kill_switch`, `normalize_nba_team_name`, `clear_pdo_cache`, `PdoResult`
-- Source: nba_api.stats.endpoints.LeagueDashTeamStats — free, no key, 1hr TTL
-- Injection: `_endpoint_factory` param — zero network in tests (no unittest.mock.patch)
-- Baseline: PDO=100.0; REGRESS≥102 | RECOVER≤98 | NEUTRAL 98-102
-- Kill: REGRESS+WITH=KILL | RECOVER+AGAINST=KILL | totals exempt
-- Edge case: normalize_nba_team_name maps "LA Clippers" → "Los Angeles Clippers"
-- Purpose: PDO regression signal — fades teams running hot/cold on luck.
-
-### king_of_the_court.py
-- Path: `core/king_of_the_court.py`
-- Key exports: `rank_kotc_candidates`, `get_kotc_top_pick`, `format_kotc_summary`, `is_kotc_eligible_day`, `KotcCandidate`
-- Data: 55 player profiles (2025-26 season averages), 30-team defensive ratings
-- Virtual profile: "Tyrese Maxey-Embiid-out" activates when Embiid confirmed DNP
-- Score: 60% PRA projection + 30% ceiling + 10% TD threat + matchup grade bonus
-- UI: Tuesday-only sidebar widget in 01_live_lines.py (DNP + star-out text inputs)
-- Purpose: DraftKings Tuesday KOTC promo — ranks highest projected PRA players.
-
-### analytics.py
-- Path: `core/analytics.py`
-- Key exports: `get_bet_counts`, `compute_sharp_roi_correlation`, `compute_rlm_correlation`, `compute_clv_beat_rate`, `compute_equity_curve`, `compute_rolling_metrics`, `compute_book_breakdown`, `MIN_RESOLVED`
-- Design: source-agnostic — accepts `list[dict]` (pass `get_bets()` for SQLite or `fetch_bets()` for Supabase/v36)
-- Sample guard: `MIN_RESOLVED=30` — all analytics functions return `status="inactive"` below threshold
-- Pearson r: `_pearson_r(xs, ys)` — correlation helper used by sharp score ROI correlation
-- Purpose: Pure analytics computation layer. No DB or UI imports. Promotes to v36 with zero rewrites.
-
-### calibration.py
-- Path: `core/calibration.py`
-- Key exports: `get_calibration_report`, `CalibrationReport`, `_brier_score`, `_roc_auc`, `_calibration_bins`
-- Gate: MIN_BETS=30 — returns "inactive" report below threshold
-- Metrics: Brier score, ROC AUC (Wilcoxon-MWW), calibration bins, ECE approximation
-- Purpose: Validates sharp score prediction accuracy once 30+ graded bets accumulated.
-
-### clv_tracker.py
-- Path: `core/clv_tracker.py`
-- Key exports: `log_clv_snapshot`, `read_clv_log`, `clv_summary`, `print_clv_report`
-- Storage: CSV at `logs/clv_log.csv`
-- Purpose: Closing Line Value snapshot and summary reporting.
-
-### price_history_store.py
-- Path: `core/price_history_store.py`
-- DB: `price_history.db` (SQLite)
-- Key exports: `init_price_history_db`, `record_open_prices`, `inject_historical_prices_into_cache`, `purge_old_events`, `get_all_open_prices`
-- Purpose: Persistent open-price store for multi-session RLM continuity. Auto-purges >14 days.
-
-### probe_logger.py
-- Path: `core/probe_logger.py`
-- Key exports: `log_probe_result`, `read_probe_log`, `probe_summary`, `probe_log_status`
-- Storage: `data/probe_log.json`
-- Purpose: Bookmaker availability probe log.
-
----
-
-## Test Coverage
-
-| Module | Test File | Tests |
-|---|---|---|
-| math_engine | test_math_engine.py | 217 |
-| tennis_data | test_tennis_data.py | 96 |
-| analytics | test_analytics.py | 51 |
-| king_of_the_court | test_king_of_the_court.py | 74 |
-| nba_pdo | test_nba_pdo.py | 66 |
-| originator_engine | test_originator_engine.py | 62 |
-| injury_data | test_injury_data.py | 59 |
-| efficiency_feed | test_efficiency_feed.py | 51 |
-| parlay_builder | test_parlay_builder.py | 47 |
-| odds_fetcher | test_odds_fetcher.py | 51 |
-| clv_tracker | test_clv_tracker.py | 46 |
-| calibration | test_calibration.py | 46 |
-| probe_logger | test_probe_logger.py | 36 |
-| price_history_store | test_price_history_store.py | 36 |
-| scheduler | test_scheduler.py | 40 |
-| nhl_data | test_nhl_data.py | 34 |
-| line_logger | test_line_logger.py | 31 |
-| weather_feed | test_weather_feed.py | 24 |
-| **Total** | | **1067 / 1067 passing** |
-
----
-
-## Key Dependencies
-
-- `streamlit` — UI framework (1.36+, `st.navigation` + `st.Page`)
-- `APScheduler` — background polling scheduler
-- `requests` — Odds API HTTP calls + Open-Meteo weather
-- `pandas` — Analysis tab dataframes
-- `plotly` — Charts in analysis, R&D, and simulator tabs
-- `nba_api` — NBA stats (free, no key — PDO regression signal)
-- `sqlite3` — Built-in; WAL mode for concurrent writes
-- Python 3.13 (use `datetime.now(timezone.utc)` not `datetime.utcnow()`)
-
----
-
-## Architecture Rules (Non-Negotiable)
-
-- Package imports: `from core.math_engine import ...` (NOT root-level like V36)
-- NEVER import math_engine from odds_fetcher — circular import
-- NEVER import other core modules into math_engine — pure math only
-- Streamlit: `st.html()` for full HTML slates; `st.markdown(unsafe_allow_html=True)` for global CSS; inline styles in card renderers
-- Scheduler: guarded by `st.session_state` to prevent restart on rerun
-- SQLite WAL mode active — safe for concurrent scheduler + UI reads
-- nba_api: always use `_endpoint_factory` injection pattern — NOT unittest.mock.patch
-- Kill switch cache-seeding: seed module cache BEFORE calling kill switch function
-
-## UI Design Tokens
-
-- Brand: `#f59e0b` (amber) | Positive: `#22c55e` | Nuclear: `#ef4444`
-- Background: `#0e1117` | Card: `#1a1d23` | Border: `#2d3139`
-- Plotly: `paper_bgcolor="#0e1117"`, `plot_bgcolor="#13161d"`, `font.color="#d1d5db"`
-
-## Math Invariants
-
-- Collar: -180 to +150 (soccer expanded: -250 to +400)
-- Min edge: 3.5% | Min books for consensus: 2
-- Kelly: 0.25x fraction; >60% → 2.0u NUCLEAR, >54% → 1.0u STANDARD, else 0.5u LEAN
-- SHARP_THRESHOLD = 45 (raise to 50 MANUALLY after RLM fires ≥5 live sessions — currently 0/5)
-- NUCLEAR requires ≥90 sharp score. Max base = 85 (edge 40 + RLM 25 + eff 20). Injury boost = up to +5.
-- RLM trigger: 3% implied prob shift; passive (cold cache) → active on 2nd fetch
-
----
-
-## Quick Start
+## 🚀 Entry Points
 
 ```bash
-cd ~/ClaudeCode/agentic-rd-sandbox
-streamlit run app.py --server.port 8504
-python3 -m pytest tests/ -q
+# App (requires ODDS_API_KEY env var)
+ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
+
+# Tests
+python3 -m pytest tests/ -q   # 1103/1103 expected
+
+# CLI tools
+python3 scripts/export_bets.py
+python3 scripts/grade_bet.py
 ```
+
+---
+
+## 📦 Core Modules — Key API
+
+### math_engine.py (249 tests) — THE BRAIN
+
+```python
+# Data model
+@dataclass BetCandidate:
+    sport, matchup, market_type, target, line, price
+    edge_pct, win_prob, market_implied, fair_implied
+    kelly_size, sharp_score, signal, grade, kill_reason, rlm_confirmed
+
+# Grade pipeline
+assign_grade(bet: BetCandidate) -> None  # mutates in-place
+
+# Core pipeline (call once per game dict, not per games list)
+parse_game_markets(game: dict, sport: str, ..., min_edge: float) -> list[BetCandidate]
+
+# Consensus (⚠️ BUGGY for totals — mixes different book lines)
+consensus_fair_prob(team, market_key, side, bookmakers) -> (prob, std, n_books)
+
+# Kill switches
+nba_kill_switch / nfl_kill_switch / ncaab_kill_switch / nhl_kill_switch
+soccer_kill_switch / ncaaf_kill_switch / tennis_kill_switch
+
+# Constants
+MIN_EDGE = 0.035         GRADE_B_MIN_EDGE = 0.015
+GRADE_C_MIN_EDGE = 0.005 NEAR_MISS_MIN_EDGE = -0.01
+KELLY_FRACTION = 0.25    KELLY_FRACTION_B = 0.12    KELLY_FRACTION_C = 0.05
+SHARP_THRESHOLD = 45     (raise to 50-55: 5 live sessions + 20 RLM fires)
+```
+
+### odds_fetcher.py (51 tests)
+
+```python
+# IMPORTANT: sports param takes friendly names ("NBA", "NHL"), NOT API keys
+fetch_batch_odds(sports: list[str], include_tennis: bool) -> dict[sport_name, list[game_dict]]
+
+# Each game_dict must be passed to parse_game_markets() individually (not the list)
+fetch_game_lines(sport_key: str) -> list[dict]
+
+# Credit limits
+DAILY_CREDIT_CAP = 300    SESSION_CREDIT_SOFT_LIMIT = 120
+SESSION_CREDIT_HARD_STOP = 200    BILLING_RESERVE = 150
+
+# ACTIVE_SPORTS excludes MLB (on hold until Apr 1, 2026)
+ACTIVE_SPORTS = ["NBA","NFL","NCAAF","NCAAB","NHL","EPL","LIGUE1","BUNDESLIGA","SERIE_A","LA_LIGA","MLS"]
+```
+
+### line_logger.py (35 tests)
+
+```python
+log_bet(sport, matchup, market_type, target, price, edge_pct, kelly_size,
+        stake, notes, sharp_score, rlm_fired, tags, book, days_to_game, line, signal,
+        grade: str = "", db_path=None) -> int
+
+get_bets(db_path) -> list[dict]          # all logged bets
+update_bet_result(bet_id, result, ...)   # resolve a bet
+init_db(db_path)                         # idempotent schema + migrations
+# bet_log columns include: grade, sharp_score, signal, rlm_fired, clv, days_to_game, line
+```
+
+### analytics.py (51 tests) — LOCKED: need 10 resolved bets (have 4 logged, 0 resolved)
+
+```python
+MIN_RESOLVED = 10   # was 30, lowered Session 27
+compute_sharp_roi_correlation / compute_rlm_correlation / compute_clv_beat_rate
+compute_equity_curve / compute_rolling_metrics / compute_book_breakdown
+```
+
+### calibration.py (46 tests) — LOCKED: need 10 bets
+
+```python
+MIN_BETS_FOR_CALIBRATION = 10   # was 30, lowered Session 27
+get_calibration_report(db_path) -> CalibrationReport  # Brier, ROC-AUC, edge accuracy
+```
+
+---
+
+## 🛡️ Kill Switch Coverage
+
+| Sport | Module | Key Signals |
+|-------|--------|-------------|
+| NBA | math_engine + nba_pdo | B2B, spread >14, PDO regression |
+| NFL | math_engine + weather_feed | Wind >20mph hard kill, FORCE_UNDER |
+| NCAAB | math_engine | Pace std_dev, totals volatility |
+| NHL | math_engine + nhl_data | Unconfirmed goalie, collar |
+| Soccer | math_engine | Poisson cross-validation |
+| NCAAF | math_engine | Conference mismatch, spread extremes |
+| Tennis | math_engine + tennis_data | Surface mismatch, ranking gap |
+| Injury | injury_data | Positional leverage (QB, PG, etc.) |
+
+---
+
+## 🏗️ Grade Tier System
+
+| Grade | Edge | Kelly | Stake |
+|-------|------|-------|-------|
+| A | ≥ 3.5% | 0.25× | Full (STANDARD/NUCLEAR tier) |
+| B | ≥ 1.5% | 0.12× | $50 max |
+| C | ≥ 0.5% | 0.05× | $0 tracking only |
+| NEAR_MISS | ≥ -1.0% | 0 | Display only |
+
+---
+
+## 🔗 Two-AI Coordination
+
+| File | Direction | Auto-read? |
+|------|-----------|-----------|
+| V37_INBOX.md | Builder → V37 | V37 reads at every startup |
+| REVIEW_LOG.md | V37 → Builder | Builder reads at every startup |
+| memory/ORIGINAL_PROMPT.md | Builder → Next session | Paste as new chat opener |
+
+---
+
+## 📊 Test Counts by Module
+
+| Module | Tests | Module | Tests |
+|--------|-------|--------|-------|
+| math_engine | 249 | calibration | 46 |
+| tennis_data | 96 | scheduler | 40 |
+| king_of_the_court | 74 | probe_logger | 36 |
+| nba_pdo | 66 | price_history_store | 36 |
+| originator_engine | 62 | line_logger | 35 |
+| injury_data | 59 | nhl_data | 34 |
+| odds_fetcher | 51 | weather_feed | 24 |
+| efficiency_feed | 51 | | |
+| analytics | 51 | **TOTAL** | **1103** |
+| parlay_builder | 47 | | |
+| clv_tracker | 46 | | |
+
+---
+
+## 🎨 UI Design System (Session 27 permanent directive)
+
+Aesthetic: modern Apple / visionOS / macOS Sequoia — NOT old skeuomorphic
+- Translucent layers, clean geometry, generous whitespace, precise typography
+- Font: IBM Plex Mono (code/numbers) + IBM Plex Sans (text)
+- Brand: `#f59e0b` amber | Positive: `#22c55e` | Nuclear: `#ef4444`
+- Background: `#0e1117` | Card: `#1a1d23` | Border: `#2d3139`
+- Plotly: `paper_bgcolor="#0e1117"`, `plot_bgcolor="#13161d"`
+- Interactions: instant, frictionless — no spinner fatigue, no nav confusion
+- **`frontend-design:frontend-design` skill MANDATORY for all UI work**
+
+---
+
+## 🔑 Architecture Notes
+
+- Package imports: `from core.math_engine import` (NOT root-level like V36)
+- SQLite WAL mode enabled — safe for scheduler concurrent writes
+- Streamlit: `st.html()` for full HTML slates (NOT `st.markdown()`)
+- `st.navigation()` + `st.Page()` programmatic nav (Streamlit 1.36+)
+- NEVER import math_engine from odds_fetcher — circular import risk
+- nba_api: use `_endpoint_factory` injection — NOT `unittest.mock.patch`
+- "LA Clippers" normalization: nba_api returns "LA Clippers" not "Los Angeles Clippers"
+- Kill switch cache-seeding: seed module cache BEFORE calling pdo_kill_switch()
+- Edge test fixture: tight spread prices (-108/-112) don't generate >3.5% edge — use outlier-book pattern
+- fetch_batch_odds() returns dict by friendly name; parse_game_markets() takes ONE game dict, not the list
