@@ -446,6 +446,10 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 35. **External docs at repo root**: SYSTEM_GUIDE.md pattern — ELI5/FAQ/checklist documents at repo root are readable on GitHub without the app running. Create one for any workflow a non-technical user might need outside a live session.
 36. **UX principle (user permanent directive)**: "UI should be magnificently visually appealing but the ease and logic and functionality is the stronger highlight." Function > aesthetics. Both matter. `pages/00_guide.py` = reference template for amber/dark terminal onboarding style.
 37. **Live-mode prep is proactive**: When user says "going live", "live bets", "testing for real" — immediately verify: (a) 00_guide.py exists, (b) Log Bet form has all fields + tooltips, (c) SYSTEM_GUIDE.md is current, (d) app is running. Do NOT wait to be asked.
+38. **fetch_batch_odds() return type**: Returns `{sport_name: [game_list]}` dict — NOT a plain list. Always index by sport key or iterate `.values()`. Iterating the dict directly yields string keys, causing `AttributeError: 'str' object has no attribute 'get'` when downstream code calls `.get()` on a game. Pattern: `games = fetch_batch_odds(['NHL'])['NHL']`.
+39. **SQLite decimal storage for math values**: `edge_pct`, `clv`, and `kelly_size` are stored as decimals in `bet_log` (0.172 = 17.2%). Any export or display script must convert: `display = raw * 100 if raw <= 1.0 else raw`. The `<= 1.0` guard handles already-converted values safely. Same applies to CLV.
+40. **Inactivity guard breaks existing scheduler tests**: After adding an inactivity check at the top of `_poll_all_sports()`, any test that calls that function will silently skip if `data/last_activity.json` doesn't exist (returns `float("inf")`). Fix: add `@patch("core.scheduler._get_hours_since_activity", return_value=0.0)` to every `TestPollAllSports` / `TestTriggerPollNow` / `TestNhlGoaliePoll` method. Pattern: add this patch whenever adding any early-return guard to a function that already has tests.
+41. **Playwright fails when Chrome + extension running**: MCP Playwright uses the system Chrome binary. If Chrome is already open with the Claude in Chrome extension, Playwright exits with code 0 ("Opening in existing browser session") without loading the URL. Fix: `Cmd+Q` to fully quit Chrome, then Playwright works. Alternative: use code-level stress tests instead of browser tests during active sessions.
 
 ---
 
@@ -481,20 +485,30 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 25)
+## 🚦 CURRENT PROJECT STATE (as of Session 25 cont.)
 
 ```
-Test suite:   1062/1062 passing
-Last commit:  ebfe05f (Session 25 final: ORIGINAL_PROMPT commit hash fix) — PUSHED ✅
+Test suite:   1067/1067 passing
+Last commit:  a24a95e (Session 25 final: PROJECT_INDEX.md update) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App port:     8504 (confirmed — do NOT use 8501/8502/8503)
 
 BUILT (Sessions 1-25 complete):
-  18 core modules, 7 pages, 12 active sports
+  18 core modules, 7 pages, 12 active sports, 2 new scripts
+  Session 25 cont.: scripts/export_bets.py (25-col CSV export), scripts/grade_bet.py
+                    (CLI grading tool), inactivity auto-stop in scheduler.py + app.py
+                    (INACTIVITY_TIMEOUT_HOURS=24), 5 new inactivity tests
   Session 25: analytics.py, 07_analytics.py Phase 1, bet_log schema migration
               (7 new cols), Log Bet form, 00_guide.py onboarding, SYSTEM_GUIDE.md
   Prior: RLM 2.0, CLV, NHL kill switch, PDO, KOTC, calibration, equity curve,
          parlay builder, injury data, weather feed, originator engine, etc.
+
+LIVE BET STATUS (4 bets logged 2026-02-24, all pending):
+  id=1: OKC -7.5 @ -115 | ELITE edge | stake=$50
+  id=2: CLE -17.5 @ +120 | LEAN edge | stake=$0 (outlier test)
+  id=3: UIC Flames ML @ -134 | STRONG edge | stake=$25
+  id=4: Colorado St ML @ +143 | LEAN edge | stake=$25
+  Grade with: python3 scripts/grade_bet.py --id N --result win/loss --stake X --close PRICE
 
 KILL SWITCHES ACTIVE (unchanged):
   NBA: B2B rest + PDO regression
