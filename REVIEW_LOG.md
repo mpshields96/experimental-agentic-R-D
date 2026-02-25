@@ -74,25 +74,42 @@
 
 ---
 
-### 🔴 FLAG [V37 R5] — TOTALS CONSENSUS LINE-MIXING BUG — 2026-02-25
+### ✅ CLEARED [V37 R5] — TOTALS CONSENSUS LINE-MIXING BUG — 2026-02-25
+**Resolved by Session 29 (2026-02-25). Audited APPROVED by V37 Reviewer Session 6.**
 
-**Priority: CRITICAL — BLOCKS all live totals bets**
-
-`consensus_fair_prob()` mixes fair probabilities from books at different lines (e.g. 6.5 + 7.0), then `_best_price_for` picks best price at potentially a different line. Result: false positive edge on BOTH Over and Under simultaneously. Confirmed in live scan (EDM @ ANA: Over 7.0 AND Under 6.5 both Grade B).
-
-**Present in:** sandbox `core/math_engine.py:829-840` AND v36 `edge_calculator.py` totals block.
-
-**Fix Layer 1 (sandbox):** Modal line pinning — `consensus_fair_prob()` for totals must filter to modal line only. Full spec in SESSION LOG → V37 REVIEWER SESSION 5 above.
-
-**Fix Layer 2 (v36, done this session):** Dedup key change in `bet_ranker.py:183` — totals drop line from key so Over 7.0 + Under 6.5 deduplicate to highest-edge side.
-
-**Sandbox: address Layer 1 before next live session. Layer 2 applied to v36 by reviewer.**
+Layer 1 (sandbox): `_canonical_totals_books()` inner function added to `parse_game_markets()` — modal line Counter, both `consensus_fair_prob()` and `_best_price_for()` scoped to same canonical-line book set. Mathematically impossible to get simultaneous positive edge on Over + Under after fix.
+Layer 2 (v36): dedup key drops line for totals in `bet_ranker.py:183` — V37 R5.
+Totals bets now UNBLOCKED. No further action needed.
 
 ---
 
-### 🟡 FLAG [V37 R5] — STALE DOCSTRINGS in `is_session_hard_stop()` — 2026-02-25
+### ✅ CLEARED [V37 R5] — STALE DOCSTRINGS in `is_session_hard_stop()` — 2026-02-25
+**v36 side fixed by V37 Reviewer Session 7 (2026-02-25). Sandbox side still pending.**
 
-Sandbox `core/odds_fetcher.py:242-244` and v36 `odds_fetcher.py:105,158-159` both have inline comments referencing old constant values (1,000/500/1,000) that no longer match the actual constants. Update to reference constant names, not hardcoded numbers. Low urgency — address in next routine session.
+v36 `odds_fetcher.py`: `QuotaTracker` class docstring, `is_daily_cap_hit()`, and `is_session_hard_stop()` all updated — hardcoded numbers `(1,000)`, `(500)` removed, replaced with constant name references (`DAILY_CREDIT_CAP`, `SESSION_CREDIT_HARD_STOP`, `BILLING_RESERVE`). 257/257 tests still passing.
+
+**Sandbox action still needed:** `core/odds_fetcher.py:114,242-244` — same stale `(1,000)/(500)/(1,000)` references. Low urgency — address in next routine session alongside other minor cleanup.
+
+---
+
+### ✅ V37 REVIEWER SESSION 7 — SESSION 30-B VALIDATION — 2026-02-25
+
+**Session 30-B task (PRECONDITION docstrings) — VALIDATED ✅**
+
+Commit 70bd822. 1079/1079 tests passing (documentation-only, zero behavior change).
+
+All 5 contract blocks verified present and matching spec:
+- `consensus_fair_prob()`: PRECONDITION totals + PRECONDITION all-markets ✅
+- `_best_price_for()` (nested): PRECONDITION totals canonical-scope ✅
+- `compute_rlm()`: PRECONDITION direction + COLD CACHE BEHAVIOUR + POSTCONDITION ✅
+- `_canonical_totals_books()` (nested): Full CONTRACT block with 3 edge cases ✅
+- `parse_game_markets()`: INVARIANTS block (canonical-line, dedup key, kill-switch purity) ✅
+
+COLD CACHE behaviour documented correctly: guard is `get_open_price() returns None → return (False, 0.0)` — NOT a 0.0 check. Spurious RLM prevention explicit and warning in place.
+
+This task replaces Sequential Thinking MCP for assumption-surfacing. These contracts are now REQUIRED for any new `math_engine.py` function with input assumptions.
+
+**Session 30 status (as of 2026-02-25 14:45):** Session 30-B complete. Main Session 30 work (UI modernisation) not yet started. No audit block needed until sandbox writes a full SANDBOX SESSION 30 SUMMARY.
 
 ---
 
