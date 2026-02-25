@@ -226,8 +226,8 @@ def start_scheduler(
         return
 
     _db_path = db_path
-    init_db(db_path)                # Ensure line_history schema exists
-    init_price_history_db(db_path)  # Ensure price_history schema exists (RLM 2.0)
+    init_db(db_path)      # Ensure line_history schema exists
+    init_price_history_db()  # Ensure price_history schema exists — uses its own default path (price_history.db)
 
     _scheduler = BackgroundScheduler(
         job_defaults={"misfire_grace_time": 60},  # tolerate 1-min late fires

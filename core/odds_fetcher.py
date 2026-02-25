@@ -111,7 +111,7 @@ class DailyCreditLog:
         self._save()
 
     def is_daily_cap_hit(self) -> bool:
-        """Return True if today's usage has reached DAILY_CREDIT_CAP (1,000)."""
+        """Return True if today's usage has reached DAILY_CREDIT_CAP."""
         return self._data.get("used_today", 0) >= DAILY_CREDIT_CAP
 
     def used_today(self) -> int:
@@ -239,9 +239,9 @@ class QuotaTracker:
         """Return True if session must stop ALL fetches.
 
         Hard stops (any one triggers):
-          1. Daily cap hit: today's usage >= DAILY_CREDIT_CAP (1,000) — PERMANENT rule
-          2. Session cap hit: session_used >= SESSION_CREDIT_HARD_STOP (500)
-          3. Billing floor: remaining < BILLING_RESERVE (1,000)
+          1. Daily cap hit: today's usage >= DAILY_CREDIT_CAP — PERMANENT rule
+          2. Session cap hit: session_used >= SESSION_CREDIT_HARD_STOP
+          3. Billing floor: remaining < BILLING_RESERVE
         """
         if self.daily_log.is_daily_cap_hit():
             logger.warning(

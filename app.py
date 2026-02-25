@@ -126,6 +126,28 @@ def _seed_rlm_cache() -> None:
         st.session_state["rlm_cache_seeded"] = False
 
 
+def _init_dbs() -> None:
+    """
+    Initialize all SQLite schemas unconditionally at startup.
+
+    Must run BEFORE the scheduler, before the sidebar, before any DB reads.
+    Both init functions use CREATE TABLE IF NOT EXISTS — safe to call multiple times.
+    This is separate from the scheduler so DB schemas exist even when the scheduler
+    fails to start (e.g. Streamlit Cloud serverless environment).
+    """
+    try:
+        from core.line_logger import init_db
+        init_db(str(ROOT / "data" / "line_history.db"))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("line_logger init_db failed (non-fatal): %s", exc)
+    try:
+        from core.price_history_store import init_price_history_db
+        init_price_history_db(str(ROOT / "data" / "price_history.db"))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("price_history_store init failed (non-fatal): %s", exc)
+
+
+_init_dbs()
 _init_scheduler()
 _seed_rlm_cache()
 
