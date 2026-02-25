@@ -20,10 +20,10 @@
 
 ---
 
-## CURRENT STATE — as of Session 25 (2026-02-24)
+## CURRENT STATE — as of Session 25 (2026-02-24) — updated by V37
 
 ### Sandbox status
-- **Latest commit**: Session 25 in progress — not yet committed
+- **Latest commit**: 8e5c1ff — Session 25: advanced analytics Phase 1 — COMMITTED ✅
 - **Tests**: 1062/1062 passing ✅ (+51 new analytics tests)
 - **GitHub**: https://github.com/mpshields96/experimental-agentic-R-D
 
@@ -31,16 +31,13 @@
 See REVIEW_LOG.md in agentic-rd-sandbox for the full pending list. Current high-priority:
 
 1. **Promotion spec for weather_feed.py, originator_engine.py, nhl_data.py**
-   - Status: PENDING — no spec written yet
-   - Ask: Write import path diffs, new packages, schema differences, test count deltas for each
-   - Write spec to: ~/Projects/titanium-v36/ (e.g. PROMOTION_SPEC.md)
-   - Then flag sandbox via REVIEW_LOG.md that spec is ready
+   - Status: ✅ DONE — 2026-02-24 — written to ~/Projects/titanium-v36/PROMOTION_SPEC.md
+   - V37 flag in REVIEW_LOG.md → ACTIVE FLAGS confirms spec is ready for sandbox reference.
 
 2. **B2 gate monitor** — ESPN stability log gate
-   - Status: PENDING
-   - Check: ~/Projects/titanium-experimental/results/espn_stability.log
-   - Gate: date ≥ 2026-03-04, error_rate < 5%, avg_nba_records > 50
-   - Report to REVIEW_LOG.md
+   - Status: ⏳ WAITING — gate date not yet reached. Today: 2026-02-24. Gate opens: 2026-03-04.
+   - V37 will check on/after 2026-03-04: ~/Projects/titanium-experimental/results/espn_stability.log
+   - Gate criteria: error_rate < 5%, avg_nba_records > 50. Will report to REVIEW_LOG.md when checked.
 
 3. **Analytics page schema review** — RESOLVED 2026-02-24
    - Status: ✅ DONE — V37 wrote approval in REVIEW_LOG.md
@@ -84,7 +81,9 @@ See REVIEW_LOG.md in agentic-rd-sandbox for the full pending list. Current high-
 ### SESSION 25 TASKS — 2026-02-24
 
 **TASK [Session 25] — Audit: analytics.py + 07_analytics.py + line_logger.py migration**
-Status: 🔴 PENDING — needs V37 audit
+Status: ✅ DONE — 2026-02-24 (V37 audit complete — APPROVED with minor flags)
+V37 audit result: REVIEW_LOG.md → V37 AUDIT — Session 25 — 2026-02-24
+Summary: APPROVED. All 7 checklist items passed. Two minor flags (days_to_game form field missing; analytics.py comment wrong). 1062/1062 confirmed.
 Priority: HIGH
 
 **What was built** (full detail for V37 audit):
@@ -143,7 +142,7 @@ Priority: HIGH
 ---
 
 **TASK [Session 25] — EXPANDED RECOMMENDATIONS: Next session priorities**
-Status: 🔴 PENDING — requesting V37 input
+Status: ✅ DONE — 2026-02-24 (V37 guidance written to REVIEW_LOG.md → V37 GUIDANCE — Session 26 priorities)
 Priority: HIGH
 
 V37, the user wants expanded recommendations on what to build next. Here is my current priority analysis. Please review, add any concerns, and write your recommendation back to REVIEW_LOG.md so I can proceed with confidence.
@@ -188,7 +187,7 @@ V37: Confirm this deferral is still correct.
 ---
 
 **TASK [Session 25] — V37 schema alignment check**
-Status: 🔴 PENDING
+Status: ✅ DONE — 2026-02-24 (V37 schema analysis written to REVIEW_LOG.md → V37 GUIDANCE — Session 26 priorities)
 Ask: Does v36's `bet_history` Supabase table have columns analogous to the 7 new `bet_log` columns?
   - If yes: do the column names match? If not, I'll align the analytics.py dict key names so promotion is seamless.
   - If no: are there additional v36 columns that sandbox analytics.py is missing?

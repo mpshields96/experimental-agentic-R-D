@@ -84,7 +84,50 @@ Covers: weather_feed, originator_engine, nhl_data. Recommended build order:
 3. `weather_feed.py` → `data/weather_feed.py` (DEFERRED — Aug 2026, NFL off-season, +24 tests)
 Sandbox: read this spec before building any of these modules. Import paths, files to touch, test count deltas fully documented.
 
-**No active unresolved flags.**
+### V37 GUIDANCE — Session 26 priorities + schema check — 2026-02-24
+
+**Addressing sandbox's expanded recommendations + schema alignment questions (V37_INBOX Session 25 tasks):**
+
+**Priority 1 (30-bet gate):** User action, not code. Cannot accelerate this.
+
+**Priority 2 (Log Bet form):** CORRECTION — the form WAS updated in Session 25. Pages/04_bet_tracker.py passes: `sharp_score`, `rlm_fired`, `tags`, `book`, `line`, `signal` to `log_bet()`. The ONLY missing field is `days_to_game` (see FLAG below). Do NOT rebuild the entire form — just add the `days_to_game` field. One `st.number_input` + one kwarg in the `log_bet()` call.
+
+**Priority 3 (nhl_data promotion):** CONFIRMED — proceed. V36 baseline: 163/163 tests. Import path in v36: `from data.nhl_data import ...` (data/ subpackage, NOT core/). PROMOTION_SPEC.md at `~/Projects/titanium-v36/PROMOTION_SPEC.md` has full instructions. Build when ready.
+
+**Priority 4 (Trinity bug fix):** CONFIRMED — v36 bug is documented (MEMORY.md, CLAUDE.md known bugs). Fix in sandbox first. V37 will port to v36 after audit.
+
+**Priority 5 (Analytics Phase 2):** HOLD until 30-bet gate. No v36 equivalent for Phase 2 items — build freely. V36 has P&L Tracker page (`page_pnl_tracker()` in app.py) with equity curve already — note this if sandbox builds a competing equity curve. But Phase 2 Kelly compliance + tagging + export are additive, not duplicates.
+
+**Priority 6 (weather_feed):** DEFERRED Aug 2026 confirmed. Do not touch.
+
+**Deployment for user's 1-hour checkpoint:** V36 IS on Streamlit Cloud (auto-deploys from github.com/mpshields96/titanium-v36, main branch). Sandbox has NO cloud deploy. For the 1-hour window: **run sandbox locally** (`streamlit run pages/07_analytics.py` or the main app). Do NOT rush a v36 promotion under a 1-hour deadline — that's a separate deliberate session. The analytics page in sandbox is complete and testable locally right now.
+
+**V37 schema alignment (Supabase vs sandbox):**
+- Sandbox DB: `bet_log` table (SQLite) — has all 7 new columns ✅
+- V36 DB: `bet_history` table (Supabase) — does NOT yet have the 7 new columns. These must be added via Supabase migration when analytics is promoted to v36.
+- **Key names match** between sandbox and the approved v36 schema: `sharp_score`, `rlm_fired`, `tags`, `book`, `days_to_game`, `line`, `signal`. analytics.py dict keys will work as-is for v36 promotion.
+- V36 base columns that analytics.py needs: `result` ✅, `profit` ✅, `stake` ✅, `logged_at` ✅, `clv` ✅ — all exist in v36 bet_history from Session 18.
+- No action needed now. Track as a promotion prerequisite: "Add 7 new columns to v36 Supabase bet_history before promoting analytics."
+
+---
+
+**FLAG [Session 25] — days_to_game missing from 04_bet_tracker.py form** ✅ CLEARED — Session 25 post-push (effac79)
+Added `st.number_input("Days to Game")` + `days_to_game=float(days_to_game_input)` to log_bet() call. All 7 analytics params now captured in form.
+
+**FLAG [Session 25] — analytics.py line 33 comment wrong** ✅ CLEARED — Session 25 post-push (effac79)
+Comment now: `# calibration gate — matches MIN_BETS_FOR_CALIBRATION in calibration.py`
+
+**B2 GATE MONITOR — Preview check 2026-02-24 (gate opens 2026-03-04)**
+Log: `~/Projects/titanium-experimental/results/espn_stability.log` — EXISTS, last entry 2026-02-19 (5 days ago, no new entries since).
+Current metrics from 10 log entries (all 2026-02-19):
+- Error rate: 0% (all HTTP 200) ✅
+- NBA avg records: 104.2 (103, 103, 103, 106, 106) — above >50 threshold ✅
+- NCAAB records: 0 across all entries — consistent with "NCAAB: no ESPN endpoint" (expected)
+- Status: PROMISING. Gate date not yet reached (8 days remaining). Log must keep accumulating.
+- V37 will re-check on 2026-03-04 and report final gate decision to REVIEW_LOG.md.
+- NOTE: Log is stale — last entry was 5 days ago. If the R&D scheduler is no longer running, new entries won't accumulate. User may need to confirm R&D scheduler is active for the gate to be meaningful.
+
+**No other active flags.**
 
 ---
 
@@ -185,6 +228,38 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 ---
 
 ## SESSION LOG (most recent first)
+
+---
+
+### V37 AUDIT — Session 25 — 2026-02-24
+**Status:** APPROVED — two minor action items. Deployment note for user checkpoint.
+
+**Math > Narrative check:** ✅ analytics.py is display-only. Zero impact on edge detection, Sharp Score, Kelly sizing, or kill switches. The module takes `list[dict]` of PAST bets and computes statistics. It cannot influence bet generation. SAFE.
+
+**Rules intact:** ✅ SHARP_THRESHOLD=45. RLM 0/5. B2B 0/10. CLV 0/30. Collar, min edge, Kelly caps untouched.
+
+**Import discipline:** ✅ analytics.py explicitly states "NO imports from core/ except standard library." Uses only `math` + stdlib. Source-agnostic. ✅ line_logger.py migration correctly isolated in `_BET_LOG_MIGRATIONS`. ✅
+
+**API discipline:** ✅ No new external API calls. Analytics is pure computation on local SQLite data.
+
+**Test pass rate:** ✅ 1062/1062 confirmed by independent run. analytics.py 51/51.
+
+**Pearson r math — VERIFIED:** ✅ Standard Pearson r applied to (sharp_score, binary outcome). This is mathematically equivalent to the Point-Biserial Correlation — the correct formula for score-vs-binary-outcome validation. None-guard on zero variance is correct.
+
+**Schema migration — VERIFIED:** ✅ 7 columns match V37-approved schema exactly. ALTER TABLE is idempotent (try/except swallows "duplicate column"). Safe on fresh and existing DBs.
+
+**Minor Flag 1 (ACTION REQUIRED):** `days_to_game` not in `04_bet_tracker.py` form. Form passes 6 of 7 new params — `days_to_game` is missing. The column exists in DB (defaults to 0.0) but will always be 0.0 since the form never sets it. No analytics function currently uses `days_to_game` (no blocking), but add the field before Phase 2 timing analytics. Fix: add `st.number_input("Days to Game", value=0.0, step=0.5, key="bt_days_to_game")` to the Analytics Metadata section and pass it through to `log_bet()`.
+
+**Minor Flag 2 (doc only):** `analytics.py` line 33 says `# calibration gate — matches calibration.py` but calibration.py's constant is named `MIN_BETS_FOR_CALIBRATION` (not `MIN_RESOLVED`). Values match (both 30). Comment is technically wrong. Fix the comment: `# calibration gate — matches MIN_BETS_FOR_CALIBRATION in calibration.py`.
+
+**analytics.py path (noted, not a flag):** Sandbox used `core/analytics.py`. V37 spec said `data/analytics.py` for v36 compatibility. Both are correct for their respective architectures. For v36 promotion: will go to `data/analytics.py`. No action needed in sandbox.
+
+**sharp_score=0 legacy rows (noted, not a flag):** Old rows get sharp_score=0 after migration. The MIN_RESOLVED=30 gate mitigates this in the sandbox (fresh DB). For v36 promotion: the analytics correlation query should exclude rows where `sharp_score=0 AND result != "pending"` if those rows predate the Session 25 migration. Track this for the v36 promotion task.
+
+**Deployment NOTE for sandbox:** Sandbox has no Streamlit Cloud deploy. Deployed v36 lives at github.com/mpshields96/titanium-v36. User wants to test UI in 1 hour. Options for sandbox to address: (a) run locally `streamlit run pages/07_analytics.py`, OR (b) propose promotion of analytics.py to v36 for live testing. V37 recommends option (a) for the 1-hour checkpoint — promotion should be a separate deliberate session, not rushed under a 1-hour deadline.
+
+**Issues:** Minor Flag 1 (days_to_game in form) + Minor Flag 2 (doc comment). Neither blocks functionality.
+**Action required:** Fix `days_to_game` form field in `04_bet_tracker.py` in next session (or address before Phase 2). Fix comment in analytics.py line 33. Both are small — one session item, not a full session.
 
 ---
 
