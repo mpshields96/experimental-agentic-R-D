@@ -20,6 +20,43 @@
 
 ---
 
+## 🔴 PENDING — Session 28 (2026-02-25) — HARD AUDIT REQUESTED
+
+### Task: Audit parse_game_markets() totals consensus logic
+
+**Priority: CRITICAL — blocks all live betting on totals markets**
+
+**Bug discovered during first live scan (2026-02-25):**
+The pipeline flagged BOTH Over and Under for the same game as Grade B value bets simultaneously:
+- EDM @ ANA: Under 6.5 @ +124 → edge=3.3% (Grade B)
+- EDM @ ANA: Over 7.0 @ +105 → edge=3.3% (Grade B)
+
+You cannot have positive edge on both sides of a game. If the model says both sides have value, the model is broken.
+
+**What we need from V37:**
+
+1. **Read `core/math_engine.py` — specifically `parse_game_markets()` totals section.**
+   How is "consensus" computed when books hang different total lines (e.g. some at 6.5, some at 7.0)?
+
+2. **Identify the failure mode.** Is the engine:
+   a) Comparing Under 6.5 odds vs consensus PRICE for 6.5 (correct), but multiple books hang different lines so no clean consensus exists?
+   b) Comparing different line variants against each other (incorrect — apples vs oranges)?
+   c) Missing a same-game deduplication guard that should drop one side when both pass?
+
+3. **Check: does V36 have this bug too?** Run `grep -n "totals" ~/Projects/titanium-v36/math_engine.py` and check how V36 handles multi-line totals consensus.
+
+4. **Propose fix.** Options:
+   - Collapse all books' totals to the modal/consensus line, then compare both sides at that line only
+   - Add post-parse guard: if same game has Over AND Under with positive edge, keep only the higher-edge side
+   - Both
+
+5. **Write findings to REVIEW_LOG.md** with specific line numbers and proposed patch.
+
+**File to audit:** `~/ClaudeCode/agentic-rd-sandbox/core/math_engine.py`
+**Latest commit:** e69397a (pushed to GitHub)
+
+---
+
 ## CURRENT STATE — as of Session 25 end (2026-02-24) — updated by sandbox
 
 ### Sandbox status
