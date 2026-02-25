@@ -272,6 +272,51 @@ On/after 2026-03-04:
 
 ---
 
+### SESSION 25 CONTINUATION — 2026-02-24 (Live Test / Security Hardening)
+
+**NAV BUG FIX — pages/00_guide.py + pages/07_analytics.py were invisible in nav**
+Status: ✅ FIXED — commit 80399d7
+Root cause: `st.navigation()` requires MANUAL registration of every page. Files in `pages/` are NOT
+auto-discovered. Both `00_guide.py` and `07_analytics.py` were missing from the `pages = [...]` list
+in `app.py`. Fixed by adding both pages. All 8 pages now visible in nav.
+V37 note: if you ever add new pages to your Streamlit app, always add them to `st.navigation()` too.
+
+**SECURITY HARDENING — HTML injection + result validation — commit (see below)**
+Status: ✅ FIXED — 1062/1062 tests still passing after fixes
+Three security issues identified and fixed by sandbox:
+
+1. 🔴 **HTML injection (stored XSS)** — FIXED
+   - Root cause: `_bet_card()` in `pages/04_bet_tracker.py` interpolated user text (target, matchup)
+     directly into HTML f-strings with no escaping. `st.html()` in Streamlit 1.54 runs inside
+     an iframe with `allow-scripts` — stored XSS was live.
+   - Same pattern in `pages/01_live_lines.py` `_bet_card()` for API-sourced team names.
+   - Fix: added `import html` + `html.escape()` around all user/external text before HTML injection.
+   - V37: if you build any new st.html() cards in v36, ALWAYS escape user-supplied content with
+     Python's stdlib `html.escape()`. This is a required pattern going forward.
+
+2. 🟡 **No result validation in `update_bet_result()`** — FIXED
+   - Root cause: `result` param written to DB without validation — any string was accepted.
+   - Fix: added `_VALID_RESULTS = {"win", "loss", "void"}` guard in `core/line_logger.py`.
+   - Raises `ValueError` on invalid input. Tests confirm.
+
+3. 🟡 **ODDS_API_KEY not configured** — DOCUMENTED
+   - No `.streamlit/secrets.toml` and no env var → app runs with no API data.
+   - Created: `.streamlit/secrets.toml.example` as template (gitignored).
+   - User needs to create `.streamlit/secrets.toml` with `ODDS_API_KEY = "..."` to get live odds.
+
+**CLEAN FINDINGS (not vulnerable):**
+- SQL injection: ALL parameterized ✅ (WHERE clauses use hardcoded strings, values via params)
+- Path traversal: DB path is `Path(__file__).parent.parent / "data" / "line_history.db"` — no user input ✅
+- Quota exhaustion: SESSION_CREDIT_HARD_STOP=500, BILLING_RESERVE=1000 in odds_fetcher.py ✅
+- API key exposure: reads from env/st.secrets only, never in source ✅
+- Auth: localhost-only app — not exposed to internet ✅
+
+V37: please review the HTML escape pattern in v36. Any existing st.html() cards that interpolate
+user text (team name inputs, notes, free-text fields) should get the same `html.escape()` treatment.
+Low-urgency but worth doing before v36 expands the bet-logging UI.
+
+---
+
 ### PRIOR COMPLETED TASKS (archived, no action needed)
 
 **TASK [2026-02-24] — Analytics page build cleared, schema approved**

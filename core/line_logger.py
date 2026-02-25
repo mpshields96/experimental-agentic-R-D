@@ -697,6 +697,10 @@ def update_bet_result(
     """
     from core.math_engine import calculate_profit, calculate_clv
 
+    _VALID_RESULTS = {"win", "loss", "void"}
+    if result not in _VALID_RESULTS:
+        raise ValueError(f"Invalid result '{result}'. Must be one of: {_VALID_RESULTS}")
+
     conn = get_connection(db_path)
     try:
         row = conn.execute(

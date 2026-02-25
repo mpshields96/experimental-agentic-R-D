@@ -20,6 +20,7 @@ Design:
 - No narrative — numbers only
 """
 
+import html
 import sys
 from pathlib import Path
 
@@ -98,6 +99,10 @@ def _bet_card(bet: dict, idx: int) -> str:
 
     logged_at = bet.get("logged_at", "")[:16].replace("T", " ")
 
+    # Escape all user-controlled strings before HTML injection (stored XSS prevention)
+    _target  = html.escape(str(bet.get("target", bet.get("matchup", "")) or ""))
+    _matchup = html.escape(str(bet.get("matchup", "") or ""))
+
     return f"""
     <div style="
         background: #1a1d23;
@@ -113,10 +118,10 @@ def _bet_card(bet: dict, idx: int) -> str:
                     {sport} · {mkt}
                 </span>
                 <div style="font-size:0.95rem; font-weight:700; color:#e5e7eb; margin-top:2px;">
-                    {bet.get("target", bet.get("matchup", ""))}
+                    {_target}
                 </div>
                 <div style="font-size:0.7rem; color:#9ca3af;">
-                    {bet.get("matchup", "")}
+                    {_matchup}
                 </div>
             </div>
             <div style="text-align:right;">

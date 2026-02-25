@@ -24,6 +24,7 @@ UI:
 - Graceful degradation: "No bets found" state with reason
 """
 
+import html as _html
 import sys
 import time
 from pathlib import Path
@@ -233,6 +234,11 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
     if bet.market_type in ("spreads", "totals") and bet.line != 0:
         line_html = f'<div style="font-size:0.75rem; color:#9ca3af; margin-bottom:1px;">{bet.line:+.1f}</div>'
 
+    # Escape any external/API strings before HTML interpolation
+    _target  = _html.escape(str(bet.target or ""))
+    _matchup = _html.escape(str(bet.matchup or ""))
+    _sport   = _html.escape(str(bet.sport or "").upper())
+
     # Kill reason warning
     kill_html = ""
     if bet.kill_reason:
@@ -241,7 +247,7 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
             background:#1f1010; border:1px solid #7f1d1d;
             border-radius:4px; padding:4px 8px; margin-top:6px;
             font-size:0.65rem; color:#fca5a5;
-        ">⚠ {bet.kill_reason}</div>
+        ">⚠ {_html.escape(str(bet.kill_reason))}</div>
         """
 
     # Sharp score breakdown tooltip-style
@@ -275,11 +281,11 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
                 <span style="
                     font-size:0.6rem; color:#6b7280;
                     letter-spacing:0.1em; font-weight:600;
-                "># {rank} &nbsp;·&nbsp; {bet.sport.upper()} &nbsp;·&nbsp; {mkt_display}</span>
+                "># {rank} &nbsp;·&nbsp; {_sport} &nbsp;·&nbsp; {mkt_display}</span>
                 <div style="
                     font-size:1.0rem; font-weight:700; color:#e5e7eb; margin-top:3px;
-                ">{bet.target}</div>
-                <div style="font-size:0.75rem; color:#9ca3af;">{bet.matchup}</div>
+                ">{_target}</div>
+                <div style="font-size:0.75rem; color:#9ca3af;">{_matchup}</div>
             </div>
             <div style="text-align:right;">
                 {line_html}
