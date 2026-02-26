@@ -751,6 +751,352 @@ class TestConstantsIntegrity:
         assert _DAILY_SOFT_FRACTION == 0.80
 
 
+# ---------------------------------------------------------------------------
+# Player props — PropsQuotaTracker + fetch_props_for_event (Session 35)
+# ---------------------------------------------------------------------------
+
+from core.odds_fetcher import (
+    PropsQuotaTracker,
+    fetch_props_for_event,
+    get_props_api_key,
+    PROPS_SESSION_CREDIT_CAP,
+    PROPS_DAILY_CREDIT_CAP,
+    PROP_MARKETS,
+    props_quota as _module_props_quota,
+)
+
+
+def _reset_props_quota() -> None:
+    """Reset module-level props quota tracker to pristine state."""
+    _module_props_quota.session_used = 0
+    _module_props_quota.last_cost = 0
+
+
+def _make_props_mock_response(data: dict, status: int = 200, last_cost: int = 2) -> MagicMock:
+    """Build a mock requests.Response for the event-level props endpoint."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = status
+    mock_resp.json.return_value = data
+    mock_resp.headers = {
+        "x-requests-remaining": "480",
+        "x-requests-used": "20",
+        "x-requests-last": str(last_cost),
+    }
+    return mock_resp
+
+
+class TestPropsQuotaTracker:
+    def setup_method(self):
+        _reset_props_quota()
+
+    def test_initial_state(self):
+        qt = PropsQuotaTracker()
+        assert qt.session_used == 0
+        assert qt.last_cost == 0
+
+    def test_record_increments_session_used(self):
+        qt = PropsQuotaTracker()
+        qt.record(3)
+        assert qt.session_used == 3
+        assert qt.last_cost == 3
+
+    def test_record_accumulates(self):
+        qt = PropsQuotaTracker()
+        qt.record(2)
+        qt.record(3)
+        assert qt.session_used == 5
+
+    def test_is_session_hard_stop_false_below_cap(self):
+        qt = PropsQuotaTracker()
+        qt.session_used = PROPS_SESSION_CREDIT_CAP - 1
+        assert not qt.is_session_hard_stop()
+
+    def test_is_session_hard_stop_true_at_cap(self):
+        qt = PropsQuotaTracker()
+        qt.session_used = PROPS_SESSION_CREDIT_CAP
+        assert qt.is_session_hard_stop()
+
+    def test_is_session_hard_stop_true_over_cap(self):
+        qt = PropsQuotaTracker()
+        qt.session_used = PROPS_SESSION_CREDIT_CAP + 10
+        assert qt.is_session_hard_stop()
+
+    def test_remaining_session_budget(self):
+        qt = PropsQuotaTracker()
+        qt.session_used = 20
+        assert qt.remaining_session_budget() == PROPS_SESSION_CREDIT_CAP - 20
+
+    def test_remaining_session_budget_clamps_to_zero(self):
+        qt = PropsQuotaTracker()
+        qt.session_used = PROPS_SESSION_CREDIT_CAP + 99
+        assert qt.remaining_session_budget() == 0
+
+    def test_report_includes_session_used_and_cap(self):
+        qt = PropsQuotaTracker()
+        qt.session_used = 15
+        report = qt.report()
+        assert "15" in report
+        assert str(PROPS_SESSION_CREDIT_CAP) in report
+
+
+class TestFetchPropsForEvent:
+    """Tests for fetch_props_for_event().
+
+    All network calls use _session injection — zero real API calls.
+    All props quota interactions use _quota injection — no module state pollution.
+    """
+
+    def _quota(self) -> PropsQuotaTracker:
+        """Fresh quota tracker for each test."""
+        return PropsQuotaTracker()
+
+    def _fake_props_data(self) -> dict:
+        """Minimal valid event dict that mirrors The Odds API event props response."""
+        return {
+            "id": "evt_001",
+            "sport_key": "basketball_nba",
+            "home_team": "Los Angeles Lakers",
+            "away_team": "Golden State Warriors",
+            "commence_time": "2026-03-01T02:00:00Z",
+            "bookmakers": [
+                {
+                    "key": "draftkings",
+                    "title": "DraftKings",
+                    "markets": [
+                        {
+                            "key": "player_points",
+                            "outcomes": [
+                                {"name": "Over", "description": "LeBron James", "price": -115, "point": 24.5},
+                                {"name": "Under", "description": "LeBron James", "price": -105, "point": 24.5},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+    def test_returns_raw_dict_on_success(self):
+        mock_resp = _make_props_mock_response(self._fake_props_data())
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_resp
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=self._quota(),
+                _session=mock_session,
+            )
+        assert isinstance(result, dict)
+        assert result.get("id") == "evt_001"
+
+    def test_records_credit_cost_from_header(self):
+        mock_resp = _make_props_mock_response(self._fake_props_data(), last_cost=2)
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_resp
+        qt = self._quota()
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points", "player_rebounds"],
+                _quota=qt,
+                _session=mock_session,
+            )
+        assert qt.session_used == 2
+
+    def test_falls_back_to_market_count_if_header_missing(self):
+        """If x-requests-last is absent, cost defaults to len(prop_markets)."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = self._fake_props_data()
+        mock_resp.headers = {}  # no x-requests-last header
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_resp
+        qt = self._quota()
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points", "player_rebounds", "player_assists"],
+                _quota=qt,
+                _session=mock_session,
+            )
+        assert qt.session_used == 3  # fallback = len(prop_markets)
+
+    def test_returns_empty_dict_when_quota_exhausted(self):
+        qt = self._quota()
+        qt.session_used = PROPS_SESSION_CREDIT_CAP  # already at cap
+        mock_session = MagicMock()
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=qt,
+                _session=mock_session,
+            )
+        assert result == {}
+        mock_session.get.assert_not_called()
+
+    def test_returns_empty_dict_when_no_api_key(self):
+        # Patch both key functions so no key is found at all
+        with patch("core.odds_fetcher.get_props_api_key", return_value=None):
+            result = fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=self._quota(),
+            )
+        assert result == {}
+
+    def test_returns_empty_dict_on_422(self):
+        """422 = market not available on this tier — return {} without retry."""
+        mock_resp = _make_props_mock_response({}, status=422)
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_resp
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=self._quota(),
+                _session=mock_session,
+            )
+        assert result == {}
+
+    def test_returns_empty_dict_on_401(self):
+        mock_resp = _make_props_mock_response({}, status=401)
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_resp
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=self._quota(),
+                _session=mock_session,
+            )
+        assert result == {}
+
+    def test_returns_empty_dict_on_500(self):
+        mock_resp = _make_props_mock_response({}, status=500)
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_resp
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=self._quota(),
+                _session=mock_session,
+            )
+        assert result == {}
+
+    def test_returns_empty_dict_on_request_exception(self):
+        import requests as _requests
+        mock_session = MagicMock()
+        mock_session.get.side_effect = _requests.exceptions.ConnectionError("network down")
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=self._quota(),
+                _session=mock_session,
+            )
+        assert result == {}
+
+    def test_returns_empty_dict_on_empty_event_id(self):
+        mock_session = MagicMock()
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_props_for_event(
+                event_id="",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=self._quota(),
+                _session=mock_session,
+            )
+        assert result == {}
+        mock_session.get.assert_not_called()
+
+    def test_returns_empty_dict_on_empty_markets_list(self):
+        mock_session = MagicMock()
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            result = fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=[],
+                _quota=self._quota(),
+                _session=mock_session,
+            )
+        assert result == {}
+        mock_session.get.assert_not_called()
+
+    def test_does_not_pollute_main_quota(self):
+        """Props fetch must NOT increment the main odds quota tracker."""
+        _reset_props_quota()
+        initial_main_session_used = _of_module.quota.session_used
+        mock_resp = _make_props_mock_response(self._fake_props_data())
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_resp
+        qt = self._quota()
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            fetch_props_for_event(
+                event_id="evt_001",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=qt,
+                _session=mock_session,
+            )
+        # Main quota must be unchanged
+        assert _of_module.quota.session_used == initial_main_session_used
+
+    def test_uses_correct_event_endpoint_url(self):
+        """Verify the request is sent to the event-level props endpoint."""
+        mock_resp = _make_props_mock_response(self._fake_props_data())
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_resp
+        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+            fetch_props_for_event(
+                event_id="evt_abc123",
+                sport_key="basketball_nba",
+                prop_markets=["player_points"],
+                _quota=self._quota(),
+                _session=mock_session,
+            )
+        call_args = mock_session.get.call_args
+        url = call_args[0][0]
+        assert "events/evt_abc123/odds" in url
+        assert "basketball_nba" in url
+
+    def test_get_props_api_key_prefers_props_env_var(self):
+        """ODDS_API_KEY_PROPS takes priority over ODDS_API_KEY."""
+        with patch.dict(os.environ, {"ODDS_API_KEY_PROPS": "props_key", "ODDS_API_KEY": "main_key"}):
+            key = get_props_api_key()
+        assert key == "props_key"
+
+    def test_get_props_api_key_falls_back_to_main_key(self):
+        """Falls back to ODDS_API_KEY when ODDS_API_KEY_PROPS is absent."""
+        with patch.dict(os.environ, {"ODDS_API_KEY": "main_key"}, clear=True):
+            with patch("core.odds_fetcher.get_api_key", return_value="main_key"):
+                key = get_props_api_key()
+        assert key == "main_key"
+
+    def test_props_daily_credit_cap_is_100(self):
+        assert PROPS_DAILY_CREDIT_CAP == 100
+
+    def test_prop_markets_constant_has_nba_keys(self):
+        assert "basketball_nba" in PROP_MARKETS
+        assert "player_points" in PROP_MARKETS["basketball_nba"]
+        assert "player_rebounds" in PROP_MARKETS["basketball_nba"]
+        assert "player_assists" in PROP_MARKETS["basketball_nba"]
+
+    def test_props_session_credit_cap_is_conservative(self):
+        """Cap must be small enough to not threaten main odds budget."""
+        assert PROPS_SESSION_CREDIT_CAP <= 100
+
+
 if __name__ == "__main__":
     import subprocess
     result = subprocess.run(

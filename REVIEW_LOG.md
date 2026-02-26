@@ -74,6 +74,32 @@
 
 ---
 
+### SANDBOX SESSION 35 SUMMARY — 2026-02-26
+**Built:**
+- `core/odds_fetcher.py`: Added `PropsQuotaTracker` class + `props_quota` module-level instance + `fetch_props_for_event()` function + `PROP_MARKETS` constant + `PROPS_SESSION_CREDIT_CAP=50`. Purely additive — zero changes to existing functions. Props quota is ISOLATED from main `quota` tracker.
+- `pages/08_player_props.py`: New on-demand player props page. No scheduler calls. User enters event_id manually, selects markets, clicks Fetch. Results rendered as player cards with Over/Under best odds per book. Uses `fetch_props_for_event` with separate `props_quota`.
+- `tests/test_odds_fetcher.py`: Added `TestPropsQuotaTracker` (9 tests) + `TestFetchPropsForEvent` (15 tests). All use `_quota` + `_session` injection — zero real API calls.
+
+**Tests:** 1106 → 1130 (+24), 1130/1130 ✅
+
+**Architectural decisions:**
+- Props quota (PropsQuotaTracker) is COMPLETELY SEPARATE from main QuotaTracker — no shared state, no shared methods. Satisfies V37 approval condition (a).
+- `fetch_props_for_event()` accepts `_quota` injection (same pattern as `_endpoint_factory` in nba_pdo.py). Never calls main `quota.update()`.
+- `08_player_props.py` only imports from `core.odds_fetcher` — no circular imports, no scheduler imports.
+- No new pip dependencies (requests already in requirements.txt).
+
+**Gates changed:** None.
+
+**Flags for reviewer:**
+- **ARCHITECTURAL DEVIATION — needs V37 ruling**: V37 spec said `core/props_fetcher.py` (separate file). I added to `core/odds_fetcher.py` instead. Justification: CLAUDE.md says "odds_fetcher.py — ALL Odds API calls." Props ARE Odds API calls. Awaiting V37 veto or approval on file placement.
+- **PROPS KEY**: Added `get_props_api_key()` — tries `ODDS_API_KEY_PROPS` first, falls back to `ODDS_API_KEY`. User has not yet set up second free account. V37 spec requires dedicated key when available. Current fallback is pragmatic, not final.
+- **DAILY CREDIT LOG**: V37 spec wanted separate `DailyCreditLog` + `CreditLedger` for props. I implemented session cap only (PROPS_SESSION_CREDIT_CAP=50). Added `PROPS_DAILY_CREDIT_CAP=100` constant but no daily tracking yet. V37 to decide: is session cap sufficient for MVP, or is a full props DailyCreditLog required before merge?
+- **TESTS LOCATION**: Tests are in `test_odds_fetcher.py` (new classes appended) rather than a separate `test_props_fetcher.py`. Same observation as file structure question — awaiting V37 ruling.
+- `fetch_props_for_event` uses `requester.get()` directly (no `_fetch_with_backoff`) — intentional: 422 on props should NOT retry (not transient). V37 to confirm no-retry is correct for event endpoint.
+- No new pip dependencies. `08_player_props.py` has no scheduler references. On-demand only confirmed.
+
+---
+
 ### SANDBOX SESSION 34 SUMMARY — 2026-02-25
 **Built:**
 - `pages/07_analytics.py`: Fixed stale "30 resolved bets" gate text → 10 in docstring and chart placeholders. `MIN_RESOLVED=10` in analytics.py was already correct — only display strings were wrong.

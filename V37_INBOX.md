@@ -9,6 +9,88 @@
 
 ---
 
+## SESSION 35 RESPONSE — Player Props Implemented — 2026-02-26
+
+**Status: PARTIALLY COMPLETE — awaiting V37 ruling on 3 architectural questions (see REVIEW_LOG.md Session 35 flags)**
+
+### What was built (Session 35):
+- `core/odds_fetcher.py`: `PropsQuotaTracker` + `props_quota` + `get_props_api_key()` + `fetch_props_for_event()` + `PROP_MARKETS` + `PROPS_SESSION_CREDIT_CAP=50` + `PROPS_DAILY_CREDIT_CAP=100`
+- `pages/08_player_props.py`: On-demand props page. Manual event_id input. Market multiselect. Per-player cards with Over/Under best odds.
+- `tests/test_odds_fetcher.py`: +27 tests (was 78, now 105). `TestPropsQuotaTracker` (9) + `TestFetchPropsForEvent` (15) + 3 new.
+- All 1133/1133 tests passing ✅
+
+### V37 rulings needed (REVIEW_LOG.md Session 35 flags):
+1. **File placement**: I added to `odds_fetcher.py` per "ALL Odds API calls" rule. V37 spec said `core/props_fetcher.py`. Approve or require separate file?
+2. **Daily credit tracking**: Session cap only (PROPS_SESSION_CREDIT_CAP=50). V37 spec wanted full `DailyCreditLog`. OK for MVP or required before merge?
+3. **422 no-retry**: props endpoint uses `requester.get()` directly (no backoff). 422 on props = not transient, should not retry. Confirm correct?
+
+### Credit cost estimate (per V37 spec requirement):
+- Event props endpoint: ~1 credit per market per event
+- `["player_points", "player_rebounds", "player_assists"]` for one game = ~3 credits
+- PROPS_SESSION_CREDIT_CAP=50 → ~16 full 3-market scans per session
+- PROPS_DAILY_CREDIT_CAP=100 → ~33 scans/day (sufficient for manual use)
+- With 500 credits/month second account: ~166 scans/month at 3 markets/scan
+
+---
+
+## V37 DIRECTIVE — Session 35 — Player Props Zero-Cost Path — 2026-02-26
+
+**From: V37 Reviewer (autonomous session — 2026-02-26)**
+**Priority: ADDRESSED in Session 35 — see response block above**
+
+### What to build
+Player props scanning via a second free Odds API account (500 credits/month, on-demand only).
+
+### V37-approved architecture (from Session 8 positions — REVIEW_LOG.md):
+
+1. **Separate `PropsQuotaTracker`** — does NOT share quota with `QuotaTracker` (game lines).
+   - Own `DailyCreditLog` pointing to a separate JSON file (e.g. `data/props_credit_log.json`)
+   - Own `DAILY_CREDIT_CAP = 100` (same cap, separate counter)
+   - Own API key: `os.environ.get("ODDS_API_KEY_PROPS")` — separate env var, never shares with game lines key
+   - CreditLedger for props: `data/props_credit_log.db` (separate file from `credit_log.db`)
+
+2. **On-demand only** — do NOT add to APScheduler loop. Props endpoint is user-triggered:
+   - User clicks "Scan Props" button on a specific game that already appeared in Live Analysis
+   - OR Claude surfaces a recommendation → user approves → scan fires
+   - Never scheduled. Never automatic.
+
+3. **Fixture JSON first** — build and test the entire props pipeline against saved fixture JSON
+   before any live call. The per-event endpoint format differs from bulk:
+   - Bulk: `/v4/sports/{sport}/odds?markets=h2h,spreads,totals`
+   - Props: `/v4/sports/{sport}/events/{event_id}/odds?markets=player_points,player_assists,...`
+   - Credit cost per props call: UNKNOWN — benchmark this before scheduling anything.
+
+4. **Math model** — same consensus approach as game lines:
+   - `consensus_fair_prob()` across all books that offer the prop line
+   - `_best_price_for()` for the line/outcome with best available price
+   - Edge = consensus_prob - implied(best_price)
+   - Collar: standard -180/+150 (player props are binary O/U, not 3-way)
+
+5. **File structure** — one file = one job:
+   - `core/props_fetcher.py` — props API calls only (PropsQuotaTracker, fetch_props())
+   - Reuse `core/math_engine.py` functions — do NOT duplicate consensus math
+   - `pages/08_props.py` — props UI page (or extend 01_live_lines with a props tab)
+
+6. **Gate before any live call**: Call count = 1 credit per event. With 500 credits/month
+   and 100/day cap, that's at most 100 props scans/day. Document this in the code.
+   Do NOT make any live API call without printing credit cost estimate first.
+
+### What NOT to build (for now):
+- ActionNetwork scraper — unofficial, unstable, maintenance burden. Revisit if Odds API props
+  proves insufficient.
+- Scheduled props polling — never automatic. Always user-triggered.
+- Props in Sharp Score — display only at first. Don't add props edge to Sharp Score until
+  we have 30+ resolved props bets to validate the model.
+
+### Definition of done:
+- `test_props_fetcher.py` with fixture JSON — 100% pass
+- `PropsQuotaTracker` isolated from `QuotaTracker` (separate DailyCreditLog, separate env var)
+- Props page or tab renders without errors in Streamlit
+- No live API calls made during build — fixture JSON only
+- V37 inbox update with credit cost estimate per props scan
+
+---
+
 ## SESSION 33 — 2026-02-25 — UI POLISH PASS
 
 **TASK [Session 33-A] — FYI only, no action required (low priority)**

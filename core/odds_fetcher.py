@@ -893,6 +893,236 @@ def probe_bookmakers(raw_games: list[dict]) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Player props — on-demand event-level fetch (V37 APPROVED with conditions)
+#
+# CONDITIONS (V37 approval record, Session 35):
+#   (a) Separate quota tracking — never eats into main odds budget
+#   (b) No scheduler polling — on-demand UI only
+#   (c) Event-level only — one event at a time, not bulk
+#
+# Bulk endpoint returns 422 on player_* markets (confirmed Feb 2026).
+# Event endpoint: /v4/sports/{sport}/events/{event_id}/odds
+# Cost: ~1 credit per market per event. Max 3-5 markets per call recommended.
+# ---------------------------------------------------------------------------
+
+PROPS_SESSION_CREDIT_CAP: int = 50   # max props credits per session (separate budget)
+PROPS_DAILY_CREDIT_CAP: int = 100    # V37 spec daily cap for props (separate from DAILY_CREDIT_CAP)
+
+
+def get_props_api_key() -> Optional[str]:
+    """Load props-specific API key. Falls back to main key if not configured.
+
+    Priority:
+    1. ODDS_API_KEY_PROPS env var — intended for a dedicated second free account
+       (500 credits/month) so props never consume the main game-lines quota
+    2. ODDS_API_KEY — main key fallback (same account, separate session counter)
+
+    V37 spec (Session 35): props key MUST use a separate account when one is available.
+    Until a second account is created, the main key fallback ensures props fetch
+    is still functional while maintaining budget separation via PropsQuotaTracker.
+    """
+    key = os.environ.get("ODDS_API_KEY_PROPS")
+    if key:
+        return key
+    # Streamlit secrets fallback
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and "ODDS_API_KEY_PROPS" in st.secrets:
+            return st.secrets["ODDS_API_KEY_PROPS"]
+    except (ImportError, Exception):
+        pass
+    # Fall back to main key (second free account not yet configured)
+    logger.debug("ODDS_API_KEY_PROPS not set — using main ODDS_API_KEY for props (fallback)")
+    return get_api_key()
+
+
+# NBA player prop market keys available on The Odds API event endpoint.
+# Other sports (NFL, NCAAB) have overlapping keys but coverage varies by book/season.
+PROP_MARKETS: dict[str, list[str]] = {
+    "basketball_nba": [
+        "player_points",
+        "player_rebounds",
+        "player_assists",
+        "player_threes",
+        "player_blocks",
+        "player_steals",
+        "player_points_rebounds_assists",
+        "player_points_rebounds",
+        "player_points_assists",
+    ],
+    "americanfootball_nfl": [
+        "player_pass_tds",
+        "player_pass_yds",
+        "player_rush_yds",
+        "player_receptions",
+        "player_reception_yds",
+    ],
+}
+
+
+class PropsQuotaTracker:
+    """Separate quota tracking for player props API calls.
+
+    Props are event-level only — fetched on-demand from the UI.
+    Separate from the main QuotaTracker (quota) so props usage never
+    consumes the main odds budget shared with the APScheduler.
+
+    Budget: PROPS_SESSION_CREDIT_CAP credits per session (default 50).
+    Reset: session_used resets on process restart (not persisted).
+
+    NEVER add props fetches to the scheduler poll loop.
+    """
+
+    def __init__(self) -> None:
+        self.session_used: int = 0
+        self.last_cost: int = 0
+
+    def record(self, cost: int) -> None:
+        """Record credit cost from a single props API call."""
+        self.session_used += cost
+        self.last_cost = cost
+
+    def is_session_hard_stop(self) -> bool:
+        """Return True if props session budget is exhausted."""
+        return self.session_used >= PROPS_SESSION_CREDIT_CAP
+
+    def remaining_session_budget(self) -> int:
+        """Return remaining props credits for this session."""
+        return max(0, PROPS_SESSION_CREDIT_CAP - self.session_used)
+
+    def report(self) -> str:
+        return f"props session={self.session_used}/{PROPS_SESSION_CREDIT_CAP}"
+
+
+# Module-level props tracker — separate from main quota
+props_quota = PropsQuotaTracker()
+
+
+def fetch_props_for_event(
+    event_id: str,
+    sport_key: str,
+    prop_markets: list[str],
+    _quota: Optional["PropsQuotaTracker"] = None,
+    _session: Optional[requests.Session] = None,
+) -> dict:
+    """Fetch player props for a single event from The Odds API.
+
+    Uses the event-specific endpoint (/v4/sports/{sport}/events/{event_id}/odds)
+    rather than the bulk endpoint (which returns 422 on player_* markets).
+
+    PRECONDITION: event_id must come from a game dict returned by fetch_batch_odds()
+                  (the "id" field). Sport key must be a valid Odds API sport key
+                  (e.g. "basketball_nba"), NOT a friendly name like "NBA".
+    POSTCONDITION: Returns raw API response dict on success, {} on any error.
+                   Never raises — all exceptions are caught and logged.
+
+    Credit cost: approximately 1 credit per market in prop_markets.
+    Uses separate PropsQuotaTracker (props_quota) — never touches main quota.
+
+    NEVER call from scheduler — on-demand UI only (V37 approval condition b).
+    NEVER pass more than 5 markets per call to control credit spend.
+
+    Args:
+        event_id:     Odds API event ID (game dict "id" field).
+        sport_key:    Odds API sport key (e.g. "basketball_nba").
+        prop_markets: Market keys (e.g. ["player_points", "player_rebounds"]).
+                      See PROP_MARKETS for supported keys per sport.
+        _quota:       PropsQuotaTracker injection for tests. Defaults to props_quota.
+        _session:     requests.Session injection for tests.
+
+    Returns:
+        Raw event dict with bookmakers list, or {} on error / quota exceeded.
+        Bookmaker markets contain player prop outcomes with player names as
+        the "description" field on each outcome (e.g. "LeBron James").
+
+    Example:
+        game = fetch_batch_odds(["NBA"])["NBA"][0]
+        props = fetch_props_for_event(
+            event_id=game["id"],
+            sport_key="basketball_nba",
+            prop_markets=["player_points", "player_rebounds"],
+        )
+        for bk in props.get("bookmakers", []):
+            for mkt in bk.get("markets", []):
+                for outcome in mkt.get("outcomes", []):
+                    print(outcome["description"], mkt["key"], outcome["name"], outcome["point"])
+    """
+    _q = _quota if _quota is not None else props_quota
+
+    if _q.is_session_hard_stop():
+        logger.warning(
+            "Props quota exhausted (%d/%d) — skipping event %s",
+            _q.session_used, PROPS_SESSION_CREDIT_CAP, event_id,
+        )
+        return {}
+
+    if not event_id:
+        logger.warning("fetch_props_for_event: empty event_id")
+        return {}
+
+    if not prop_markets:
+        logger.warning("fetch_props_for_event: empty prop_markets list")
+        return {}
+
+    api_key = get_props_api_key()  # ODDS_API_KEY_PROPS first, then ODDS_API_KEY fallback
+    if not api_key:
+        logger.error("No API key found (tried ODDS_API_KEY_PROPS and ODDS_API_KEY). Cannot fetch props.")
+        return {}
+
+    markets_str = ",".join(prop_markets)
+    url = f"{BASE_URL}/{sport_key}/events/{event_id}/odds"
+    params = {
+        "apiKey": api_key,
+        "regions": "us",
+        "oddsFormat": "american",
+        "markets": markets_str,
+    }
+
+    requester = _session or requests
+    try:
+        resp = requester.get(url, params=params, timeout=15)
+    except requests.exceptions.RequestException as exc:
+        logger.warning("fetch_props_for_event request failed: %s", exc)
+        return {}
+
+    if resp.status_code == 422:
+        logger.warning(
+            "422 on props event=%s sport=%s markets=%s — market not available on this tier",
+            event_id, sport_key, markets_str,
+        )
+        return {}
+    elif resp.status_code == 401:
+        logger.error("401 Unauthorized on props fetch — check ODDS_API_KEY")
+        return {}
+    elif resp.status_code != 200:
+        logger.warning(
+            "fetch_props_for_event: HTTP %d for event=%s", resp.status_code, event_id,
+        )
+        return {}
+
+    # Record credit cost from response headers (fallback: 1 per market)
+    try:
+        cost = int(resp.headers.get("x-requests-last", len(prop_markets)))
+    except (ValueError, TypeError):
+        cost = len(prop_markets)
+    _q.record(cost)
+    logger.info(
+        "Props fetch event=%s markets=%s cost=%d | %s",
+        event_id, markets_str, cost, _q.report(),
+    )
+
+    try:
+        data = resp.json()
+        if not isinstance(data, dict):
+            logger.warning("Unexpected props response format: %s", type(data))
+            return {}
+        return data
+    except ValueError as exc:
+        logger.error("Props JSON parse error: %s", exc)
+        return {}
+
+
 def print_pinnacle_report(probe_result: dict) -> None:
     """
     Print a human-readable Pinnacle probe report to stdout.
