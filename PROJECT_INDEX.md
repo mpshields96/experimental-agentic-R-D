@@ -1,30 +1,29 @@
 # Project Index: Titanium-Agentic Sandbox
 
-Generated: 2026-02-25 (Session 29) | Tests: 1079/1079 ✅ | Last commit: pending push
+Generated: 2026-02-25 (Session 31) | Tests: 1079/1079 ✅ | Last commit: bf02c8c (PUSHED) | Live: titaniumv37agentic.streamlit.app
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
 
 ---
 
-## ✅ SESSION 29 AUDIT COMPLETE — NO ACTIVE CRITICAL BUGS
+## ✅ SESSIONS 29-31 COMPLETE — LIVE ON STREAMLIT CLOUD
 
-**Totals consensus bug: FIXED.** `_canonical_totals_books()` now scopes both `consensus_fair_prob()`
-and `_best_price_for()` to the modal total line. EDM @ ANA symptom verified eliminated.
+**Session 29:** Totals consensus bug FIXED (`_canonical_totals_books()`). RLM signed drift FIXED. Dead code removed (run_nemesis 241L, calculate_edge). Test count: 1103 → 1079.
 
-**RLM direction bug: FIXED.** `compute_rlm()` now uses signed drift (not abs). RLM fires only on
-line shortening against public — not on any movement.
+**Session 30:** visionOS UI pass complete — pages 01, 04, 07. PRECONDITION docstrings in math_engine.py (V37-validated). SQLite MCP installed (`.mcp.json`).
 
-**Dead code removed:** `run_nemesis()` (241 lines, never called, narrative constants), `calculate_edge()`
-(dead function), dead Poisson precompute block. Test count: 1103 → 1079 (-31 dead tests, +7 regression).
+**Session 31:** Streamlit Cloud deployed (`titaniumv37agentic.streamlit.app`). `_init_dbs()` added to app.py (fixes OperationalError on fresh deploy). Scheduler path bug fixed (`init_price_history_db` was using wrong DB path).
 
 ---
 
-## 📋 Priority Order (Session 30+)
+## 📋 Priority Order (Session 32)
 
-**#1 — UI modernisation** (modern Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
-**#2 — Live run** (totals bug fixed — live betting on totals now unblocked)
-**#3 — Analytics unlock** — 6 more resolved bets needed (gate = 10)
+**#1 — Agentic workflow:** Claude-in-the-loop advisory via SQLite MCP. I read live candidates, surface recs in chat, user approves, I log via log_bet().
+**#2 — CST game times** on bet cards (`commence_time` already in BetCandidate, not yet rendered)
+**#3 — Pinnacle probe widget** — remove or replace (always ABSENT for US markets, confusing noise)
+**#4 — Collar map legend overlap** fix (R&D output page CSS bug)
+**#5 — Live run + analytics unlock** (4 bets logged, 0 resolved; need 6 more resolved for gate=10)
 
 ---
 
@@ -61,7 +60,7 @@ agentic-rd-sandbox/
 │   ├── parlay_builder.py    ← Parlay construction
 │   ├── price_history_store.py ← Price movement history
 │   └── probe_logger.py      ← Book probe logging
-├── tests/                   ← 1103 unit tests across 18 files
+├── tests/                   ← 1079 unit tests across 18 files
 ├── scripts/
 │   ├── grade_bet.py         ← CLI: grade a bet manually
 │   └── export_bets.py       ← CLI: export bet_log to CSV
@@ -86,11 +85,11 @@ agentic-rd-sandbox/
 ## 🚀 Entry Points
 
 ```bash
-# App (requires ODDS_API_KEY env var)
+# App (requires ODDS_API_KEY env var) — also live at titaniumv37agentic.streamlit.app
 ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
 
 # Tests
-python3 -m pytest tests/ -q   # 1103/1103 expected
+python3 -m pytest tests/ -q   # 1079/1079 expected
 
 # CLI tools
 python3 scripts/export_bets.py
