@@ -3,7 +3,7 @@ core/calibration.py — Sharp Score Calibration Pipeline
 ========================================================
 Measures how well the Sharp Score predicts actual bet outcomes.
 
-Requires ≥30 graded bets from line_history.db to produce meaningful output.
+Requires ≥10 graded bets from line_history.db to produce meaningful output.
 Below that threshold, all functions return sentinel values and no calibration
 is attempted.
 

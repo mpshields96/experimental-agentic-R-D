@@ -246,36 +246,36 @@ st.html(f"""
             margin-top:4px; margin-bottom:14px;">
     <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
                 border-radius:8px; padding:9px 11px;">
-        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
-                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">TOTAL BETS</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                     color:#4b5563; letter-spacing:0.10em; margin-bottom:4px;">TOTAL BETS</div>
         <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
                      font-weight:700; color:#9ca3af; line-height:1;">{total_bets}</div>
     </div>
     <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
                 border-radius:8px; padding:9px 11px;">
-        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
-                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">RECORD</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                     color:#4b5563; letter-spacing:0.10em; margin-bottom:4px;">RECORD</div>
         <div style="font-family:'IBM Plex Mono',monospace; font-size:1.1rem;
                      font-weight:700; color:#d1d5db; line-height:1;">{wins}W&nbsp;–&nbsp;{losses}L</div>
     </div>
     <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
                 border-radius:8px; padding:9px 11px;">
-        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
-                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">WIN RATE</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                     color:#4b5563; letter-spacing:0.10em; margin-bottom:4px;">WIN RATE</div>
         <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
                      font-weight:700; color:{win_rate_color}; line-height:1;">{win_rate_display}</div>
     </div>
     <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
                 border-radius:8px; padding:9px 11px;">
-        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
-                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">ROI</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                     color:#4b5563; letter-spacing:0.10em; margin-bottom:4px;">ROI</div>
         <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
                      font-weight:700; color:{roi_color}; line-height:1;">{roi_display}</div>
     </div>
     <div style="background:rgba(107,114,128,0.07); border:1px solid rgba(107,114,128,0.14);
                 border-radius:8px; padding:9px 11px;">
-        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.48rem;
-                     color:#374151; letter-spacing:0.14em; margin-bottom:4px;">AVG CLV</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                     color:#4b5563; letter-spacing:0.10em; margin-bottom:4px;">AVG CLV</div>
         <div style="font-family:'IBM Plex Mono',monospace; font-size:1.4rem;
                      font-weight:700; color:{clv_color_s}; line-height:1;">{clv_display}</div>
     </div>
@@ -350,8 +350,8 @@ with log_col:
 
         # --- Analytics metadata (for 07_analytics.py correlation charts) ---
         st.html("""
-        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.5rem;
-                     text-transform:uppercase; letter-spacing:0.14em; color:#374151;
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.55rem;
+                     text-transform:uppercase; letter-spacing:0.10em; color:#4b5563;
                      border-top:1px solid rgba(255,255,255,0.05); margin:12px 0 6px;
                      padding-top:10px;">Analytics Metadata</div>
         """)
@@ -370,7 +370,7 @@ with log_col:
         with a3:
             book_input = st.selectbox(
                 "Book",
-                ["", "Pinnacle", "FanDuel", "DraftKings", "BetMGM",
+                ["", "FanDuel", "DraftKings", "BetMGM",
                  "Caesars", "PointsBet", "bet365", "Other"],
                 key="bt_book",
                 help="Which sportsbook you placed the bet at. Enables per-book ROI breakdown in Analytics.",

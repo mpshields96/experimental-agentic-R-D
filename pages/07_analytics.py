@@ -10,7 +10,7 @@ Phase 1 charts:
   2. RLM confirmation lift (win rate + ROI comparison)
   3. CLV beat rate (positive CLV %, avg CLV by result)
 
-Sample-size guard: minimum 30 resolved bets before any chart renders.
+Sample-size guard: minimum 10 resolved bets before any chart renders.
 Data source: core/line_logger.get_bets() → core/analytics.* pure functions.
 Architecture: analytics logic is source-agnostic (accepts list[dict]) per V37 spec.
 
@@ -390,7 +390,7 @@ if _sample_guard(sharp_result["n_resolved"]):
     <div class="chart-card">
       <div class="chart-title">Sharp Score → ROI</div>
       <div class="chart-subtitle" style="color:#6b7280; font-size:0.75rem; margin-top:4px;">
-        Chart unlocks at 30 resolved bets. Log bets via Live Lines → Log Bet.
+        Chart unlocks at 10 resolved bets. Log bets via Live Lines → Log Bet.
       </div>
     </div>
     """)
@@ -480,7 +480,7 @@ if _sample_guard(rlm_result["n_resolved"]):
     <div class="chart-card">
       <div class="chart-title">RLM vs No-RLM Performance</div>
       <div class="chart-subtitle" style="color:#6b7280; font-size:0.75rem; margin-top:4px;">
-        Unlocks at 30 resolved bets. RLM fires on 2nd fetch after 3% implied prob shift.
+        Unlocks at 10 resolved bets. RLM fires on 2nd fetch after 3% implied prob shift.
       </div>
     </div>
     """)
