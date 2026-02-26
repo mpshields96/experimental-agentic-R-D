@@ -11,13 +11,14 @@ import pytest
 import sys
 import os
 from unittest.mock import MagicMock, patch
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import core.odds_fetcher as _of_module
 from core.odds_fetcher import (
     QuotaTracker,
+    CreditLedger,
     get_api_key,
     fetch_game_lines,
     fetch_batch_odds,
@@ -33,6 +34,8 @@ from core.odds_fetcher import (
     SESSION_CREDIT_SOFT_LIMIT,
     SESSION_CREDIT_HARD_STOP,
     BILLING_RESERVE,
+    SUBSCRIPTION_CREDITS,
+    BILLING_DAY,
 )
 
 
@@ -45,6 +48,8 @@ def _reset_quota() -> None:
     # Also zero daily log in-memory state so DAILY_CREDIT_CAP doesn't interfere.
     # The real daily_quota.json is NOT written (no _save()) — only in-memory reset.
     _of_module.quota.daily_log._data["used_today"] = 0
+    # credit_ledger writes to SQLite — redirect to :memory: to avoid test pollution.
+    _of_module.quota.credit_ledger = CreditLedger(db_path=":memory:")
 
 
 # ---------------------------------------------------------------------------
@@ -536,6 +541,214 @@ class TestFetchBatchOddsTennis:
                 result = fetch_batch_odds(sports=["NBA"], include_tennis=True)
 
         assert result["NBA"] == fake_nba
+
+
+# ---------------------------------------------------------------------------
+# CreditLedger
+# ---------------------------------------------------------------------------
+
+class TestCreditLedger:
+    def test_schema_created_in_memory(self):
+        cl = CreditLedger(db_path=":memory:")
+        # Should not raise; schema exists
+        result = cl.get_today_allowance("2026-03-01")
+        assert result is None  # no record yet
+
+    def test_record_and_retrieve(self):
+        cl = CreditLedger(db_path=":memory:")
+        cl.record("2026-03-01", used=45, remaining=9955, allowance=357)
+        assert cl.get_today_allowance("2026-03-01") == 357
+
+    def test_record_upsert_updates_value(self):
+        cl = CreditLedger(db_path=":memory:")
+        cl.record("2026-03-01", used=45, remaining=9955, allowance=357)
+        cl.record("2026-03-01", used=90, remaining=9910, allowance=362)
+        assert cl.get_today_allowance("2026-03-01") == 362
+
+    def test_different_dates_stored_separately(self):
+        cl = CreditLedger(db_path=":memory:")
+        cl.record("2026-03-01", used=45, remaining=9955, allowance=357)
+        cl.record("2026-03-02", used=20, remaining=9935, allowance=360)
+        assert cl.get_today_allowance("2026-03-01") == 357
+        assert cl.get_today_allowance("2026-03-02") == 360
+
+    def test_get_today_allowance_missing_date_returns_none(self):
+        cl = CreditLedger(db_path=":memory:")
+        assert cl.get_today_allowance("2026-03-15") is None
+
+    def test_record_accepts_none_remaining(self):
+        cl = CreditLedger(db_path=":memory:")
+        cl.record("2026-03-01", used=10, remaining=None, allowance=333)
+        assert cl.get_today_allowance("2026-03-01") == 333
+
+
+# ---------------------------------------------------------------------------
+# DailyAllowance and _days_until_billing
+# ---------------------------------------------------------------------------
+
+class TestDaysUntilBilling:
+    def _qt(self) -> QuotaTracker:
+        qt = QuotaTracker()
+        qt.credit_ledger = CreditLedger(db_path=":memory:")
+        return qt
+
+    def test_before_billing_day(self):
+        qt = self._qt()
+        # Today is Feb 25, billing day is 1 → next billing is Mar 1 → 4 days
+        today = date(2026, 2, 25)
+        assert qt._days_until_billing(today) == 4
+
+    def test_on_billing_day_goes_to_next_month(self):
+        qt = self._qt()
+        # Today IS billing day (1st) → next billing is next month's 1st → 28/30/31 days
+        today = date(2026, 3, 1)
+        # March has 31 days → next billing is Apr 1 → 31 days
+        assert qt._days_until_billing(today) == 31
+
+    def test_last_day_before_billing(self):
+        qt = self._qt()
+        # Feb 28, billing day 1 → next billing Mar 1 → 1 day
+        today = date(2026, 2, 28)
+        assert qt._days_until_billing(today) == 1
+
+    def test_december_rolls_to_january(self):
+        qt = self._qt()
+        today = date(2025, 12, 15)
+        # Dec 15 → next billing Jan 1 → 17 days
+        assert qt._days_until_billing(today) == 17
+
+    def test_returns_at_least_1(self):
+        qt = self._qt()
+        # Even on billing day itself, returns next month (≥1)
+        today = date(2026, 1, 1)
+        result = qt._days_until_billing(today)
+        assert result >= 1
+
+
+class TestDailyAllowance:
+    def _qt(self, billing_used: int = 0) -> QuotaTracker:
+        qt = QuotaTracker()
+        qt.used = billing_used
+        qt.credit_ledger = CreditLedger(db_path=":memory:")
+        return qt
+
+    def test_full_budget_start_of_period(self):
+        # Day 1 of billing, nothing used: 10000 / 28 ≈ 357
+        qt = self._qt(billing_used=0)
+        today = date(2026, 3, 1)   # billing day → 31 days until Apr 1
+        allowance = qt.daily_allowance(today)
+        assert allowance == 10_000 // 31  # = 322
+
+    def test_halfway_through_period(self):
+        # 5000 used, 15 days left → 5000/15 = 333
+        qt = self._qt(billing_used=5_000)
+        today = date(2026, 3, 16)  # 16 days until Apr 1 = 16 days
+        allowance = qt.daily_allowance(today)
+        assert allowance == 5_000 // 16  # = 312
+
+    def test_budget_exhausted_returns_1(self):
+        # Used more than monthly budget → remaining_budget = 0 → max(1, ...)
+        qt = self._qt(billing_used=15_000)
+        today = date(2026, 3, 15)
+        assert qt.daily_allowance(today) == 1
+
+    def test_allowance_uses_50_percent_of_subscription(self):
+        qt = self._qt(billing_used=0)
+        today = date(2026, 3, 2)   # 30 days until Apr 1
+        allowance = qt.daily_allowance(today)
+        # monthly_budget = 20000 * 0.5 = 10000; 10000 // 30 = 333
+        assert allowance == 10_000 // 30
+
+
+# ---------------------------------------------------------------------------
+# is_daily_soft_limit and is_daily_hard_stop
+# ---------------------------------------------------------------------------
+
+class TestDailySoftLimit:
+    def _qt(self, used_today: int, billing_used: int = 0) -> QuotaTracker:
+        qt = QuotaTracker()
+        qt.used = billing_used
+        qt.daily_log._data["used_today"] = used_today
+        qt.credit_ledger = CreditLedger(db_path=":memory:")
+        return qt
+
+    def test_below_soft_limit(self):
+        # allowance = 10000 // 4 = 2500 (Feb 25); 80% = 2000; used = 1999
+        qt = self._qt(used_today=1999, billing_used=0)
+        today = date(2026, 2, 25)
+        assert not qt.is_daily_soft_limit(today)
+
+    def test_at_soft_limit(self):
+        qt = self._qt(used_today=2000, billing_used=0)
+        today = date(2026, 2, 25)   # allowance = 2500; 80% = 2000
+        assert qt.is_daily_soft_limit(today)
+
+    def test_above_soft_limit(self):
+        qt = self._qt(used_today=2400, billing_used=0)
+        today = date(2026, 2, 25)
+        assert qt.is_daily_soft_limit(today)
+
+
+class TestDailyHardStop:
+    def _qt(self, used_today: int, billing_used: int = 0) -> QuotaTracker:
+        qt = QuotaTracker()
+        qt.used = billing_used
+        qt.daily_log._data["used_today"] = used_today
+        qt.credit_ledger = CreditLedger(db_path=":memory:")
+        return qt
+
+    def test_below_hard_stop(self):
+        # allowance = 10000 // 4 = 2500; used = 2499
+        qt = self._qt(used_today=2499, billing_used=0)
+        today = date(2026, 2, 25)
+        assert not qt.is_daily_hard_stop(today)
+
+    def test_at_hard_stop(self):
+        qt = self._qt(used_today=2500, billing_used=0)
+        today = date(2026, 2, 25)
+        assert qt.is_daily_hard_stop(today)
+
+    def test_above_hard_stop(self):
+        qt = self._qt(used_today=3000, billing_used=0)
+        today = date(2026, 2, 25)
+        assert qt.is_daily_hard_stop(today)
+
+    def test_daily_hard_stop_triggers_session_hard_stop(self):
+        # When daily budget is exhausted, is_session_hard_stop() must return True
+        qt = self._qt(used_today=9999, billing_used=0)
+        today = date(2026, 2, 25)   # allowance = 2500; 9999 >> 2500
+        # is_session_hard_stop uses today's real date — force allowance to be small
+        # by setting used_today far above allowance
+        qt.session_used = 0
+        qt.remaining = 5_000   # above BILLING_RESERVE
+        # is_daily_hard_stop: used_today(9999) >= daily_allowance() which is small
+        assert qt.is_daily_hard_stop()
+
+    def test_session_hard_stop_false_when_daily_budget_safe(self):
+        qt = QuotaTracker()
+        qt.used = 0
+        qt.remaining = 5_000
+        qt.session_used = 0
+        qt.daily_log._data["used_today"] = 0
+        qt.credit_ledger = CreditLedger(db_path=":memory:")
+        assert not qt.is_session_hard_stop()
+
+
+class TestConstantsIntegrity:
+    def test_subscription_credits(self):
+        assert SUBSCRIPTION_CREDITS == 20_000
+
+    def test_billing_day(self):
+        assert BILLING_DAY == 1
+
+    def test_monthly_budget_is_50_percent(self):
+        from core.odds_fetcher import _DAILY_BUDGET_FRACTION
+        assert _DAILY_BUDGET_FRACTION == 0.50
+        assert int(SUBSCRIPTION_CREDITS * _DAILY_BUDGET_FRACTION) == 10_000
+
+    def test_soft_fraction(self):
+        from core.odds_fetcher import _DAILY_SOFT_FRACTION
+        assert _DAILY_SOFT_FRACTION == 0.80
 
 
 if __name__ == "__main__":

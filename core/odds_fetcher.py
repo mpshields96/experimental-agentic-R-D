@@ -22,8 +22,9 @@ NEVER hardcode API keys. Use os.environ.get("ODDS_API_KEY").
 import json
 import logging
 import os
+import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from typing import Optional
 
 import requests
@@ -54,6 +55,20 @@ DAILY_CREDIT_CAP: int = 300           # ~10 full 12-sport scans/day. Conservativ
 SESSION_CREDIT_SOFT_LIMIT: int = 120  # Warn after ~6 full scans in one session
 SESSION_CREDIT_HARD_STOP: int = 200   # Hard stop — ~10 full scans per session max
 BILLING_RESERVE: int = 150            # Never drop below 150 remaining (any key)
+
+# ---------------------------------------------------------------------------
+# Daily budget constants — dynamic allowance spreading across billing period
+# ---------------------------------------------------------------------------
+SUBSCRIPTION_CREDITS: int = 20_000   # Full monthly subscription (credits/billing period)
+BILLING_DAY: int = 1                 # Day-of-month billing resets (1st of each month)
+# Monthly budget = SUBSCRIPTION_CREDITS * 0.50 = 10,000 (50% of subscription).
+# Daily allowance = remaining monthly budget / days until next billing day.
+# Recalculated on each update() call — self-adjusting as the month progresses.
+_DAILY_BUDGET_FRACTION: float = 0.50
+_DAILY_SOFT_FRACTION: float = 0.80   # 80% of daily allowance → soft warning
+_DEFAULT_CREDIT_LOG_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "data", "credit_log.db"
+)
 
 # ---------------------------------------------------------------------------
 # Daily credit log — persisted across restarts
@@ -120,6 +135,87 @@ class DailyCreditLog:
     def report(self) -> str:
         cap_warn = " ⛔DAILY_CAP" if self.is_daily_cap_hit() else ""
         return f"daily={self.used_today()}/{DAILY_CREDIT_CAP}{cap_warn}"
+
+# ---------------------------------------------------------------------------
+# Credit ledger — SQLite-backed daily record (survives restarts + month boundaries)
+# ---------------------------------------------------------------------------
+
+class CreditLedger:
+    """SQLite-backed daily credit ledger for the dynamic daily allowance system.
+
+    Schema: credit_log(date TEXT PK, used INT, remaining INT, allowance INT)
+
+    PRECONDITION: data/ directory must be writable. Failures are non-fatal (warn + skip).
+    POSTCONDITION: Each record() call upserts one row per UTC date.
+
+    Implementation note: SQLite :memory: databases are per-connection — data is lost when
+    a connection closes. For :memory: paths (tests), we store a single persistent connection
+    as self._mem_conn. For file paths (production), we open/close on every call (WAL-safe).
+    """
+
+    _SCHEMA = """
+    CREATE TABLE IF NOT EXISTS credit_log (
+        date      TEXT PRIMARY KEY,
+        used      INTEGER NOT NULL DEFAULT 0,
+        remaining INTEGER,
+        allowance INTEGER
+    );
+    """
+
+    def __init__(self, db_path: str = _DEFAULT_CREDIT_LOG_PATH) -> None:
+        self._path = db_path
+        self._mem_conn: Optional[sqlite3.Connection] = None
+        if db_path == ":memory:":
+            # Keep one persistent connection so in-memory data survives across calls.
+            self._mem_conn = sqlite3.connect(":memory:", check_same_thread=False)
+            self._mem_conn.executescript(self._SCHEMA)
+        else:
+            self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(self._path)), exist_ok=True)
+            with sqlite3.connect(self._path) as conn:
+                conn.executescript(self._SCHEMA)
+        except (sqlite3.OperationalError, OSError) as exc:
+            logger.warning("CreditLedger._ensure_schema failed: %s", exc)
+
+    def record(self, date_str: str, used: int, remaining: Optional[int], allowance: int) -> None:
+        """Upsert today's credit record. Non-fatal on any DB error."""
+        sql = """INSERT INTO credit_log(date, used, remaining, allowance)
+                 VALUES(?,?,?,?)
+                 ON CONFLICT(date) DO UPDATE SET
+                     used=excluded.used,
+                     remaining=excluded.remaining,
+                     allowance=excluded.allowance"""
+        try:
+            if self._mem_conn is not None:
+                self._mem_conn.execute(sql, (date_str, used, remaining, allowance))
+                self._mem_conn.commit()
+            else:
+                with sqlite3.connect(self._path) as conn:
+                    conn.execute(sql, (date_str, used, remaining, allowance))
+        except (sqlite3.OperationalError, OSError) as exc:
+            logger.warning("CreditLedger.record failed: %s", exc)
+
+    def get_today_allowance(self, today_str: Optional[str] = None) -> Optional[int]:
+        """Return stored allowance for today's date, or None if not yet recorded."""
+        if today_str is None:
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        try:
+            if self._mem_conn is not None:
+                row = self._mem_conn.execute(
+                    "SELECT allowance FROM credit_log WHERE date=?", (today_str,)
+                ).fetchone()
+            else:
+                with sqlite3.connect(self._path) as conn:
+                    row = conn.execute(
+                        "SELECT allowance FROM credit_log WHERE date=?", (today_str,)
+                    ).fetchone()
+            return row[0] if row else None
+        except (sqlite3.OperationalError, OSError):
+            return None
+
 
 # Book preference order — DraftKings first, then fallbacks
 PREFERRED_BOOKS = ["draftkings", "fanduel", "betmgm", "betrivers", "caesars"]
@@ -191,6 +287,7 @@ class QuotaTracker:
         self.last_cost: int = 0     # cost of last single call
         self.session_used: int = 0  # credits consumed THIS session (resets on restart)
         self.daily_log: DailyCreditLog = DailyCreditLog()
+        self.credit_ledger: CreditLedger = CreditLedger()
 
     def update(self, headers: dict) -> None:
         try:
@@ -205,21 +302,83 @@ class QuotaTracker:
                     self.session_used += delta
             elif self.last_cost > 0:
                 self.session_used += self.last_cost
-            # Update daily log with fresh remaining count
+            # Update daily log (JSON) and credit ledger (SQLite)
             self.daily_log.record(self.remaining)
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            self.credit_ledger.record(
+                today_str,
+                self.daily_log.used_today(),
+                self.remaining,
+                self.daily_allowance(),
+            )
         except (ValueError, TypeError):
             pass
 
     def report(self) -> str:
         soft_warn = " SOFT_LIMIT" if self.session_used >= SESSION_CREDIT_SOFT_LIMIT else ""
         hard_stop = " HARD_STOP" if self.is_session_hard_stop() else ""
+        allowance = self.daily_allowance()
+        used_today = self.daily_log.used_today()
+        daily_pct = f"{int(used_today / allowance * 100)}%" if allowance > 0 else "?%"
+        daily_flags = ""
+        if self.is_daily_hard_stop():
+            daily_flags = " ⛔DAILY_HARD"
+        elif self.is_daily_soft_limit():
+            daily_flags = " ⚠DAILY_SOFT"
         return (
             f"API quota | used={self.used} "
             f"session={self.session_used}(/{SESSION_CREDIT_HARD_STOP}){soft_warn}{hard_stop} "
             f"remaining={self.remaining} "
             f"last_call={self.last_cost} | "
-            f"{self.daily_log.report()}"
+            f"{self.daily_log.report()} allowance={allowance}({daily_pct}){daily_flags}"
         )
+
+    def _days_until_billing(self, _today: Optional[date] = None) -> int:
+        """Days from today (inclusive) until next billing day.
+
+        PRECONDITION: BILLING_DAY is a valid day-of-month (1-28).
+        Accepts optional _today injection for test isolation.
+        """
+        today = _today or datetime.now(timezone.utc).date()
+        if today.day < BILLING_DAY:
+            next_billing = today.replace(day=BILLING_DAY)
+        elif today.month == 12:
+            next_billing = date(today.year + 1, 1, BILLING_DAY)
+        else:
+            next_billing = date(today.year, today.month + 1, BILLING_DAY)
+        return max(1, (next_billing - today).days)
+
+    def daily_allowance(self, _today: Optional[date] = None) -> int:
+        """Compute today's recommended daily credit allowance.
+
+        PRECONDITION:
+            self.used is set from x-requests-used API header (billing period total).
+            If self.used == 0 (no API call yet), allowance is estimated from full budget.
+        Formula:
+            monthly_budget = SUBSCRIPTION_CREDITS * _DAILY_BUDGET_FRACTION
+            remaining_budget = max(0, monthly_budget - self.used)
+            allowance = max(1, remaining_budget // days_until_billing)
+        """
+        monthly_budget = int(SUBSCRIPTION_CREDITS * _DAILY_BUDGET_FRACTION)
+        remaining_budget = max(0, monthly_budget - self.used)
+        return max(1, remaining_budget // self._days_until_billing(_today))
+
+    def is_daily_soft_limit(self, _today: Optional[date] = None) -> bool:
+        """Return True if today's usage has reached 80% of the daily allowance.
+
+        Soft limit: logs a warning but does NOT stop fetches.
+        POSTCONDITION: Does not mutate any state.
+        """
+        used_today = self.daily_log.used_today()
+        return used_today >= int(self.daily_allowance(_today) * _DAILY_SOFT_FRACTION)
+
+    def is_daily_hard_stop(self, _today: Optional[date] = None) -> bool:
+        """Return True if today's usage has reached 100% of the daily allowance.
+
+        Hard stop: halts all fetches for the remainder of the UTC day.
+        POSTCONDITION: Does not mutate any state.
+        """
+        return self.daily_log.used_today() >= self.daily_allowance(_today)
 
     def is_low(self, threshold: int = BILLING_RESERVE) -> bool:
         """Return True if billing-period remaining is below threshold.
@@ -239,9 +398,10 @@ class QuotaTracker:
         """Return True if session must stop ALL fetches.
 
         Hard stops (any one triggers):
-          1. Daily cap hit: today's usage >= DAILY_CREDIT_CAP — PERMANENT rule
+          1. Daily cap hit: today's usage >= DAILY_CREDIT_CAP — absolute PERMANENT rule
           2. Session cap hit: session_used >= SESSION_CREDIT_HARD_STOP
           3. Billing floor: remaining < BILLING_RESERVE
+          4. Daily budget exhausted: today's usage >= daily_allowance()
         """
         if self.daily_log.is_daily_cap_hit():
             logger.warning(
@@ -251,7 +411,15 @@ class QuotaTracker:
             return True
         if self.session_used >= SESSION_CREDIT_HARD_STOP:
             return True
-        return self.is_low(BILLING_RESERVE)
+        if self.is_low(BILLING_RESERVE):
+            return True
+        if self.is_daily_hard_stop():
+            logger.warning(
+                "Daily budget exhausted — used %d/%d allowance today (UTC). No fetches until midnight.",
+                self.daily_log.used_today(), self.daily_allowance(),
+            )
+            return True
+        return False
 
 
 # Module-level tracker — imported by app.py for display
