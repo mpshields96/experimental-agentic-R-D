@@ -27,7 +27,9 @@ UI:
 import html as _html
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -255,6 +257,25 @@ def _fetch_and_rank(sports_filter: str) -> tuple[list[BetCandidate], str, int]:
 # ---------------------------------------------------------------------------
 # Bet card HTML
 # ---------------------------------------------------------------------------
+_CT = ZoneInfo("America/Chicago")
+
+
+def _game_time_ct(commence_time_str: str) -> str:
+    """Convert Odds API UTC ISO string to Central Time display (e.g. '7:00 PM CT').
+
+    Returns empty string on any parse failure — never raises.
+    """
+    if not commence_time_str:
+        return ""
+    try:
+        dt_utc = datetime.fromisoformat(commence_time_str.replace("Z", "+00:00"))
+        dt_ct = dt_utc.astimezone(_CT)
+        suffix = "CST" if dt_ct.tzname() == "CST" else "CDT"
+        return dt_ct.strftime(f"%-I:%M %p {suffix}")
+    except Exception:
+        return ""
+
+
 def _bet_card(bet: BetCandidate, rank: int) -> str:
     size_key = sharp_to_size(bet.sharp_score)
     size_color = SIZE_COLORS.get(size_key, "#6b7280")
@@ -313,6 +334,15 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
     _target  = _html.escape(str(bet.target or ""))
     _matchup = _html.escape(str(bet.matchup or ""))
     _sport   = _html.escape(str(bet.sport or "").upper())
+
+    # Game time (CST/CDT)
+    _game_time = _game_time_ct(bet.commence_time)
+    game_time_html = ""
+    if _game_time:
+        game_time_html = (
+            f'<div style="font-family:\'IBM Plex Mono\',monospace; font-size:0.60rem;'
+            f' color:#4b5563; margin-top:3px; letter-spacing:0.06em;">⏱ {_html.escape(_game_time)}</div>'
+        )
 
     # Kill reason warning
     kill_html = ""
@@ -374,6 +404,7 @@ def _bet_card(bet: BetCandidate, rank: int) -> str:
                     font-family:'IBM Plex Sans',sans-serif;
                     font-size:0.72rem; color:#6b7280; margin-top:2px;
                 ">{_matchup}</div>
+                {game_time_html}
             </div>
             <div style="text-align:right; flex-shrink:0;">
                 {line_html}

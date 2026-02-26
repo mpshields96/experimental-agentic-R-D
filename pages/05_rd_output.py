@@ -270,13 +270,17 @@ def _build_collar_map():
         text=f"Collar boundaries — std ({COLLAR_MIN:+d}→{COLLAR_MAX:+d}) · soccer ({COLLAR_MIN_SOCCER:+d}→{COLLAR_MAX_SOCCER:+d})",
         font=dict(size=12, color="#9ca3af"), x=0,
     )
-    layout["height"] = 200
+    layout["height"] = 230
+    layout["margin"] = dict(t=40, b=70, l=10, r=10)
     layout["yaxis"] = dict(**PLOTLY_BASE["yaxis"], showticklabels=False, showgrid=False,
                            title="", tickvals=[1, 2], ticktext=["Soccer", "Standard"])
     layout["xaxis"] = dict(**PLOTLY_BASE["xaxis"], title="American odds", dtick=100, range=[-450, 450])
     layout["showlegend"] = True
-    layout["legend"] = dict(font=dict(size=9, color="#9ca3af"), bgcolor="rgba(0,0,0,0)",
-                            orientation="h", yanchor="bottom", y=1.02, x=0)
+    # Legend below x-axis — avoids overlap with vline annotations at top
+    layout["legend"] = dict(
+        font=dict(size=9, color="#9ca3af"), bgcolor="rgba(0,0,0,0)",
+        orientation="h", yanchor="top", y=-0.22, x=0.0,
+    )
     fig.update_layout(**layout)
     return fig
 
@@ -745,11 +749,11 @@ else:
 st.markdown("---")
 
 # ---------------------------------------------------------------------------
-# ⑦ Pinnacle Probe (live data from probe_log.json)
+# ⑦ Book Coverage (live data from probe_log.json)
 # ---------------------------------------------------------------------------
 _section_header(
-    "Pinnacle Probe",
-    "Bookmaker coverage accumulated from scheduler polls · fires each 5-min cycle",
+    "Book Coverage",
+    "Bookmaker presence accumulated from scheduler polls · fires each 5-min cycle",
 )
 
 _probe_log_path = str(ROOT / "data" / "probe_log.json")
@@ -761,17 +765,13 @@ except Exception:
 _psummary = probe_summary(_probe_entries)
 _pn = _psummary["n_probes"]
 
-# KPI strip
-_p1, _p2, _p3, _p4 = st.columns(4)
-_pinnacle_color = GREEN if _psummary["pinnacle_present"] else RED
+# KPI strip — 2 columns (Probes + Books Seen)
+_p1, _p2 = st.columns(2)
 _pkpis = [
-    ("Probes", str(_pn), "#e5e7eb"),
-    ("Pinnacle", "YES" if _psummary["pinnacle_present"] else "NO", _pinnacle_color),
-    ("Pinnacle Rate", f"{_psummary['pinnacle_rate']:.1%}" if _pn else "—",
-     GREEN if _psummary["pinnacle_rate"] > 0 else GRAY),
-    ("Books Seen", str(len(_psummary["all_books_seen"])), AMBER),
+    ("Polls", str(_pn), "#e5e7eb"),
+    ("Unique Books", str(len(_psummary["all_books_seen"])), AMBER),
 ]
-for _pcol, (_plabel, _pval, _pcolor) in zip([_p1, _p2, _p3, _p4], _pkpis):
+for _pcol, (_plabel, _pval, _pcolor) in zip([_p1, _p2], _pkpis):
     with _pcol:
         st.html(f"""
         <div style="
@@ -790,116 +790,55 @@ if _pn == 0:
         padding:20px; text-align:center; color:#6b7280; font-size:0.8rem;
         margin-top:8px;
     ">
-        No probe data yet. The scheduler logs bookmaker coverage automatically
+        No coverage data yet. The scheduler logs bookmaker presence automatically
         on every 5-minute poll. Check back after the first fetch fires.
-        <br><br>Pinnacle is not available on all API tiers — this panel confirms
-        whether our key has access.
     </div>
     """)
 else:
-    _pb_tab1, _pb_tab2 = st.tabs(["Book Coverage", "Probe History"])
+    # Preferred book hit rate bar chart
+    _from_core = __import__("core.odds_fetcher", fromlist=["PREFERRED_BOOKS"])
+    _pref_books = _from_core.PREFERRED_BOOKS
+    _pref_counts = _psummary.get("preferred_coverage", {})
 
-    with _pb_tab1:
-        # Preferred book hit rate bar chart
-        _from_core = __import__("core.odds_fetcher", fromlist=["PREFERRED_BOOKS"])
-        _pref_books = _from_core.PREFERRED_BOOKS
-        _pref_counts = _psummary.get("preferred_coverage", {})
+    _fig_books = go.Figure(data=go.Bar(
+        x=_pref_books,
+        y=[_pref_counts.get(b, 0) for b in _pref_books],
+        marker_color=[
+            GREEN if _pref_counts.get(b, 0) > 0 else GRAY
+            for b in _pref_books
+        ],
+        text=[str(_pref_counts.get(b, 0)) for b in _pref_books],
+        textposition="outside",
+        textfont=dict(color="#d1d5db", size=10),
+    ))
+    _layout_pb = dict(PLOTLY_BASE)
+    _layout_pb["title"] = dict(
+        text=f"Preferred Book Hit Rate — times seen in {_pn} polls",
+        font=dict(size=12, color="#9ca3af"), x=0,
+    )
+    _layout_pb["height"] = 220
+    _layout_pb["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="Times seen")
+    _layout_pb["showlegend"] = False
+    _fig_books.update_layout(**_layout_pb)
+    st.plotly_chart(_fig_books, use_container_width=True, config={"displayModeBar": False})
 
-        _fig_books = go.Figure(data=go.Bar(
-            x=_pref_books,
-            y=[_pref_counts.get(b, 0) for b in _pref_books],
-            marker_color=[
-                GREEN if _pref_counts.get(b, 0) > 0 else GRAY
-                for b in _pref_books
-            ],
-            text=[str(_pref_counts.get(b, 0)) for b in _pref_books],
-            textposition="outside",
-            textfont=dict(color="#d1d5db", size=10),
-        ))
-        _layout_pb = dict(PLOTLY_BASE)
-        _layout_pb["title"] = dict(
-            text=f"Preferred Book Hit Rate — times seen in {_pn} probes",
-            font=dict(size=12, color="#9ca3af"), x=0,
-        )
-        _layout_pb["height"] = 220
-        _layout_pb["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="Times seen")
-        _layout_pb["showlegend"] = False
-        _fig_books.update_layout(**_layout_pb)
-        st.plotly_chart(_fig_books, use_container_width=True, config={"displayModeBar": False})
-
-        # All books ever seen
-        if _psummary["all_books_seen"]:
-            _all_seen_str = " · ".join(_psummary["all_books_seen"])
-            st.html(f"""
-            <div style="
-                background:#1a1d23; border:1px solid #2d3139; border-radius:4px;
-                padding:8px 12px; margin-top:4px; font-size:0.7rem; color:#9ca3af;
-            ">
-                <span style="color:{AMBER}; font-weight:600;">All books seen:</span>
-                {_all_seen_str}
-            </div>
-            """)
-
-        # Pinnacle verdict card
-        _verdict_color = GREEN if _psummary["pinnacle_present"] else RED
-        _verdict_text = (
-            "Pinnacle is available on this API tier. "
-            "Consider adding to PREFERRED_BOOKS for sharper consensus pricing."
-            if _psummary["pinnacle_present"]
-            else "Pinnacle is NOT available on this API tier. "
-                 "DraftKings remains primary book. No action needed."
-        )
+    # All books ever seen
+    if _psummary["all_books_seen"]:
+        _all_seen_str = " · ".join(_psummary["all_books_seen"])
         st.html(f"""
         <div style="
-            background:#1a1d23; border-left:4px solid {_verdict_color};
-            border-radius:4px; padding:10px 14px; margin-top:8px;
-            font-size:0.72rem; color:#9ca3af;
+            background:#1a1d23; border:1px solid #2d3139; border-radius:4px;
+            padding:8px 12px; margin-top:4px; font-size:0.7rem; color:#9ca3af;
         ">
-            <strong style="color:{_verdict_color};">
-                {'✓ PINNACLE AVAILABLE' if _psummary['pinnacle_present'] else '✗ PINNACLE ABSENT'}
-            </strong>
-            &nbsp;—&nbsp;{_verdict_text}
+            <span style="color:{AMBER}; font-weight:600;">All books seen:</span>
+            {_all_seen_str}
         </div>
         """)
 
-    with _pb_tab2:
-        # Pinnacle presence over probe history (binary scatter: 1=present, 0=absent)
-        _recent_probes = list(reversed(_probe_entries[-60:]))
-        if _recent_probes:
-            _pvals = [1 if e.get("pinnacle_present") else 0 for e in _recent_probes]
-            _pcolors = [GREEN if v else RED for v in _pvals]
-            _n_books_trend = [e.get("n_books", 0) for e in _recent_probes]
-
-            _fig_ph = go.Figure()
-            _fig_ph.add_trace(go.Scatter(
-                x=list(range(len(_pvals))),
-                y=_n_books_trend,
-                mode="markers+lines",
-                marker=dict(color=_pcolors, size=7, line=dict(width=0)),
-                line=dict(color="#2d3139", width=1),
-                hovertemplate="Probe %{x}<br>Books: %{y}<br>Pinnacle: " +
-                              "<br>".join(
-                                  ["present" if v else "absent" for v in _pvals]
-                              )[:20] + "<extra></extra>",
-                name="n_books",
-            ))
-            _layout_ph = dict(PLOTLY_BASE)
-            _layout_ph["title"] = dict(
-                text=f"Book count per probe — last {len(_pvals)} entries "
-                     f"(green=pinnacle present, red=absent)",
-                font=dict(size=12, color="#9ca3af"), x=0,
-            )
-            _layout_ph["height"] = 220
-            _layout_ph["yaxis"] = dict(**PLOTLY_BASE["yaxis"], title="# Books")
-            _layout_ph["xaxis"] = dict(**PLOTLY_BASE["xaxis"], title="Probe #")
-            _layout_ph["showlegend"] = False
-            _fig_ph.update_layout(**_layout_ph)
-            st.plotly_chart(_fig_ph, use_container_width=True, config={"displayModeBar": False})
-
-        if _psummary["last_seen"]:
-            st.html(f"""
-            <div style="font-size:0.6rem; color:#6b7280; margin-top:4px;">
-                Last probe: {_psummary['last_seen'][:19].replace('T', ' ')} UTC ·
-                Sports: {', '.join(_psummary['sports_probed']) or '—'}
-            </div>
-            """)
+    if _psummary["last_seen"]:
+        st.html(f"""
+        <div style="font-size:0.6rem; color:#6b7280; margin-top:6px;">
+            Last poll: {_psummary['last_seen'][:19].replace('T', ' ')} UTC ·
+            Sports: {', '.join(_psummary['sports_probed']) or '—'}
+        </div>
+        """)

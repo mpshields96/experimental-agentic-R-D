@@ -316,12 +316,12 @@ st.html("""
 # ---------------------------------------------------------------------------
 st.html("""
 <div class="demo-banner">
-  <div class="demo-icon">🎯</div>
+  <div class="demo-icon">🤖</div>
   <div>
-    <div class="demo-text-head">First time? Your AI co-pilot will walk through the first bet with you.</div>
+    <div class="demo-text-head">Claude is your co-pilot — it scans, recommends, and logs bets for you.</div>
     <div class="demo-text-body">
-      Go to <strong>Live Lines</strong> and tell the sandbox chat: "do the first log for me as a demo."
-      It will handle the first bet end-to-end and explain every field as it fills them in.
+      Open a Claude session in the sandbox and say: <strong>"scan live lines and tell me what looks good."</strong>
+      Claude handles analysis, kill switches, and logging. You approve or skip. The UI is your dashboard.
     </div>
   </div>
 </div>
@@ -341,38 +341,46 @@ with col_main:
     steps = [
         ("1", "Start the app",
          "Open a terminal and run: <code style='color:#f59e0b;font-family:IBM Plex Mono,monospace;font-size:12px;'>streamlit run app.py --server.port 8504</code>"
-         "<br>Then open <code style='color:#f59e0b;font-family:IBM Plex Mono,monospace;font-size:12px;'>http://localhost:8504</code> in your browser.",
+         "<br>Then open <code style='color:#f59e0b;font-family:IBM Plex Mono,monospace;font-size:12px;'>http://localhost:8504</code> in your browser. "
+         "Keep this tab open — the app is your log + analytics dashboard.",
          None),
 
-        ("2", "Open Live Lines",
-         "The app automatically polls odds in the background. Bet candidates appear ranked by Sharp Score — highest first. "
-         "Wait for at least one poll cycle (scheduler runs every ~5 minutes) before acting.",
+        ("2", "Open Claude in the sandbox",
+         "In a separate terminal: <code style='color:#f59e0b;font-family:IBM Plex Mono,monospace;font-size:12px;'>cd ~/ClaudeCode/agentic-rd-sandbox &amp;&amp; claude</code>"
+         "<br>Tell it: <strong style='color:#d1d5db;'>\"scan live lines and tell me what looks good.\"</strong> "
+         "Claude fetches the current odds, runs every kill switch and grade filter, and surfaces top candidates with full reasoning. "
+         "You don't need to read each card manually.",
+         None),
+
+        ("3", "Review Claude's picks",
+         "Claude shows each candidate: grade (A / B / C / NEAR MISS), edge%, sharp score, game time, and why it passed or failed kill switches. "
+         "Ask anything: <em>\"why is this NUCLEAR?\"</em> or <em>\"is there RLM on this game?\"</em> or <em>\"what's the closing line for comp?\"</em> "
+         "Claude has full context of the math — it doesn't just surface the card, it explains the signal.",
          "📊 Live Lines"),
 
-        ("3", "Review a candidate",
-         "Each card shows: sport, matchup, market, edge%, sharp score, signal grade (LEAN / STANDARD / NUCLEAR), "
-         "and a math breakdown. Higher sharp score = stronger signal. NUCLEAR is rare and requires RLM confirmation.",
-         None),
-
-        ("4", "Log the bet",
-         "If you like a bet, scroll to <strong>Log Bet</strong> at the bottom of Live Lines or go to Bet Tracker. "
-         "Fill in the required fields (sport, matchup, target, price, edge, kelly, stake). "
-         "Then fill the analytics metadata section — this data powers the Analytics page once you hit 30 graded bets.",
+        ("4", "Approve a bet",
+         "Reply <strong style='color:#22c55e;'>\"bet it\"</strong> and Claude logs the bet in the UI for you, "
+         "pre-filling sport, matchup, target, price, edge, kelly, grade, and all analytics metadata. "
+         "Review the pre-filled fields, add your stake, confirm. "
+         "Reply <strong style='color:#9ca3af;'>\"skip\"</strong> and Claude notes it in the session — useful for tracking near-misses.",
          "📝 Bet Tracker → Log Bet"),
 
-        ("5", "After the game: Grade it",
+        ("5", "Grade after the game",
          "Go to <strong>Bet Tracker → Grade Bet</strong>. Select the bet, choose Win / Loss / Void, "
-         "enter the actual stake and closing price. This populates CLV and P&amp;L automatically.",
+         "enter the closing price (CLV). P&amp;L and CLV beat rate populate automatically. "
+         "Ask Claude: <em>\"what was the final line for [game]?\"</em> if you need help finding it.",
          "📝 Bet Tracker → Grade Bet"),
 
-        ("6", "Repeat until 30 bets",
-         "Once 30 bets are graded, the Analytics page unlocks: sharp score ROI correlation, "
-         "RLM lift, CLV beat rate, equity curve. This is when the model starts validating itself.",
-         "📈 Analytics (unlocks at 30)"),
+        ("6", "Repeat until 10 resolved",
+         "Once 10 bets are graded, the Analytics page unlocks: sharp score ROI correlation, "
+         "CLV beat rate, RLM lift, equity curve. "
+         "Ask Claude: <em>\"interpret the first analytics run\"</em> — it will tell you what the numbers mean and whether the model is validating.",
+         "📈 Analytics (unlocks at 10)"),
 
         ("7", "Monitor line movement",
-         "Line History shows spread movement over time. RLM (Reverse Line Movement) fires when "
-         "money moves against public. A second poll confirming the shift is required.",
+         "Claude alerts you to RLM events in chat — it detects when money moves against public consensus. "
+         "A second poll confirming the shift is required before RLM is scored. "
+         "The Line History page shows the full movement record for any game.",
          "📉 Line History"),
     ]
 
@@ -508,7 +516,7 @@ with col_side:
     st.html("""
     <div style="background:#111827;border:1px solid #374151;border-radius:4px;padding:8px 10px;margin-bottom:12px;">
       <div style="font-family:IBM Plex Mono,monospace;font-size:11px;color:#6b7280;">
-        Fill these when logging — they unlock the Analytics page at 30 bets.
+        Fill these when logging — they unlock the Analytics page at 10 resolved bets.
       </div>
     </div>
     <div class="gloss-container">
@@ -547,19 +555,19 @@ with col_side:
     st.html("""
     <div class="gate-container">
       <div class="gate-row">
-        <div class="gate-name">Sharp score calibration (30 graded bets)</div>
-        <div class="gate-status-wait">0 / 30</div>
-        <div class="gate-note">Log bets to start</div>
+        <div class="gate-name">Sharp score calibration (10 graded bets)</div>
+        <div class="gate-status-wait">4 logged · 0 graded</div>
+        <div class="gate-note">Need 6 more resolved to unlock</div>
       </div>
       <div class="gate-row">
-        <div class="gate-name">CLV verdict (30 graded bets)</div>
-        <div class="gate-status-wait">0 / 30</div>
+        <div class="gate-name">CLV verdict (10 graded bets)</div>
+        <div class="gate-status-wait">WAITING</div>
         <div class="gate-note">Shares gate with calibration</div>
       </div>
       <div class="gate-row">
-        <div class="gate-name">SHARP_THRESHOLD raise (5 live RLM fires)</div>
-        <div class="gate-status-wait">0 / 5</div>
-        <div class="gate-note">Currently set at 45 → will raise to 50</div>
+        <div class="gate-name">SHARP_THRESHOLD raise (5 live sessions + 20 RLM fires)</div>
+        <div class="gate-status-wait">IN PROGRESS</div>
+        <div class="gate-note">Currently 45 → raises to 50–55 when gates met</div>
       </div>
       <div class="gate-row">
         <div class="gate-name">MLB kill switch</div>
@@ -569,7 +577,7 @@ with col_side:
       <div class="gate-row">
         <div class="gate-name">Analytics page (charts)</div>
         <div class="gate-status-wait">LOCKED</div>
-        <div class="gate-note">Unlocks at 30 graded bets</div>
+        <div class="gate-note">Unlocks at 10 graded bets</div>
       </div>
       <div class="gate-row">
         <div class="gate-name">Kill switch coverage</div>
@@ -584,19 +592,23 @@ with col_side:
     <div class="gloss-container">
       <div class="gloss-row">
         <div class="gloss-key">Monthly budget</div>
-        <div class="gloss-val">≤ 10,000 / 20,000 credits</div>
+        <div class="gloss-val">≤ 10,000 / 20,000 credits (50% floor)</div>
+      </div>
+      <div class="gloss-row">
+        <div class="gloss-key">Daily allowance</div>
+        <div class="gloss-val">Auto-computed: remaining monthly budget ÷ days to billing</div>
       </div>
       <div class="gloss-row">
         <div class="gloss-key">Session soft limit</div>
-        <div class="gloss-val">300 credits → warning logged</div>
+        <div class="gloss-val">120 credits → warning logged</div>
       </div>
       <div class="gloss-row">
         <div class="gloss-key">Session hard stop</div>
-        <div class="gloss-val">500 credits → all fetches halted</div>
+        <div class="gloss-val">200 credits → all fetches halted</div>
       </div>
       <div class="gloss-row">
         <div class="gloss-key">Billing reserve</div>
-        <div class="gloss-val">Never go below 1,000 remaining</div>
+        <div class="gloss-val">Never go below 150 remaining</div>
       </div>
     </div>
     """)
