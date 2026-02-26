@@ -2,6 +2,28 @@
 
 ---
 
+## Session 33 — 2026-02-25
+
+### Objective
+UI polish pass: CST game times, Pinnacle widget removal, collar map legend fix, guide rewrite.
+
+### What shipped
+- **`pages/01_live_lines.py` — CST/CDT game times on bet cards**: `_game_time_ct()` helper using `zoneinfo.ZoneInfo("America/Chicago")` + `datetime.fromisoformat()`. Renders e.g. "7:00 PM CST" below matchup on every bet card. Graceful on empty or invalid `commence_time`. Adds `from datetime import datetime, timezone` + `from zoneinfo import ZoneInfo` imports.
+- **`pages/05_rd_output.py` — Remove Pinnacle Probe widget**: Renamed ⑦ to "Book Coverage". Removed Pinnacle KPIs (always ABSENT for US markets), Pinnacle verdict card, binary Pinnacle probe history tab. Kept preferred book hit rate chart + all-books-seen display. Collapsed from 4→2 KPIs (Polls + Unique Books). Text updated throughout ("probes" → "polls").
+- **`pages/05_rd_output.py` — Collar map legend overlap fix**: Moved legend below x-axis (`yanchor="top", y=-0.22`) with `margin.b=70`. Resolves legend/vline-annotation overlap at chart top.
+- **`pages/00_guide.py` — Steps 1-7 rewrite**: Updated for Claude-in-the-loop workflow (Claude scans → surfaces recs → user approves → logs in UI). Gate status updated (30→10 bets). Odds API budget updated (daily allowance added). Demo banner updated. Signal grades, kill switches, glossary unchanged.
+
+### Tests
+**1106/1106** — no change (no new logic, pure UI/display).
+
+### Commit
+`bd30fb0` — pushed ✅
+
+### V37 notified
+Session 33-A in V37_INBOX.md — FYI only, no action required.
+
+---
+
 ## Session 32 — 2026-02-25
 
 ### Objective

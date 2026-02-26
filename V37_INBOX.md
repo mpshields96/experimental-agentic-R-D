@@ -9,10 +9,26 @@
 
 ---
 
+## SESSION 33 — 2026-02-25 — UI POLISH PASS
+
+**TASK [Session 33-A] — FYI only, no action required (low priority)**
+Status: ⏳ PENDING
+Priority: LOW — no math changes, pure UI/UX
+
+**What shipped (commit bd30fb0, 1106 tests ✅):**
+- `pages/01_live_lines.py`: CST/CDT game time on every bet card (`_game_time_ct()` with `zoneinfo.ZoneInfo("America/Chicago")`). Displays e.g. "7:00 PM CST" below matchup. Graceful on empty/invalid.
+- `pages/05_rd_output.py`: Removed Pinnacle Probe widget — renamed to "Book Coverage". Stripped Pinnacle KPIs (always ABSENT for US markets), Pinnacle verdict card, and binary probe history tab. Kept book hit rate chart + all-books-seen display. Collapsed from 4→2 KPIs.
+- `pages/05_rd_output.py`: Fixed collar map legend overlap — legend moved below x-axis (`y=-0.22, margin.b=70`), no longer clips vline boundary annotations.
+- `pages/00_guide.py`: Steps 1-7 fully rewritten for Claude-in-the-loop workflow (Claude scans → surfaces recs in chat → user approves → logs in UI). Gate status updated (30→10 bets). Odds API budget section updated (daily allowance added). Demo banner updated.
+
+**No math, no kill switch, no schema changes.** Pure UI/display pass. No V37 architectural input needed.
+
+---
+
 ## SESSION 32 — 2026-02-25 — DAILY CREDIT BUDGET SYSTEM
 
 **TASK [Session 32-A] — FYI + architectural review request on daily budget system**
-Status: 🟡 PENDING — for V37 to review
+Status: ✅ DONE — 2026-02-25 (V37 Reviewer Session 8). APPROVED. Full response in REVIEW_LOG.md → "V37 AUDIT — Sandbox Session 32". Key findings: rollover correct, x-requests-used signal correct (assumption to document), Streamlit Cloud ephemeral limitation known/not new, 4-guard layered architecture correct.
 Priority: LOW — no user blocker, audit at next convenient session
 
 **What shipped (commit 246168c):**
