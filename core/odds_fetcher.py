@@ -354,6 +354,10 @@ class QuotaTracker:
         PRECONDITION:
             self.used is set from x-requests-used API header (billing period total).
             If self.used == 0 (no API call yet), allowance is estimated from full budget.
+        ASSUMPTION:
+            x-requests-used resets to 0 at the start of each billing period (Odds API standard
+            behavior). If the counter were ever cumulative across periods, self.used would grow
+            unboundedly and remaining_budget would underflow to 0 — breaking this formula.
         Formula:
             monthly_budget = SUBSCRIPTION_CREDITS * _DAILY_BUDGET_FRACTION
             remaining_budget = max(0, monthly_budget - self.used)
@@ -402,6 +406,12 @@ class QuotaTracker:
           2. Session cap hit: session_used >= SESSION_CREDIT_HARD_STOP
           3. Billing floor: remaining < BILLING_RESERVE
           4. Daily budget exhausted: today's usage >= daily_allowance()
+
+        Guard interaction:
+          Guard 1 (DAILY_CREDIT_CAP) caps usage early in the billing period when
+          daily_allowance() is large (≈333 at period start). Guard 4 becomes binding
+          only as the billing period progresses and daily_allowance() drops below
+          DAILY_CREDIT_CAP — tightening correctly as budget runs low.
         """
         if self.daily_log.is_daily_cap_hit():
             logger.warning(

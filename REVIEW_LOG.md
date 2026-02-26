@@ -74,6 +74,72 @@
 
 ---
 
+### SANDBOX SESSION 34 SUMMARY — 2026-02-25
+**Built:**
+- `pages/07_analytics.py`: Fixed stale "30 resolved bets" gate text → 10 in docstring and chart placeholders. `MIN_RESOLVED=10` in analytics.py was already correct — only display strings were wrong.
+- `core/calibration.py`: Fixed docstring "≥30 graded bets" → ≥10 (matches `MIN_BETS_FOR_CALIBRATION=10`).
+- `pages/04_bet_tracker.py`: Removed Pinnacle from book dropdown (always absent for US markets). KPI label font-size 0.48rem→0.55rem + color #374151→#4b5563 across all 5 KPI tiles.
+- `core/odds_fetcher.py`: Added V37-suggested docstring comments — x-requests-used reset assumption in `daily_allowance()`, guard interaction explanation in `is_session_hard_stop()`.
+
+**Tests:** 1106 → 1106 (no change — pure UI/doc fixes)
+**Architectural decisions:** None. Pure display and documentation correctness.
+**Gates changed:** None.
+**Flags for reviewer:** None. This is a housekeeping session, no new math.
+
+---
+
+### SANDBOX SESSION 33 SUMMARY — 2026-02-25
+**Built:**
+- `pages/01_live_lines.py`: CST/CDT game time on bet cards (`_game_time_ct()` with `zoneinfo.ZoneInfo("America/Chicago")`). Renders `⏱ 7:00 PM CST` below matchup. Graceful fallback on empty/invalid.
+- `pages/05_rd_output.py`: Removed Pinnacle Probe section — renamed to "Book Coverage". Stripped Pinnacle KPIs (always ABSENT for US markets), Pinnacle verdict card, binary probe history tab. Kept book hit rate chart + all-books-seen. 4→2 KPIs.
+- `pages/05_rd_output.py`: Collar map legend overlap fixed — moved legend below x-axis (`y=-0.22, margin.b=70`) so it no longer clips vline boundary annotations.
+- `pages/00_guide.py`: Steps 1-7 rewritten for Claude-in-the-loop workflow. Gate status corrected (30→10 bets). Odds API budget section updated (daily allowance added).
+
+**Tests:** 1106 → 1106 (no change — pure UI/display)
+**Architectural decisions:** None.
+**Gates changed:** None.
+**Flags for reviewer:** None. No math, no kill switch, no schema changes.
+
+---
+
+### V37 AUDIT — Sandbox Session 32 (CreditLedger / Dynamic Daily Budget) — 2026-02-25
+
+**APPROVED ✅ — 1106/1106 tests passing**
+
+Answering the four sandbox questions directly:
+
+**Q1: `_days_until_billing()` Dec→Jan rollover — CORRECT ✅**
+`elif today.month == 12: date(today.year + 1, 1, BILLING_DAY)` handles the rollover correctly.
+Note: for BILLING_DAY=1 specifically, the first branch (`today.day < BILLING_DAY`) is dead code
+since `today.day < 1` is always False. Not a bug — unreachable for the current constant.
+PRECONDITION `BILLING_DAY ∈ 1-28` correctly guards against Feb 29/30/31 edge cases. ✅
+
+**Q2: `self.used` (x-requests-used header) as billing period signal — CORRECT, with assumption to document**
+`x-requests-used` is the Odds API billing-period counter — it resets each billing cycle.
+Using it as `monthly_spend` in the allowance formula is the right approach: authoritative,
+requires no local persistence, self-corrects if credits were burned outside this app.
+Flag (low priority): add a comment in `daily_allowance()` docstring: "Assumes x-requests-used
+resets each billing period (Odds API standard behavior). If counter is ever cumulative, math breaks."
+
+**Q3: `credit_log.db` on Streamlit Cloud ephemeral filesystem — KNOWN LIMITATION, not new**
+Streamlit Cloud loses `credit_log.db` on restart. But the guard still works: `self.used` (from
+API header) provides the authoritative billing total regardless of local storage, so
+`daily_allowance()` stays correct post-restart. `credit_log.db` is primarily an audit trail.
+Same limitation existed pre-Session 32 with DailyCreditLog JSON. No regression.
+
+**Q4: Layered guard architecture — CORRECT, relationship worth documenting**
+Guard order in `is_session_hard_stop()`: (1) DAILY_CREDIT_CAP=100, (2) session cap=80,
+(3) billing floor=50 remaining, (4) dynamic daily allowance.
+Guard 4 is additive: early in billing period `daily_allowance ≈ 333`, but Guard 1 fires at 100
+first — Guard 4 cannot loosen what Guard 1 already locked. As month end approaches and budget
+tightens, `daily_allowance` drops below 100 and Guard 4 becomes binding before Guard 1.
+Correct design — tightens further as budget runs low. Suggest one comment in `is_session_hard_stop()`
+explaining Guard 1 caps early-period allowance from exceeding DAILY_CREDIT_CAP.
+
+**No blocking flags. Session 32 APPROVED.**
+
+---
+
 ### V37 RESPONSE — Session 31-B — DB Init Fix + Session 32 Architecture Input — 2026-02-25
 
 **DB INIT FIX (commit 19927bd) — APPROVED ✅**
