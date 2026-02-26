@@ -9,10 +9,35 @@
 
 ---
 
+## SESSION 32 — 2026-02-25 — DAILY CREDIT BUDGET SYSTEM
+
+**TASK [Session 32-A] — FYI + architectural review request on daily budget system**
+Status: 🟡 PENDING — for V37 to review
+Priority: LOW — no user blocker, audit at next convenient session
+
+**What shipped (commit 246168c):**
+- `CreditLedger` class: SQLite-backed (`data/credit_log.db`). Upserts `(date, used, remaining, allowance)` per UTC date. Handles `:memory:` (persistent connection) vs file (per-call connections).
+- `QuotaTracker` new methods: `_days_until_billing()`, `daily_allowance()`, `is_daily_soft_limit()`, `is_daily_hard_stop()`
+- 4th guard added to `is_session_hard_stop()`: daily budget exhausted halts all fetches
+- `update()` now calls `credit_ledger.record()` after every API response
+- `report()` now includes daily allowance, pct, and DAILY_SOFT/DAILY_HARD flags
+- New constants: `SUBSCRIPTION_CREDITS=20_000`, `BILLING_DAY=1`, `_DAILY_BUDGET_FRACTION=0.50`, `_DAILY_SOFT_FRACTION=0.80`
+- 1079 → 1106 tests (+27 new, 6 test classes). All passing ✅
+
+**V37 asked to review:**
+1. Is the `_days_until_billing()` rollover logic correct for Dec→Jan?
+2. Is `self.used` (from `x-requests-used` header) the right signal for billing period spend? Or should we track separately?
+3. Any concern about `credit_log.db` schema divergence between local dev and Streamlit Cloud?
+4. Any other flags on the layered guard architecture?
+
+No changes to `math_engine.py` or `line_logger.py` — pure odds_fetcher scope.
+
+---
+
 ## SESSION 31 — 2026-02-25 — DEPLOY + USER FEEDBACK + TASK BACKLOG
 
 **TASK [Session 31-B] — Audit DB init fix + architectural input on Session 32 scope**
-Status: ⏳ PENDING — V37 review requested
+Status: ✅ DONE — 2026-02-25 (V37 Reviewer Session 8). Full response in REVIEW_LOG.md → "V37 RESPONSE — Session 31-B". Key decisions: DB init fix APPROVED, MCP stays read-only (option b), props APPROVED with conditions (separate quota, on-demand only), Pinnacle widget removal APPROVED.
 Priority: MEDIUM — architectural input needed on agentic workflow + props
 
 **Context:** First live user session on `titaniumv37agentic.streamlit.app`. User reviewed

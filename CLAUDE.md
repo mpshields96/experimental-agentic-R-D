@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 29 | Last updated: 2026-02-25
+## Version: Session 32 | Last updated: 2026-02-25
 ## For: New agentic R&D chat initialization
 
 ---
@@ -468,6 +468,8 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 45. **Multi-line totals test fixture is now mandatory** (Session 29): `TestTotalsCanonicalLineFix` in `test_math_engine.py` is the reference. Always include a test where Book A quotes 6.5 and Book B quotes 7.0 on the same game when testing totals math. The cross-edge invariant test (`test_mixed_lines_do_not_produce_simultaneous_positive_edge`) must remain in the suite permanently — it is the regression guard for the most subtle totals bug class.
 46. **RLM drift must be signed, never abs()** (Session 29 fix): `compute_rlm()` drift = `current_prob - open_prob`. Positive = price got more expensive for bettor (line sharpened = sharp action). Negative = price improved for bettor (line lengthened = public drift). Using `abs()` caused RLM to fire on BOTH directions — effectively random. The signed version correctly identifies only smart-money line movement.
 47. **Narrative probability constants are cancer** (Session 29 audit): `run_nemesis()` had constants 0.20, 0.25, 0.35, 0.41 with no mathematical derivation, no callers, and `adjustment` field never consumed. Pattern to audit for in future: any function whose probability/weight constants cannot be derived from first-principles math is narrative dressed as math. Delete it. The system's core mandate is Math > Narrative — no exceptions for even well-intentioned heuristic functions.
+48. **SQLite :memory: is per-connection** (Session 32): Each `sqlite3.connect(":memory:")` creates a completely fresh database — data written in one connection is GONE in the next. Fix: store `self._mem_conn = sqlite3.connect(":memory:", check_same_thread=False)` as a persistent instance attribute; init schema once in `__init__`; use `self._mem_conn` for all reads/writes. For file-backed paths, open/close per-call is fine. Pattern: `if self._path == ":memory:": use self._mem_conn; else: with sqlite3.connect(self._path) as conn:`. `CreditLedger` in `core/odds_fetcher.py` is the reference implementation.
+49. **`date` not included in datetime imports** (Session 32): `from datetime import datetime, timezone, timedelta` does NOT import `date`. When adding `Optional[date]` type annotations or `date()` constructor calls, always add `date` to the import explicitly. The `_today: Optional[date] = None` injection pattern is the preferred approach for deterministic date-based tests over `unittest.mock.patch` — consistent with the `_endpoint_factory` pattern in `nba_pdo.py`.
 
 ---
 
@@ -503,28 +505,27 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 29 — 2026-02-25)
+## 🚦 CURRENT PROJECT STATE (as of Session 32 — 2026-02-25)
 
 ```
-Test suite:   1079/1079 passing ✅
-Last commit:  f6a4b3c (Session 29: full math audit + bug fixes) — PUSHED ✅
+Test suite:   1106/1106 passing ✅
+Last commit:  246168c (Session 32: daily credit budget system) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
+App:          LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
 App port:     8504 | launch: ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
 
-✅ SESSION 29 COMPLETE — all critical bugs fixed:
-  Totals consensus bug: FIXED (_canonical_totals_books() in parse_game_markets())
-  RLM direction bug: FIXED (signed drift — no longer uses abs())
-  Dead code removed: run_nemesis() 241 lines, calculate_edge(), dead Poisson precompute
-  Live betting on totals: UNBLOCKED
+✅ SESSIONS 29-32 COMPLETE:
+  Session 29: totals canonical line fix, RLM direction fix, dead code audit (1103→1079)
+  Session 30: visionOS UI pass (pages 01, 04, 07), PRECONDITION docstrings, SQLite MCP
+  Session 31: Streamlit Cloud deploy (titaniumv37agentic.streamlit.app), DB init fix
+  Session 32: Dynamic daily credit budget (CreditLedger, daily_allowance, daily guards) (+27 tests)
 
-📋 SESSION 30 PRIORITY ORDER:
-  #1 UI modernisation (Apple/visionOS: 01_live_lines, 04_bet_tracker, 07_analytics)
-  #2 Live run (totals unblocked — can now log totals bets)
-  #3 Analytics unlock (need 6 more resolved bets; gate = 10)
-
-BUILT (Sessions 1-29):
-  18 core modules, 7 pages, 12 active sports, 2 scripts
-  Session 29: totals canonical line fix, RLM direction fix, dead code audit
+📋 SESSION 33 PRIORITY ORDER:
+  #1 CST game times on bet cards (commence_time already in BetCandidate, not yet rendered)
+  #2 Pinnacle probe widget removal (always ABSENT for US markets — confusing noise)
+  #3 Collar map legend overlap fix (R&D output page CSS bug)
+  #4 Guide page Steps 1-7 rewrite (reflect agentic Claude-in-the-loop workflow)
+  #5 Live run + analytics unlock (4 bets logged, 0 resolved; gate = 10)
 
 LIVE BET STATUS (4 logged, 0 resolved — analytics locked until 10 resolved):
   id=1: OKC -7.5 @ -115 | id=2: CLE -17.5 @ +120
@@ -536,6 +537,10 @@ GRADE TIER:
 
 CREDIT LIMITS:
   DAILY=300 | SESSION_SOFT=120 | SESSION_HARD=200 | BILLING_RESERVE=150
+  DAILY BUDGET (Session 32): SUBSCRIPTION_CREDITS=20,000 | BILLING_DAY=1
+  daily_allowance() = 10,000 // days_until_billing (recalculated per update() call)
+  is_daily_soft_limit() ≥80% | is_daily_hard_stop() ≥100% (4th guard in is_session_hard_stop)
+  CreditLedger: data/credit_log.db | :memory: uses persistent _mem_conn (see lesson 48)
   Full 12-sport scan ≈ 15-20 credits. Key: env var ODDS_API_KEY (rotate after use).
 
 SYSTEM GATES:
@@ -558,4 +563,4 @@ SYSTEM GATES:
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 29, 2026-02-25*
+*Last updated: Session 32, 2026-02-25*

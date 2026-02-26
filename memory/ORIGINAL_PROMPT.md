@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 31 — 2026-02-25
-# Session work: Streamlit Cloud deploy (titaniumv37agentic.streamlit.app) + DB init fix + user feedback review
-# Priority reset: #1 Agentic workflow (Claude-in-the-loop), #2 CST game times + Pinnacle widget removal, #3 live run
+# Last updated: Session 32 — 2026-02-25
+# Session work: Dynamic daily credit budget system (CreditLedger + daily_allowance + daily guards)
+# Priority reset: #1 CST game times on bet cards, #2 Pinnacle probe removal, #3 collar map, #4 guide rewrite
 # Maintained by: sandbox builder chat
 
 ---
@@ -174,37 +174,33 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 29 — 2026-02-25)
+## 📍 CURRENT PROJECT STATE (Session 32 — 2026-02-25)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1079 / 1079 passing ✅
+Tests:    1106 / 1106 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commits (all PUSHED):
+  - 246168c — Session 32: daily credit budget (CreditLedger + daily_allowance + daily guards)
+  - bf02c8c — Session 31: savepoint
   - 7c17acc — Session 31: V37 inbox update — deploy + feedback
   - 19927bd — Session 31: DB init fix (app.py _init_dbs), scheduler path bug, docstrings
-  - 5557995 — Session 30 cont: push Session 30 UI + V37 inbox
   - 59dc786 — Session 30: visionOS UI pass (pages 01, 04, 07)
-  - 70bd822 — Session 30-B: PRECONDITION docstrings in math_engine.py
 
-✅ SESSION 30-31 COMPLETE:
-  UI modernisation: DONE (pages 01, 04, 07 — visionOS aesthetic)
-  Streamlit Cloud: LIVE (titaniumv37agentic.streamlit.app)
-  DB init bug: FIXED (_init_dbs() in app.py, scheduler path bug fixed)
-  V37 inbox: UPDATED (Session 31-B pending V37 review)
+✅ SESSION 32 COMPLETE:
+  Daily credit budget: DONE (CreditLedger, daily_allowance, is_daily_soft_limit, is_daily_hard_stop)
+  Tests: 1079 → 1106 (+27 new tests, 6 test classes)
 
-📋 PRIORITY ORDER (Session 32):
-  #1 — Agentic workflow: Claude-in-the-loop advisory (SQLite MCP reads live candidates,
-       surfaces recs in chat, user approves, Claude logs via log_bet())
-  #2 — CST game times on bet cards (commence_time already in BetCandidate, just not rendered)
-  #3 — Pinnacle probe widget: remove or replace (always ABSENT for US markets)
-  #4 — Collar map legend overlap fix (R&D output page)
+📋 PRIORITY ORDER (Session 33):
+  #1 — CST game times on bet cards (commence_time already in BetCandidate, just not rendered)
+  #2 — Pinnacle probe widget: remove or replace (always ABSENT for US markets)
+  #3 — Collar map legend overlap fix (R&D output page)
+  #4 — Guide page Steps 1-7 rewrite (reflect agentic Claude-in-the-loop workflow)
   #5 — Live run + analytics unlock (4 bets logged, 0 resolved, need 6 more resolved for gate=10)
 
 Future sessions:
   - Player props: second free Odds API account (500 credits/month), on-demand event-level calls
-  - Guide page Steps 1-7 rewrite (reflect agentic workflow)
   - Simulator ELI5 guide
 
 Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)

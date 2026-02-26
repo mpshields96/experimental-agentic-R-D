@@ -1,13 +1,13 @@
 # Project Index: Titanium-Agentic Sandbox
 
-Generated: 2026-02-25 (Session 31) | Tests: 1079/1079 ✅ | Last commit: bf02c8c (PUSHED) | Live: titaniumv37agentic.streamlit.app
+Generated: 2026-02-25 (Session 32) | Tests: 1106/1106 ✅ | Last commit: 246168c (PUSHED) | Live: titaniumv37agentic.streamlit.app
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
 
 ---
 
-## ✅ SESSIONS 29-31 COMPLETE — LIVE ON STREAMLIT CLOUD
+## ✅ SESSIONS 29-32 COMPLETE — LIVE ON STREAMLIT CLOUD
 
 **Session 29:** Totals consensus bug FIXED (`_canonical_totals_books()`). RLM signed drift FIXED. Dead code removed (run_nemesis 241L, calculate_edge). Test count: 1103 → 1079.
 
@@ -15,14 +15,16 @@ See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for 
 
 **Session 31:** Streamlit Cloud deployed (`titaniumv37agentic.streamlit.app`). `_init_dbs()` added to app.py (fixes OperationalError on fresh deploy). Scheduler path bug fixed (`init_price_history_db` was using wrong DB path).
 
+**Session 32:** Dynamic daily credit budget system. `CreditLedger` (SQLite), `daily_allowance()`, `is_daily_soft_limit()`, `is_daily_hard_stop()` added to `QuotaTracker`. BILLING_DAY=1, 50% budget fraction, 4th guard in `is_session_hard_stop()`. Test count: 1079 → 1106.
+
 ---
 
-## 📋 Priority Order (Session 32)
+## 📋 Priority Order (Session 33)
 
-**#1 — Agentic workflow:** Claude-in-the-loop advisory via SQLite MCP. I read live candidates, surface recs in chat, user approves, I log via log_bet().
-**#2 — CST game times** on bet cards (`commence_time` already in BetCandidate, not yet rendered)
-**#3 — Pinnacle probe widget** — remove or replace (always ABSENT for US markets, confusing noise)
-**#4 — Collar map legend overlap** fix (R&D output page CSS bug)
+**#1 — CST game times** on bet cards (`commence_time` already in BetCandidate, not yet rendered)
+**#2 — Pinnacle probe widget** — remove or replace (always ABSENT for US markets, confusing noise)
+**#3 — Collar map legend overlap** fix (R&D output page CSS bug)
+**#4 — Guide page rewrite** Steps 1-7 → agentic Claude-in-the-loop workflow
 **#5 — Live run + analytics unlock** (4 bets logged, 0 resolved; need 6 more resolved for gate=10)
 
 ---
@@ -129,7 +131,7 @@ KELLY_FRACTION = 0.25    KELLY_FRACTION_B = 0.12    KELLY_FRACTION_C = 0.05
 SHARP_THRESHOLD = 45     (raise to 50-55: 5 live sessions + 20 RLM fires)
 ```
 
-### odds_fetcher.py (51 tests)
+### odds_fetcher.py (78 tests)
 
 ```python
 # IMPORTANT: sports param takes friendly names ("NBA", "NHL"), NOT API keys
@@ -138,9 +140,16 @@ fetch_batch_odds(sports: list[str], include_tennis: bool) -> dict[sport_name, li
 # Each game_dict must be passed to parse_game_markets() individually (not the list)
 fetch_game_lines(sport_key: str) -> list[dict]
 
-# Credit limits
+# Credit limits (session + billing guards)
 DAILY_CREDIT_CAP = 300    SESSION_CREDIT_SOFT_LIMIT = 120
 SESSION_CREDIT_HARD_STOP = 200    BILLING_RESERVE = 150
+
+# Daily budget system (Session 32) — layered on top of session guards
+SUBSCRIPTION_CREDITS = 20_000    BILLING_DAY = 1
+# CreditLedger: SQLite data/credit_log.db — upserts used/remaining/allowance per UTC date
+# QuotaTracker.daily_allowance()    — monthly_budget * 0.50 // days_until_billing
+# QuotaTracker.is_daily_soft_limit() — used_today >= 80% of allowance (warn)
+# QuotaTracker.is_daily_hard_stop()  — used_today >= 100% of allowance (4th guard in is_session_hard_stop)
 
 # ACTIVE_SPORTS excludes MLB (on hold until Apr 1, 2026)
 ACTIVE_SPORTS = ["NBA","NFL","NCAAF","NCAAB","NHL","EPL","LIGUE1","BUNDESLIGA","SERIE_A","LA_LIGA","MLS"]
@@ -222,9 +231,9 @@ get_calibration_report(db_path) -> CalibrationReport  # Brier, ROC-AUC, edge acc
 | nba_pdo | 66 | price_history_store | 36 |
 | originator_engine | 62 | line_logger | 35 |
 | injury_data | 59 | nhl_data | 34 |
-| odds_fetcher | 51 | weather_feed | 24 |
+| odds_fetcher | 78 | weather_feed | 24 |
 | efficiency_feed | 51 | | |
-| analytics | 51 | **TOTAL** | **1079** |
+| analytics | 51 | **TOTAL** | **1106** |
 | parlay_builder | 47 | | |
 | clv_tracker | 46 | | |
 

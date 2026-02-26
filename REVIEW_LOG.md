@@ -74,6 +74,75 @@
 
 ---
 
+### V37 RESPONSE — Session 31-B — DB Init Fix + Session 32 Architecture Input — 2026-02-25
+
+**DB INIT FIX (commit 19927bd) — APPROVED ✅**
+
+Path bug diagnosis confirmed. `scheduler.py` was passing `db_path` (the `line_history.db` path)
+to `init_price_history_db(db_path)` — which means price_history schema was being created inside
+line_history.db. Silent data corruption: any SELECT on price_history would have read from the wrong
+file. RLM 2.0 open-price injection was silently a no-op on Streamlit Cloud.
+
+Fix is clean:
+- `app.py:_init_dbs()`: explicit init of both DBs at module level before scheduler. Non-fatal
+  error handling is appropriate — deploy should not crash if one DB init fails.
+- `scheduler.py:229-230`: `init_price_history_db()` (no arg) uses its own default path
+  (`price_history.db`). Correct. The `db_path` arg was never the right call here.
+
+Both fixes approved. No math changes. No new packages.
+
+---
+
+**SESSION 32 SCOPE — V37 POSITIONS:**
+
+**1. Agentic workflow (Claude-in-the-loop) — OPTION (b): Keep MCP read-only.**
+
+Do NOT change MCP to allow writes. Position: Claude reads candidates via SQLite MCP (read-only),
+surfaces recommendation with exact `log_bet()` parameters VISIBLE to user, user reviews and
+executes in the UI. Human-in-the-loop on writes is non-negotiable.
+
+Reasoning:
+- Read-only MCP was a deliberate safety decision. The database contains live bet history.
+  A write pathway through LLM context is an unaudited mutation channel. One hallucinated param
+  (wrong price, wrong stake) corrupts a real bet record — no undo in SQLite.
+- Option (a) — writable MCP — adds an injection attack surface: web content, prompt injection,
+  or hallucination during a live session could silently write garbage to the database. Not
+  acceptable for a live financial tracking tool.
+- The friction difference is minimal: "Claude shows parameters → user clicks Log Bet" vs
+  "Claude writes directly." The audit trail value of keeping writes in the UI is significant.
+- If/when we want Claude to assist logging: generate the `log_bet()` call as a code block the
+  user can execute, or pre-fill the UI form fields — don't give the LLM DB write access.
+
+**2. Player props zero-cost path — APPROVED for R&D, with conditions.**
+
+Cross-book consensus for props is mathematically defensible. Player O/U markets are binary
+(over/under a stat line) — same `consensus_fair_prob()` vig-removal approach applies. No stat
+projections needed; the market IS the projection.
+
+Conditions:
+- Second account MUST have its own `DailyCreditLog` with `DAILY_CREDIT_CAP=100` (independent
+  of game lines budget). Props must NOT share quota with game lines.
+- On-demand design only (user-triggered) — do NOT add to APScheduler loop until credit cost
+  per props scan is benchmarked. Props endpoints have different credit costs than game lines.
+- Initial R&D: run against fixture JSON first, then a single live probe with user approval.
+  Count credits before scheduling anything.
+
+**3. Pinnacle probe widget removal — APPROVED, no objection.**
+
+Pinnacle is confirmed absent for US markets on current tier. A widget that always shows ABSENT
+is noise. Replace with book coverage (which books responded) — more informative, no math changes.
+This is pure UI cleanup.
+
+**4. Other Session 32 scope items:**
+- CST game times: APPROVED — timezone display fix, no math impact.
+- Collar map legend fix: APPROVED — UI annotation only.
+- Guide page Steps 1-7 rewrite: APPROVED — documentation, low risk.
+- Future simulator ELI5 guide: APPROVED — no code changes.
+
+No blocking flags for Session 32. Clear to proceed.
+
+---
+
 ### ✅ SESSION 30 SANDBOX DIRECTIVE — STALE DOCSTRINGS — sandbox `core/odds_fetcher.py`
 **Low priority — address in next routine cleanup session.**
 `core/odds_fetcher.py:114,242-244` still has hardcoded values `(1,000)/(500)/(1,000)` in docstrings.

@@ -2,6 +2,33 @@
 
 ---
 
+## Session 32 — 2026-02-25
+
+### Objective
+Dynamic daily credit budget system for QuotaTracker.
+
+### What shipped
+- **`core/odds_fetcher.py` — CreditLedger class**: SQLite-backed (`data/credit_log.db`).
+  Upserts one row per UTC date: `(date, used, remaining, allowance)`. Uses persistent
+  `_mem_conn` for `:memory:` paths (test isolation) vs. file-per-call for production.
+- **`core/odds_fetcher.py` — QuotaTracker new methods**:
+  - `_days_until_billing(_today)` — days to next BILLING_DAY, handles month/year rollover, ≥1
+  - `daily_allowance(_today)` — `monthly_budget // days_until_billing`, self-adjusting
+  - `is_daily_soft_limit(_today)` — `used_today >= 80%` of allowance → warn only
+  - `is_daily_hard_stop(_today)` — `used_today >= 100%` of allowance → halts fetches
+- **`is_session_hard_stop()`**: 4th guard added — daily budget exhausted
+- **`update()`**: now calls `credit_ledger.record()` after every API response
+- **`report()`**: now includes `allowance=N(pct%) ⚠DAILY_SOFT / ⛔DAILY_HARD`
+- **New constants**: `SUBSCRIPTION_CREDITS=20_000`, `BILLING_DAY=1`, `_DAILY_BUDGET_FRACTION=0.50`, `_DAILY_SOFT_FRACTION=0.80`
+
+### Tests
+1079 → **1106** (+27 new tests, 6 test classes). All passing ✅
+Bugs caught during testing: (1) `date` not imported in test file, (2) SQLite `:memory:` per-connection isolation.
+
+### Commit: `246168c` — PUSHED ✅
+
+---
+
 ## Session 31 — 2026-02-25
 
 ### Objective
