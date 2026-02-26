@@ -86,6 +86,22 @@
 **Gates changed:** None.
 **Flags for reviewer:** None. This is a housekeeping session, no new math.
 
+### V37 AUDIT — Sandbox Session 34 (Housekeeping: stale gate text, Pinnacle dropdown, KPI polish, V37 docstrings) — 2026-02-25
+
+**APPROVED ✅ — 1106/1106 tests passing. Pure documentation and display corrections.**
+
+- Stale gate text `≥30` → `≥10` in display strings: correct alignment with `MIN_RESOLVED=10`
+  and `MIN_BETS_FOR_CALIBRATION=10`. Math was already right — only the labels were stale. ✅
+- Pinnacle removed from book dropdown in `04_bet_tracker.py`: consistent with Session 33
+  Pinnacle removal from `05_rd_output.py`. ✅
+- KPI font-size `0.48rem→0.55rem`, color `#374151→#4b5563`: legibility improvement, no logic. ✅
+- V37-requested docstring comments added in `core/odds_fetcher.py`: x-requests-used reset
+  assumption in `daily_allowance()` + guard interaction in `is_session_hard_stop()`. ✅
+
+Sandbox adopted both V37 suggestions from Session 32 audit immediately. Good loop.
+
+No flags. APPROVED.
+
 ---
 
 ### SANDBOX SESSION 33 SUMMARY — 2026-02-25
@@ -99,6 +115,21 @@
 **Architectural decisions:** None.
 **Gates changed:** None.
 **Flags for reviewer:** None. No math, no kill switch, no schema changes.
+
+### V37 AUDIT — Sandbox Session 33 (UI Polish: CST times, Pinnacle removal, legend fix, guide rewrite) — 2026-02-25
+
+**APPROVED ✅ — 1106/1106 tests passing. Pure UI/display pass.**
+
+- `_game_time_ct()` using `zoneinfo.ZoneInfo("America/Chicago")`: stdlib Python 3.9+. Streamlit
+  Cloud runs 3.10+ — no `backports.zoneinfo` pip dep needed. Graceful fallback confirmed. ✅
+- Pinnacle probe widget removed from `05_rd_output.py`: correct — always ABSENT for US markets.
+  "Book Coverage" is more informative. ✅
+- Collar map legend `y=-0.22, margin.b=70`: CSS-only positioning fix. No data change. ✅
+- Guide Steps 1-7 rewritten for Claude-in-the-loop workflow: reflects approved architecture
+  (V37 Session 8 position). Gate 30→10 bets is user's call. ✅
+- No new pip dependencies.
+
+No flags. APPROVED.
 
 ---
 

@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 32 — 2026-02-25
-# Session work: Dynamic daily credit budget system (CreditLedger + daily_allowance + daily guards)
-# Priority reset: #1 CST game times on bet cards, #2 Pinnacle probe removal, #3 collar map, #4 guide rewrite
+# Last updated: Session 34 — 2026-02-25
+# Session work: UI polish pass (CST times, Pinnacle probe removal, collar map, guide rewrite) + stale-ref fixes + V37 docstrings
+# Priority reset: #1 Live run (grade 6 more bets), #2 Player props (V37 approved), #3 SHARP_THRESHOLD gate
 # Maintained by: sandbox builder chat
 
 ---
@@ -147,11 +147,10 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file. Write tasks to V37_INBOX.md.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
 
-Current V37 status: **Session 29 sandbox fixed Layer 1 (modal line pinning). Awaiting V37 validation.**
-V37 completed: Reviewer Session 5 audit — identified root cause, implemented Layer 2 dedup fix in v36.
-Sandbox completed: Layer 1 — `_canonical_totals_books()` in `parse_game_markets()`. Both consensus and best-price now scoped to modal total line. EDM@ANA symptom eliminated.
-V37 validation requested: confirm Layer 1 implementation matches their spec from Reviewer Session 5.
-V37 also pending: originator_engine caller fix + nhl_data promotion (lower priority).
+Current V37 status (Session 34): Sessions 33-34 summaries written to REVIEW_LOG.md. Awaiting V37 audit.
+Sandbox Sessions 33-34 were UI-only + cleanup — no math changes. V37 should flag anything missed.
+V37 validated: Layer 1 totals canonical line fix (_canonical_totals_books) — confirmed correct.
+V37 also pending: originator_engine caller fix + nhl_data promotion (lower priority, not blocking).
 
 ---
 
@@ -174,7 +173,7 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 32 — 2026-02-25)
+## 📍 CURRENT PROJECT STATE (Session 34 — 2026-02-25)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
@@ -182,26 +181,31 @@ App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch
 Tests:    1106 / 1106 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commits (all PUSHED):
+  - 3d751c1 — Session 34 cont: V37 docstrings + REVIEW_LOG session summaries
+  - 0f4da34 — Session 34: stale 30-bet refs fixed, KPI label polish, Pinnacle removed from bet tracker
+  - bd30fb0 — Session 33: CST game times, Pinnacle probe → Book Coverage, collar map legend, guide rewrite
+  - a33149c — Session 33: coordination files (V37_INBOX, SESSION_LOG, REVIEW_LOG)
   - 246168c — Session 32: daily credit budget (CreditLedger + daily_allowance + daily guards)
-  - bf02c8c — Session 31: savepoint
-  - 7c17acc — Session 31: V37 inbox update — deploy + feedback
-  - 19927bd — Session 31: DB init fix (app.py _init_dbs), scheduler path bug, docstrings
-  - 59dc786 — Session 30: visionOS UI pass (pages 01, 04, 07)
 
-✅ SESSION 32 COMPLETE:
-  Daily credit budget: DONE (CreditLedger, daily_allowance, is_daily_soft_limit, is_daily_hard_stop)
-  Tests: 1079 → 1106 (+27 new tests, 6 test classes)
+✅ SESSION 33 COMPLETE (UI polish pass):
+  - CST game times on bet cards (zoneinfo.ZoneInfo → %-I:%M %p CST/CDT)
+  - Pinnacle probe widget → Book Coverage (Pinnacle stripped — always ABSENT for US markets)
+  - Collar map legend overlap fixed (legend moved to y=-0.22, below x-axis)
+  - Guide page Steps 1-7 rewritten for Claude-in-the-loop workflow
 
-📋 PRIORITY ORDER (Session 33):
-  #1 — CST game times on bet cards (commence_time already in BetCandidate, just not rendered)
-  #2 — Pinnacle probe widget: remove or replace (always ABSENT for US markets)
-  #3 — Collar map legend overlap fix (R&D output page)
-  #4 — Guide page Steps 1-7 rewrite (reflect agentic Claude-in-the-loop workflow)
-  #5 — Live run + analytics unlock (4 bets logged, 0 resolved, need 6 more resolved for gate=10)
+✅ SESSION 34 COMPLETE (cleanup + V37 follow-up):
+  - Stale "30 resolved bets" display text fixed → 10 (pages/07_analytics.py, core/calibration.py)
+  - "Pinnacle" removed from bet tracker book selectbox (04_bet_tracker.py)
+  - KPI label readability: font-size 0.48→0.55rem, color #374151→#4b5563 (5 KPI tiles)
+  - V37 Session 32-A audit docstring additions: daily_allowance() ASSUMPTION + is_session_hard_stop() guard interaction note
+  - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
-Future sessions:
-  - Player props: second free Odds API account (500 credits/month), on-demand event-level calls
-  - Simulator ELI5 guide
+📋 PRIORITY ORDER (Session 35):
+  #1 — Live run: grade/log 6 more resolved bets to unlock analytics gate (need 10 resolved)
+  #2 — Player props (V37 APPROVED with conditions): separate quota, on-demand event-level only
+  #3 — SHARP_THRESHOLD raise gate: 45→50 (gate: 5 live sessions + 20 RLM fires)
+  #4 — V37 validation of canonical line implementation (Layer 1 modal line pinning)
+  #5 — MLB kill switch (HOLD — Apr 1, 2026)
 
 Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)
 Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 remaining (floor=150).
@@ -264,8 +268,8 @@ Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 re
 | `injury_data.py` | Static positional impact — 5 sports, 50+ positions, ZERO API | 59 |
 | `nba_pdo.py` | PDO regression kill switch — nba_api free tier, 1hr TTL cache | 66 |
 | `king_of_the_court.py` | DraftKings Tuesday KOTC analyzer — static season data, zero API | 74 |
-| `analytics.py` | Pure analytics: sharp/RLM/CLV/equity/rolling/book breakdown. source-agnostic list[dict] API. MIN_RESOLVED=30. | 51 |
-| `calibration.py` | Sharp score calibration pipeline — activates at 30 graded bets | 46 |
+| `analytics.py` | Pure analytics: sharp/RLM/CLV/equity/rolling/book breakdown. source-agnostic list[dict] API. MIN_RESOLVED=10. | 51 |
+| `calibration.py` | Sharp score calibration pipeline — activates at 10 graded bets (MIN_BETS_FOR_CALIBRATION=10) | 46 |
 | `clv_tracker.py` | CLV snapshot CSV log + summary | 46 |
 | `price_history_store.py` | Persistent open-price store — multi-session RLM continuity | 36 |
 | `probe_logger.py` | Bookmaker probe log (JSON) | 36 |
@@ -281,7 +285,7 @@ Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 re
 | `pages/04_bet_tracker.py` | Bet log, grading, P&L, CLV tracker — 7 analytics metadata fields on form |
 | `pages/05_rd_output.py` | Math validation dashboard (pure math_engine, no live data) |
 | `pages/06_simulator.py` | Trinity game simulator (NBA + Soccer Poisson modes) |
-| `pages/07_analytics.py` | Advanced analytics Phase 1 — sharp/RLM/CLV/equity/rolling/book (sample guard at N<30) |
+| `pages/07_analytics.py` | Advanced analytics Phase 1 — sharp/RLM/CLV/equity/rolling/book (sample guard at N<10) |
 
 ---
 
@@ -322,15 +326,16 @@ EDGE TIER LABELS (for display in export_bets.py and future UI):
 
 ---
 
-## 🚦 GATE STATUS (as of Session 25 cont.)
+## 🚦 GATE STATUS (as of Session 34)
 
 | Gate | Status | Action when met |
 |------|--------|-----------------|
-| SHARP_THRESHOLD raise | 0/5 RLM fires | Manually change 45→50 in math_engine.py |
-| Calibration activation | 4/30 graded bets (0 graded yet — all pending) | calibration.py auto-activates at 30 |
-| CLV verdict | 0/30 graded bets | Check clv_summary() verdict |
+| SHARP_THRESHOLD raise | 0/5 live sessions, 0/20 RLM fires | Manually change 45→50 in math_engine.py |
+| Calibration activation | 0/10 graded bets (4 logged, 0 resolved) | calibration.py auto-activates at 10 |
+| Analytics unlock | 0/10 graded bets | pages/07_analytics.py removes sample guard |
+| CLV verdict | 0/10 graded bets | Check clv_summary() verdict |
 | MLB kill switch | Season gate (Apr 1) | Don't touch before Apr 1, 2026 |
-| Pinnacle presence | Not yet confirmed | Add to PREFERRED_BOOKS when consistently True |
+| Pinnacle presence | REMOVED — always ABSENT for US markets | Never add back; widget renamed to Book Coverage |
 | B2 gate monitor | Waiting — gate date 2026-03-04 | V37 checks espn_stability.log on/after that date |
 
 ---
@@ -413,54 +418,59 @@ CURRENT KEY STATUS:
 
 ---
 
-## 🎯 NEXT SESSION TARGETS (Session 26 — priority order)
+## 🎯 NEXT SESSION TARGETS (Session 35 — priority order)
 
-**IMMEDIATE — Done in last session (do NOT re-implement):**
-- ✅ Inactivity auto-stop (P0) — scheduler pauses after 24h idle, resumes on page load
-- ✅ Export bet tracker to CSV (scripts/export_bets.py + data/bet_tracker_log.csv)
-- ✅ Grade bets CLI (scripts/grade_bet.py)
-- ✅ 4 live bets logged (pending grading after tonight's games)
-- ✅ DailyCreditLog daily cap enforcement
-- ✅ HTML injection + result validation security fixes
-- ✅ V37 credit guards fixed (V37 session 2 — 185/185 tests)
+**DONE (Sessions 33-34 — do NOT re-implement):**
+- ✅ CST game times on bet cards (zoneinfo → %-I:%M %p CST/CDT in _bet_card())
+- ✅ Pinnacle probe widget → Book Coverage (Pinnacle stripped; always ABSENT for US markets)
+- ✅ Collar map legend overlap fixed (legend y=-0.22, margin.b=70)
+- ✅ Guide page Steps 1-7 rewritten for Claude-in-the-loop workflow
+- ✅ Stale "30 resolved bets" text fixed → 10 (pages/07_analytics.py, core/calibration.py)
+- ✅ Pinnacle removed from bet tracker book selectbox (04_bet_tracker.py)
+- ✅ KPI label readability improved (0.48→0.55rem, #374151→#4b5563)
+- ✅ V37 Session 32-A docstrings: daily_allowance() ASSUMPTION + is_session_hard_stop() guard note
+- ✅ REVIEW_LOG.md updated with Sessions 33 + 34 summaries
 
-**P0 — Grade tonight's bets (human + sandbox action)**
-1. After OKC/Toronto and UIC/Bradley games complete tonight:
-   - Grade bet #1: `python3 scripts/grade_bet.py --id 1 --result [win/loss] --stake 50 --close [close_price]`
-   - Grade bet #3: `python3 scripts/grade_bet.py --id 3 --result [win/loss] --stake 25 --close [close_price]`
-   - Grade bet #4: `python3 scripts/grade_bet.py --id 4 --result [win/loss] --stake 25 --close [close_price]`
-   - Bet #2 (CLE -17.5) is flagged data_only (stake=0) — grade with close_price for CLV only
-2. Run: `python3 scripts/export_bets.py` after grading to refresh CSV
+**P0 — Live run: grade bets to unlock analytics (human + sandbox)**
+- Grade the 4 pending bets:
+  ```
+  python3 scripts/grade_bet.py --id 1 --result [win/loss] --stake 50 --close [close_price]
+  python3 scripts/grade_bet.py --id 3 --result [win/loss] --stake 25 --close [close_price]
+  python3 scripts/grade_bet.py --id 4 --result [win/loss] --stake 25 --close [close_price]
+  python3 scripts/grade_bet.py --id 2 --result [win/loss] --stake 0 --close [close_price]  # CLV only
+  ```
+- Run: `python3 scripts/export_bets.py` after grading to refresh CSV
+- Log 6 more resolved bets to hit analytics gate (goal: 10 resolved total)
+- Until 10 graded bets: analytics charts remain behind sample guard
 
-**P1 — Log 30 bets to unlock analytics pipeline**
-- Open http://localhost:8504 → Live Lines tab → Log Bet
-- Log bets WITH all 7 analytics metadata fields (sharp_score, rlm_fired, tags, book, days_to_game, line, signal)
-- ⚠️ KNOWN GAP: pages/04_bet_tracker.py Log Bet form does NOT yet pass the 7 analytics columns to log_bet()
-  → This is a Session 26 TODO. V37 flagged it. Fix the form to pass all 7 params.
-  → Without this fix, manually logged bets have empty analytics metadata.
-- Until 30 graded bets exist: all analytics charts show sample guards (N<30)
+**P1 — Player props (V37 APPROVED with conditions)**
+- Second free Odds API account: 500 credits/month, on-demand event-level calls ONLY
+- Conditions: (a) separate quota tracking, (b) no scheduler polling for props, (c) on-demand only via UI
+- V37 approval on record — proceed in Session 35 per conditions above
+- Implementation: new props fetch function in odds_fetcher.py scoped to single event_id
+- Do NOT add props to scheduler poll loop — quota burn risk
 
-**P2 — Log Bet form fix (sandbox)**
-Fix `pages/04_bet_tracker.py` to pass all 7 analytics params when calling `log_bet()`:
-  - sharp_score, rlm_fired, tags, book, days_to_game, line, signal
-  - All 7 fields have `st.number_input` / `st.text_input` with `help=` tooltips
-  - Backend `log_bet()` already accepts all 7 params (Session 25 migration)
-  - Form inputs exist but are not being passed to log_bet() call — just a wire-up fix
+**P2 — SHARP_THRESHOLD raise gate**
+- Gate: 5 live sessions completed + 20 RLM fires observed
+- Current: 0/5 sessions, 0/20 RLM fires
+- When gate is met: manually change `SHARP_THRESHOLD = 45` → `50` in math_engine.py
+- Do NOT raise early — gate is safety mechanism against calibration on small samples
 
-**P3 — V37 actions (v37 owns these, NOT sandbox work)**
-- V37: Fix originator_engine callers in v36 (use `efficiency_gap_to_margin(gap)` not `bet.line` as mean)
-- V37: Promote nhl_data to v36 (sandbox: core/nhl_data.py → v36: data/nhl_data.py)
-- V37: Add inactivity auto-stop to v36 (same pattern as sandbox — see V37_INBOX.md)
-- V37: B2 gate check on/after 2026-03-04 (check espn_stability.log)
-- V37: Verify HTML escape pattern on any v36 st.html() components with user text
+**P3 — V37 validation**
+- V37 audit of Sessions 33-34 UI work pending (summaries in REVIEW_LOG.md)
+- V37 to confirm canonical line Layer 1 implementation is correct
+- V37 pending (lower priority): originator_engine caller fix + nhl_data promotion
 
-**P4 — Analytics Phase 2 (AFTER 30-bet gate is hit)**
-Unblock after sufficient data:
+**P4 — Analytics Phase 2 (AFTER 10-bet gate is hit)**
+Unblock after 10 resolved bets:
 - Rolling metrics sparklines (upgrade from basic line_chart)
 - Kelly compliance tracker (% of bets near recommended Kelly size)
 - Bet tag-sliced analytics (filter charts by tag)
 
-**P5 — weather_feed promotion (DEFERRED — Aug 2026)**
+**P5 — MLB kill switch (HOLD)**
+Do not implement before Apr 1, 2026. Full kill switch logic deferred to MLB season opener.
+
+**P6 — weather_feed promotion (DEFERRED — Aug 2026)**
 NFL off-season. Do not touch before NFL preseason window.
 
 ---
@@ -471,8 +481,8 @@ NFL off-season. Do not touch before NFL preseason window.
 |-------|----------|-------|
 | `fetch_batch_odds()` returns dict `{sport: [games]}` — don't iterate keys | LOW | When calling manually, use `fetch_batch_odds(['NBA'])['NBA']` to get game list |
 | Playwright browser automation fails when Chrome is running | LOW | Chrome already running → "Opening in existing browser session" → exits. Fix: quit Chrome (Cmd+Q) before Playwright tests |
-| Log Bet form (04_bet_tracker.py) doesn't pass 7 analytics params to log_bet() | MEDIUM | P2 priority. Bets logged via UI have empty sharp_score/tags/book etc. |
 | BILLING_RESERVE=1000 blocks test key (500 credits) on 2nd fetch in same process | LOW | Workaround: run each sport in a separate Python process |
+| ralph-loop plugin: `PROMPT_PARTS[*]: unbound variable` on macOS bash 3.x | UNFIXABLE | Script at `~/.claude/plugins/cache/` — PROHIBITED write path. User must fix or disable ralph-loop manually |
 
 ---
 
@@ -554,6 +564,16 @@ Fonts:        IBM Plex Mono (monospace) + IBM Plex Sans (body) — never substit
 48. fetch_batch_odds() call signature (Session 28): takes friendly sport NAMES ("NBA", "NHL"), NOT raw API keys. Returns dict — iterate with `for sport_name, games in games_dict.items(): for game in games: parse_game_markets(game, sport_name, ...)`. Do NOT pass the full games list to parse_game_markets() — it takes ONE game dict.
 49. Priority order (Session 28, user directive, permanent until resolved): #1 Fix totals consensus bug in parse_game_markets(). #2 UI modernisation (Apple/visionOS aesthetic). #3 Live run. Do not invert this order regardless of temptation to go live first.
 50. Full betting logic audit (Session 29 candidate): User directed: investigate whether the math engine has bloat, hallucinated logic, or broken analysis beyond the totals bug. Run sc:analyze on math_engine.py before any fix. Use sc:spec-panel for multi-expert review of consensus model. Goal: spring clean — remove any logic that can't be proven correct, validate all kill switches, confirm edge detection is sound end-to-end.
+51. Totals canonical line fix (Session 29, SHIPPED): `_canonical_totals_books()` in `parse_game_markets()` computes the modal total line across books, then returns (modal_line, filtered_books). Pass filtered_books to BOTH `consensus_fair_prob()` AND `_best_price_for()` — same scoped set for both calls. Root cause: EDM@ANA Over+Under simultaneously positive EV (mathematically impossible) — both Over 7.0 AND Under 6.5 showed Grade B signal because consensus mixed books quoting different total lines. Fix closes this forever.
+52. Signed RLM drift (Session 29, SHIPPED): `drift = current - open` (NOT `abs(...)`). Positive = line sharpened against bettor (sharp action). Negative = public drift. NEVER use `abs()` on RLM drift — it converts public drift into a false sharp signal. Bug existed since RLM implementation; fixed in Session 29.
+53. Dead code removal pattern (Session 29): `run_nemesis()` was 241 lines, hardcoded constants (0.20/0.25/0.35/0.41), never called, `adjustment` field unused downstream. Rule: if a function's constants can't be explained from first principles → red flag for dead code. Deleted along with `calculate_edge()` and dead Poisson precompute block. Tests −31 (dead tests), +7 (regression tests). Spring clean rule: challenge every constant and every function's call graph before trusting it.
+54. visionOS UI pass (Session 30): pages 01, 04, 07 modernised to Apple/Sequoia aesthetic. Pattern: translucent cards (#1a1d23), amber accent (#f59e0b), IBM Plex fonts, generous whitespace, no spinner fatigue. All new pages via `frontend-design` skill — non-negotiable.
+55. CreditLedger + dynamic daily budget (Session 32): `daily_allowance() = (credits_remaining - BILLING_RESERVE) / days_remaining_in_billing_cycle`. Guard 1 (DAILY_CREDIT_CAP=300) caps usage early when allowance is large (~333 at period start). Guard 4 (daily_allowance) becomes binding late in period as budget tightens. This is correct behaviour — Guards are designed to tighten as billing cycle progresses. x-requests-used header must reset each UTC midnight (ASSUMPTION documented in docstring).
+56. CST/CDT game time display (Session 33): `_game_time_ct()` uses `zoneinfo.ZoneInfo("America/Chicago")` (Python 3.9+ stdlib, zero new dependencies). `dt_ct.tzname()` returns "CST" or "CDT" automatically. Format `%-I:%M %p` gives non-zero-padded hour (Linux strftime). Always `html.escape()` the result before inserting into HTML. Module-level constant: `_CT = ZoneInfo("America/Chicago")`.
+57. Pinnacle always ABSENT for US markets (Session 33): Pinnacle does not accept US customers. The probe widget always showed "NO." Removed from Book Coverage widget. Never add Pinnacle back to US-facing probe logic or book selectboxes. The rename "Pinnacle Probe" → "Book Coverage" better reflects actual purpose (preferred-book hit rate, all books seen, poll frequency).
+58. Plotly legend below x-axis (Session 33): When `add_vline()` annotations occupy the top of a chart, placing `legend(y=1.02)` causes overlap. Fix: `layout["legend"] = dict(yanchor="top", y=-0.22, orientation="h")` with `layout["margin"]["b"] = 70` to give room below x-axis. Always check for vline annotations when positioning legends.
+59. Analytics + calibration gate = 10 bets (Sessions 27 + 33 confirmed): `MIN_RESOLVED=10` in `analytics.py` and `MIN_BETS_FOR_CALIBRATION=10` in `calibration.py`. Stale "30" text appears in: display strings in pages/07_analytics.py (chart placeholder text, docstring), core/calibration.py docstring. After any future gate change: grep for the old number in pages/ and core/ docstrings to find stale display text.
+60. V37 docstring contract (Session 34): V37 Session 32-A audit classified two items as LOW-priority documentation improvements. Pattern: V37 flags → sandbox implements as docstring additions in current or next session. `daily_allowance()` gets ASSUMPTION block (x-requests-used reset behaviour). `is_session_hard_stop()` gets guard-interaction note (Guard 1 vs Guard 4 relationship). This pattern scales: low-severity V37 flags go in docstrings; high-severity flags go in math changes with tests.
 
 ---
 

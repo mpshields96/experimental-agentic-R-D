@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 32 | Last updated: 2026-02-25
+## Version: Session 34 | Last updated: 2026-02-25
 ## For: New agentic R&D chat initialization
 
 ---
@@ -410,9 +410,9 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 
 | Gate | Current State | Action when met |
 |---|---|---|
-| SHARP_THRESHOLD raise | 0/5 live sessions | MANUALLY change 45→50 in math_engine.py after ~5 real live betting sessions |
-| Pinnacle origination | pinnacle_present=False | Add to PREFERRED_BOOKS when consistently True |
-| CLV verdict | 0/30 graded bets | Check clv_summary() verdict |
+| SHARP_THRESHOLD raise | 0/5 live sessions, 0/20 RLM fires | MANUALLY change 45→50 in math_engine.py after gate is met |
+| Pinnacle origination | REMOVED — always ABSENT for US markets | Never add back; Book Coverage widget replaced Pinnacle Probe (Session 33) |
+| CLV verdict | 0/10 graded bets | Check clv_summary() verdict |
 | NHL kill switch | ✅ COMPLETE (Session 13) | nhl_data.py + nhl_kill_switch() + scheduler wired |
 | MLB kill switch | Season gate (Apr 1) | See MASTER_ROADMAP 3B |
 | Tennis kill switch | ✅ COMPLETE (Session 15) | tennis_data.py — ZERO cost. Wire tennis_atp/wta into SPORT_KEYS next. |
@@ -470,6 +470,11 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 47. **Narrative probability constants are cancer** (Session 29 audit): `run_nemesis()` had constants 0.20, 0.25, 0.35, 0.41 with no mathematical derivation, no callers, and `adjustment` field never consumed. Pattern to audit for in future: any function whose probability/weight constants cannot be derived from first-principles math is narrative dressed as math. Delete it. The system's core mandate is Math > Narrative — no exceptions for even well-intentioned heuristic functions.
 48. **SQLite :memory: is per-connection** (Session 32): Each `sqlite3.connect(":memory:")` creates a completely fresh database — data written in one connection is GONE in the next. Fix: store `self._mem_conn = sqlite3.connect(":memory:", check_same_thread=False)` as a persistent instance attribute; init schema once in `__init__`; use `self._mem_conn` for all reads/writes. For file-backed paths, open/close per-call is fine. Pattern: `if self._path == ":memory:": use self._mem_conn; else: with sqlite3.connect(self._path) as conn:`. `CreditLedger` in `core/odds_fetcher.py` is the reference implementation.
 49. **`date` not included in datetime imports** (Session 32): `from datetime import datetime, timezone, timedelta` does NOT import `date`. When adding `Optional[date]` type annotations or `date()` constructor calls, always add `date` to the import explicitly. The `_today: Optional[date] = None` injection pattern is the preferred approach for deterministic date-based tests over `unittest.mock.patch` — consistent with the `_endpoint_factory` pattern in `nba_pdo.py`.
+50. **CST/CDT game time display** (Session 33): `_game_time_ct()` uses `zoneinfo.ZoneInfo("America/Chicago")` (Python 3.9+ stdlib, zero new dependency). `dt_ct.tzname()` returns `"CST"` or `"CDT"` automatically based on DST. Format `%-I:%M %p` = non-zero-padded 12hr + AM/PM. Module-level constant: `_CT = ZoneInfo("America/Chicago")`. Always `html.escape()` the result before inserting into card HTML.
+51. **Pinnacle always ABSENT for US markets** (Session 33): Pinnacle does not accept US customers. The Book Coverage widget previously showed "Pinnacle: NO" every time — removed as noise. Never add Pinnacle back to book selectboxes or probe logic. Widget renamed "Book Coverage" — now shows preferred-book hit rate, books seen, poll count.
+52. **Plotly legend overlaps with add_vline annotations** (Session 33): Setting `legend(y=1.02, yanchor="bottom")` at chart top collides with `add_vline()` annotation labels. Fix: `layout["legend"] = dict(yanchor="top", y=-0.22, orientation="h")` with `layout["margin"]["b"] = 70`. Always check for vlines when positioning legends.
+53. **Stale gate text after threshold changes** (Sessions 27 + 33): When MIN_RESOLVED or similar constants change in core, grep pages/ and docstrings for the old integer. Pattern: `grep -rn "30 resolved\|30 graded\|N<30" pages/ core/`. Core constants are correct; display text and docstrings lag. Session 33 found stale "30" in pages/07_analytics.py and core/calibration.py.
+54. **V37 audit severity → response protocol** (Session 34): LOW-severity V37 flags → docstring additions only, no code change. MEDIUM/HIGH → code fix with new tests. `daily_allowance()` ASSUMPTION block + `is_session_hard_stop()` guard-interaction note were LOW items — both added as inline docstring sections, batched with other session work.
 
 ---
 
@@ -505,27 +510,29 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 32 — 2026-02-25)
+## 🚦 CURRENT PROJECT STATE (as of Session 34 — 2026-02-25)
 
 ```
 Test suite:   1106/1106 passing ✅
-Last commit:  246168c (Session 32: daily credit budget system) — PUSHED ✅
+Last commit:  3d751c1 (Session 34 cont: docstrings + REVIEW_LOG) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App:          LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
 App port:     8504 | launch: ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
 
-✅ SESSIONS 29-32 COMPLETE:
+✅ SESSIONS 29-34 COMPLETE:
   Session 29: totals canonical line fix, RLM direction fix, dead code audit (1103→1079)
   Session 30: visionOS UI pass (pages 01, 04, 07), PRECONDITION docstrings, SQLite MCP
   Session 31: Streamlit Cloud deploy (titaniumv37agentic.streamlit.app), DB init fix
   Session 32: Dynamic daily credit budget (CreditLedger, daily_allowance, daily guards) (+27 tests)
+  Session 33: CST game times on bet cards, Pinnacle→Book Coverage, collar map legend, guide rewrite
+  Session 34: Stale 30-bet refs fixed → 10, KPI label polish, V37 docstrings, REVIEW_LOG updated
 
-📋 SESSION 33 PRIORITY ORDER:
-  #1 CST game times on bet cards (commence_time already in BetCandidate, not yet rendered)
-  #2 Pinnacle probe widget removal (always ABSENT for US markets — confusing noise)
-  #3 Collar map legend overlap fix (R&D output page CSS bug)
-  #4 Guide page Steps 1-7 rewrite (reflect agentic Claude-in-the-loop workflow)
-  #5 Live run + analytics unlock (4 bets logged, 0 resolved; gate = 10)
+📋 SESSION 35 PRIORITY ORDER:
+  #1 Live run: grade/log 6 more resolved bets to unlock analytics gate (need 10 resolved)
+  #2 Player props (V37 APPROVED): separate quota, on-demand event-level only, no scheduler
+  #3 SHARP_THRESHOLD gate: 5 live sessions + 20 RLM fires (currently 0/5, 0/20)
+  #4 V37 validation: Sessions 33-34 summaries in REVIEW_LOG.md await V37 audit
+  #5 MLB kill switch: HOLD until Apr 1, 2026
 
 LIVE BET STATUS (4 logged, 0 resolved — analytics locked until 10 resolved):
   id=1: OKC -7.5 @ -115 | id=2: CLE -17.5 @ +120
@@ -537,14 +544,13 @@ GRADE TIER:
 
 CREDIT LIMITS:
   DAILY=300 | SESSION_SOFT=120 | SESSION_HARD=200 | BILLING_RESERVE=150
-  DAILY BUDGET (Session 32): SUBSCRIPTION_CREDITS=20,000 | BILLING_DAY=1
   daily_allowance() = 10,000 // days_until_billing (recalculated per update() call)
   is_daily_soft_limit() ≥80% | is_daily_hard_stop() ≥100% (4th guard in is_session_hard_stop)
   CreditLedger: data/credit_log.db | :memory: uses persistent _mem_conn (see lesson 48)
   Full 12-sport scan ≈ 15-20 credits. Key: env var ODDS_API_KEY (rotate after use).
 
 SYSTEM GATES:
-  Analytics: 0/10 resolved bets (was 30, lowered Session 27)
+  Analytics: 0/10 resolved bets (gate lowered from 30 in Session 27)
   RLM fires: 0/20 → do NOT raise SHARP_THRESHOLD (currently 45)
   MLB: HOLD until Apr 1, 2026
 ```
@@ -563,4 +569,4 @@ SYSTEM GATES:
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 32, 2026-02-25*
+*Last updated: Session 34, 2026-02-25*
