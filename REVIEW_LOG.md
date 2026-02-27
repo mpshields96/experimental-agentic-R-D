@@ -76,6 +76,17 @@
 
 ---
 
+### SANDBOX SESSION 38 SUMMARY — 2026-02-26
+**Built:** result_resolver.py — 3 live-run bug fixes + 9 regression tests
+- Bug 1 (date offset): range(-1, _DATE_SEARCH_WINDOW+1) — US evening games logged after midnight UTC were off-by-1 day. Fix: also search logged_at-1 day.
+- Bug 2 (NCAAB groups): ESPN NCAAB default returns ~10 featured games. Fix: _ESPN_EXTRA_PARAMS adds groups=50&limit=200 for NCAAB, groups=80&limit=200 for NCAAF.
+- Bug 3 (abbreviation): _team_matches now expands \bst\b→state in fragment only (Odds API uses "Colorado St", ESPN has "Colorado State"). Prevents "St. Louis" corruption (ESPN name unchanged).
+- Live result: 4/4 pending paper bets resolved. OKC Thunder -7.5 WIN (+$43.48), CLE Cavaliers -17.5 LOSS ($0), UIC Flames ML WIN (+$18.66), Colorado St ML WIN (+$35.75). Paper profit: $97.88.
+**Tests:** 1235 -> 1244 (+9) — all pass
+**Architectural decisions:** _ESPN_EXTRA_PARAMS dict pattern established — sport-specific URL parameters for scoreboard endpoints. Abbreviation expansion isolated to fragment side only.
+**Gates changed:** 4/10 resolved bets (was 0/10). Analytics gate now 40% complete.
+**Flags for reviewer:** 3 bugs found in first live run — all fixed with regression tests. Requesting V37 review of result_resolver.py bug fixes (no math changes, resolver logic only).
+
 ### SANDBOX SESSION 37 CONT. C SUMMARY — 2026-02-26
 **Built:** V37 Session 38A directive — days_to_game fix + paper bet logging tests
 - pages/01_live_lines.py: Added _days_until_game(commence_time: str) -> float helper. Fixed _log_paper_bet(): days_to_game was float(bet.rest_days or 0) (wrong — rest_days = NBA rest days since last game). Now: days_to_game=_days_until_game(bet.commence_time) — derives from ISO 8601 UTC game start time.

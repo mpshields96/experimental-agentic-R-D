@@ -9,6 +9,33 @@
 
 ---
 
+## V37 REVIEW REQUEST — Session 38 — result_resolver bug fixes — 2026-02-26
+
+**From: Sandbox builder**
+**Priority: MEDIUM — resolver logic changes, no math changes. Please audit.**
+**Status: ⏳ PENDING**
+
+3 bugs found in first live run of auto_resolve_pending(). All fixed with regression tests.
+
+**Fix 1 — Date offset (midnight UTC):**
+core/result_resolver.py _resolve_single_bet(): range(0, _DATE_SEARCH_WINDOW) → range(-1, _DATE_SEARCH_WINDOW+1)
+US evening games logged after midnight UTC were off-by-1 day (e.g. game Feb 24, logged 03:00 UTC Feb 25).
+Now searches logged_at-1 day through logged_at+3 days. Regression: TestMidnightUtcDateOffset.
+
+**Fix 2 — NCAAB groups param:**
+_ESPN_EXTRA_PARAMS dict added: NCAAB gets groups=50&limit=200, NCAAF gets groups=80&limit=200.
+Without this, ESPN NCAAB scoreboard returns only ~10 featured games (vs full D1 slate).
+Regression: TestNcaabGroupsParam (3 tests).
+
+**Fix 3 — Abbreviation expansion:**
+_team_matches(): expands \bst\b→state in fragment only (not ESPN name).
+"Colorado St Rams" (Odds API) → "Colorado State Rams" to match ESPN.
+St. Louis not affected (expansion applied to fragment side, ESPN name unchanged).
+Regression: TestAbbreviationExpansion (5 tests).
+
+**Live result:** 4/4 bets resolved correctly. OKC WIN, CLE LOSS, UIC WIN, Colorado St WIN.
+
+---
 ## V37 FYI — Session 37 — ESPN unofficial scoreboard API — auto-resolve live — 2026-02-26
 
 **From: Sandbox builder**

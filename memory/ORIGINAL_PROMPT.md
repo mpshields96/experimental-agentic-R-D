@@ -7,8 +7,8 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 37 — 2026-02-26
-# Session work: (1) Paper bet one-click logging + _days_until_game fix (V37 38A); (2) core/result_resolver.py ESPN auto-resolver + 62 tests; (3) 04_bet_tracker Auto-Resolve button; (4) tests/test_paper_bet_logging.py 11 tests. +73 tests → 1235.
+# Last updated: Session 38 — 2026-02-26
+# Session work S37: paper bet logging + result_resolver ESPN + V37 38A fix. S38: result_resolver 3 live-run bug fixes (date offset, NCAAB groups, St→State) + 4/4 bets auto-resolved. Tests 1235→1244.
 # Priority reset: #1 Auto-resolve pending bets (4 logged, 0 resolved — use new Auto-Resolve button), #2 Live run to gate analytics, #3 Activate ODDS_API_KEY_PROPS
 # Maintained by: sandbox builder chat
 
@@ -190,9 +190,10 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1235 / 1235 passing ✅
+Tests:    1244 / 1244 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commits (11 local, NOT YET PUSHED):
+Latest commits (12 local, NOT YET PUSHED):
+  - 2c8f38d — Session 38: result_resolver 3 bug fixes + 9 regression tests (1244 tests)
   - 477926c — Session 37: V37 38A — days_to_game fix + paper bet logging tests (1235 tests)
   - 5ededf1 — Session 37: paper bet auto-resolver + 04_bet_tracker integration (1224 tests)
   - 2290a2e — Session 37: paper bet one-click logging on all bet cards (1162 tests)
@@ -242,14 +243,14 @@ Already pushed:
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
 📋 PRIORITY ORDER (Session 38):
-  #1 — Auto-resolve the 4 pending paper bets: click Auto-Resolve on 04_bet_tracker.py Pending Bets panel (ESPN pulls completed game scores automatically)
-  #2 — Live run: log more bets to hit analytics gate (goal 10 resolved; currently 4 logged, 0 resolved)
+  #1 — DONE (Session 38): 4 bets auto-resolved. OKC WIN, CLE LOSS, UIC WIN, Colorado St WIN. $97.88 paper profit.
+  #1 — Live run: log more bets. GOAL 10 resolved (currently 4/10). Log 6 more and resolve them to unlock analytics.
   #3 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met; user sets env var ODDS_API_KEY_PROPS)
   #4 — SHARP_THRESHOLD raise gate: 45->50 (gate: 5 live sessions + 20 RLM fires)
   #5 — MLB kill switch (HOLD — Apr 1, 2026)
-  #6 — Push all 11 local commits to origin
+  #6 — Push all 12 local commits to origin (last pushed: 3d751c1)
 
-Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)
+Bets: 4 logged, 4 resolved. Paper profit: $97.88 (3W-1L). Need 6 more to unlock analytics (gate=10).
 Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 remaining (floor=150).
   User willing to upgrade to $50/month ONLY if objectively superior + fully meets requirements.
 ```
@@ -375,8 +376,8 @@ EDGE TIER LABELS (for display in export_bets.py and future UI):
 | Gate | Status | Action when met |
 |------|--------|-----------------|
 | SHARP_THRESHOLD raise | 0/5 live sessions, 0/20 RLM fires | Manually change 45→50 in math_engine.py |
-| Calibration activation | 0/10 graded bets (4 logged, 0 resolved — auto-resolve ready) | calibration.py auto-activates at 10 |
-| Analytics unlock | 0/10 graded bets | pages/07_analytics.py removes sample guard |
+| Calibration activation | 4/10 graded bets (4 resolved: OKC WIN, CLE LOSS, UIC WIN, Colorado St WIN) | calibration.py auto-activates at 10 |
+| Analytics unlock | 4/10 graded bets — need 6 more | pages/07_analytics.py removes sample guard |
 | CLV verdict | 0/10 graded bets | Check clv_summary() verdict |
 | MLB kill switch | Season gate (Apr 1) | Don't touch before Apr 1, 2026 |
 | Pinnacle presence | REMOVED — always ABSENT for US markets | Never add back; widget renamed to Book Coverage |
