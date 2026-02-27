@@ -94,7 +94,7 @@ def _init_scheduler() -> None:
     try:
         from core.scheduler import start_scheduler
         db_path = str(ROOT / "data" / "line_history.db")
-        start_scheduler(db_path=db_path, poll_interval_minutes=5)
+        start_scheduler(db_path=db_path, poll_interval_minutes=30)
         st.session_state["scheduler_started"] = True
         logger.info("Scheduler initialized from app.py")
     except Exception as exc:  # noqa: BLE001
@@ -276,7 +276,7 @@ with st.sidebar:
                     ">{label}</span>
                 </div>
                 <div style="font-size:0.65rem; color:#6b7280; line-height:1.6;">
-                    <div>Polls: every 5 min</div>
+                    <div>Polls: every 30 min</div>
                     <div>Last: {poll_str}</div>
                     {f'<div>{idle_str}</div>' if idle_str else ''}
                     {f'<div style="color:#ef4444;">{err_str}</div>' if err_count else ''}
