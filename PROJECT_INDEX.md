@@ -1,13 +1,13 @@
 # Project Index: Titanium-Agentic Sandbox
 
-Generated: 2026-02-25 (Session 32) | Tests: 1106/1106 ✅ | Last commit: 246168c (PUSHED) | Live: titaniumv37agentic.streamlit.app
+Generated: 2026-02-26 (Session 35) | Tests: 1154/1154 ✅ | Last commit: 9252e8f (PUSHED) | Live: titaniumv37agentic.streamlit.app
 
 **Read this file at session start instead of scanning the full codebase. ~94% token reduction.**
 See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for history.
 
 ---
 
-## ✅ SESSIONS 29-32 COMPLETE — LIVE ON STREAMLIT CLOUD
+## ✅ SESSIONS 29-35 COMPLETE — LIVE ON STREAMLIT CLOUD
 
 **Session 29:** Totals consensus bug FIXED (`_canonical_totals_books()`). RLM signed drift FIXED. Dead code removed (run_nemesis 241L, calculate_edge). Test count: 1103 → 1079.
 
@@ -17,15 +17,16 @@ See CLAUDE.md for rules, MASTER_ROADMAP.md for task backlog, SESSION_LOG.md for 
 
 **Session 32:** Dynamic daily credit budget system. `CreditLedger` (SQLite), `daily_allowance()`, `is_daily_soft_limit()`, `is_daily_hard_stop()` added to `QuotaTracker`. BILLING_DAY=1, 50% budget fraction, 4th guard in `is_session_hard_stop()`. Test count: 1079 → 1106.
 
+**Session 35:** Player props feature. `PropsQuotaTracker` + `fetch_props_for_event()` + `PROP_MARKETS` in `odds_fetcher.py`. `PropCandidate` + `parse_props_candidates()` in `math_engine.py` (canonical line pinning, no-vig consensus, edge/grade). `pages/08_player_props.py` — on-demand UI with edge+grade cards. Test count: 1106 → 1154 (+27 odds_fetcher, +21 math_engine).
+
 ---
 
-## 📋 Priority Order (Session 33)
+## 📋 Priority Order (Session 36)
 
-**#1 — CST game times** on bet cards (`commence_time` already in BetCandidate, not yet rendered)
-**#2 — Pinnacle probe widget** — remove or replace (always ABSENT for US markets, confusing noise)
-**#3 — Collar map legend overlap** fix (R&D output page CSS bug)
-**#4 — Guide page rewrite** Steps 1-7 → agentic Claude-in-the-loop workflow
-**#5 — Live run + analytics unlock** (4 bets logged, 0 resolved; need 6 more resolved for gate=10)
+**#1 — V37 ruling needed** on props file placement (odds_fetcher.py vs props_fetcher.py), daily credit log, 422 no-retry
+**#2 — Live run + analytics unlock** (4 bets logged, 0 resolved; need 6 more resolved for gate=10)
+**#3 — Props live test** — use page 08 with a real NBA event_id to validate end-to-end
+**#4 — SHARP_THRESHOLD raise** — hold until 5 live sessions + 20 RLM fires
 
 ---
 
@@ -225,15 +226,15 @@ get_calibration_report(db_path) -> CalibrationReport  # Brier, ROC-AUC, edge acc
 
 | Module | Tests | Module | Tests |
 |--------|-------|--------|-------|
-| math_engine | 225 | calibration | 46 |
+| math_engine | 246 | calibration | 46 |
 | tennis_data | 96 | scheduler | 40 |
 | king_of_the_court | 74 | probe_logger | 36 |
 | nba_pdo | 66 | price_history_store | 36 |
 | originator_engine | 62 | line_logger | 35 |
 | injury_data | 59 | nhl_data | 34 |
-| odds_fetcher | 78 | weather_feed | 24 |
+| odds_fetcher | 105 | weather_feed | 24 |
 | efficiency_feed | 51 | | |
-| analytics | 51 | **TOTAL** | **1106** |
+| analytics | 51 | **TOTAL** | **1154** |
 | parlay_builder | 47 | | |
 | clv_tracker | 46 | | |
 

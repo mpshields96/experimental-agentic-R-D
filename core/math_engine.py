@@ -1695,3 +1695,234 @@ def parse_game_markets(
                 c.kill_reason = reason
 
     return candidates
+
+
+# ---------------------------------------------------------------------------
+# Player props — PropCandidate + parse_props_candidates() (Session 35)
+#
+# Math model (V37 spec): same consensus approach as game lines.
+#   - no_vig_probability() per book for each player + market + line
+#   - Modal line pinning: only books quoting the same line contribute to consensus
+#     (same principle as _canonical_totals_books in parse_game_markets)
+#   - Edge = consensus_prob - implied(best_price)
+#   - Collar: COLLAR_MIN/COLLAR_MAX — props are binary O/U (not 3-way)
+#   - Grade: same thresholds as BetCandidate (A/B/C/NEAR_MISS)
+#
+# Props raw data format (Odds API event endpoint):
+#   event["bookmakers"][i]["markets"][j]["outcomes"] = list of:
+#   {"name": "Over"|"Under", "description": "Player Name", "price": int, "point": float}
+#   All players share the same market list entry — must group by (description, point).
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PropCandidate:
+    """A single player prop candidate with edge and grade signal.
+
+    Produced by parse_props_candidates() from raw Odds API event props data.
+    """
+
+    player: str           # "LeBron James"
+    market_key: str       # "player_points"
+    market_label: str     # "PTS" (display label)
+    line: float           # 24.5
+    direction: str        # "Over" or "Under"
+    price: int            # Best available american odds
+    best_book: str        # Book key with best price
+    win_prob: float       # Consensus fair probability
+    market_implied: float # Implied probability of best_price (vig-inclusive)
+    edge_pct: float       # win_prob - market_implied
+    n_books: int          # Number of books in consensus
+    grade: str = ""       # A / B / C / NEAR_MISS / BELOW_MIN
+
+
+_PROP_MARKET_LABELS: dict[str, str] = {
+    "player_points": "PTS",
+    "player_rebounds": "REB",
+    "player_assists": "AST",
+    "player_threes": "3PM",
+    "player_blocks": "BLK",
+    "player_steals": "STL",
+    "player_points_rebounds_assists": "PRA",
+    "player_points_rebounds": "P+R",
+    "player_points_assists": "P+A",
+    "player_pass_tds": "PASS TD",
+    "player_pass_yds": "PASS YD",
+    "player_rush_yds": "RUSH YD",
+    "player_receptions": "REC",
+    "player_reception_yds": "REC YD",
+}
+
+
+def _prop_grade(edge_pct: float) -> str:
+    """Assign grade tier to a player prop candidate.
+
+    Uses same thresholds as assign_grade() for BetCandidate.
+    """
+    if edge_pct >= MIN_EDGE:
+        return "A"
+    elif edge_pct >= GRADE_B_MIN_EDGE:
+        return "B"
+    elif edge_pct >= GRADE_C_MIN_EDGE:
+        return "C"
+    elif edge_pct >= NEAR_MISS_MIN_EDGE:
+        return "NEAR_MISS"
+    else:
+        return "BELOW_MIN"
+
+
+def parse_props_candidates(
+    event_data: dict,
+    min_edge: float = NEAR_MISS_MIN_EDGE,
+    min_books: int = MIN_BOOKS,
+) -> list[PropCandidate]:
+    """Parse raw Odds API event props response into PropCandidate list with edge signal.
+
+    PRECONDITION: event_data must be the dict returned by fetch_props_for_event() —
+                  the event-level Odds API response with bookmakers → markets → outcomes.
+    PRECONDITION: min_books ≥ 2 (single-book consensus is not meaningful).
+    POSTCONDITION: Returns only candidates where edge_pct ≥ min_edge AND n_books ≥ min_books.
+                   Candidates are sorted by edge_pct descending.
+
+    Line pinning (canonical line rule):
+        When different books quote different lines for the same player+market
+        (e.g. DK: LeBron PTS 24.5, FD: LeBron PTS 25.5), only books quoting
+        the MODAL (most common) line are included in consensus. This prevents
+        cross-line false edge — same principle as _canonical_totals_books().
+
+    Collar:
+        Both Over and Under prices must pass passes_collar() (COLLAR_MIN/COLLAR_MAX).
+        Props are binary O/U markets — standard collar applies. No soccer expansion.
+
+    Args:
+        event_data: Raw event dict from fetch_props_for_event(). {} produces [].
+        min_edge:   Minimum edge threshold. Default NEAR_MISS_MIN_EDGE (-1%) to
+                    return all grade tiers for display.
+        min_books:  Minimum consensus book count. Default MIN_BOOKS (2).
+
+    Returns:
+        List of PropCandidate sorted by edge_pct descending.
+        Empty list if event_data is empty or no candidates meet thresholds.
+    """
+    if not event_data:
+        return []
+
+    # Step 1: Collect (player, market_key, point, over_price, under_price, book_key)
+    # per book. Props outcomes mix all players in one market — must group by description.
+    #
+    # Structure: raw_pairs[(player, market_key, point)] = [(over_price, under_price, book_key)]
+    from collections import defaultdict, Counter
+
+    raw_pairs: dict[tuple, list[tuple]] = defaultdict(list)
+
+    for bk in event_data.get("bookmakers", []):
+        book_key = bk.get("key", "?")
+        for mkt in bk.get("markets", []):
+            mkt_key = mkt.get("key", "")
+            if not mkt_key.startswith("player_"):
+                continue
+
+            # Group outcomes by (description, point) within this book+market
+            outcome_map: dict[tuple, dict[str, int]] = defaultdict(dict)
+            for outcome in mkt.get("outcomes", []):
+                player_name = outcome.get("description", "").strip()
+                direction = outcome.get("name", "")  # "Over" or "Under"
+                price = outcome.get("price")
+                point = outcome.get("point")
+                if player_name and direction in ("Over", "Under") and price is not None and point is not None:
+                    outcome_map[(player_name, point)][direction] = price
+
+            # Only include pairs where BOTH Over and Under are present at same line
+            for (player_name, point), sides in outcome_map.items():
+                if "Over" in sides and "Under" in sides:
+                    raw_pairs[(player_name, mkt_key, point)].append(
+                        (sides["Over"], sides["Under"], book_key)
+                    )
+
+    # Step 2: For each (player, market_key), find the modal line (canonical line pinning)
+    # Group all (point, data) by (player, market_key)
+    player_market_lines: dict[tuple, dict[float, list]] = defaultdict(lambda: defaultdict(list))
+    for (player, mkt_key, point), entries in raw_pairs.items():
+        player_market_lines[(player, mkt_key)][point].extend(entries)
+
+    candidates: list[PropCandidate] = []
+
+    # Step 3: For each (player, market_key), pin to modal line, compute consensus + edge
+    for (player, mkt_key), line_groups in player_market_lines.items():
+        # Find modal line (most books quote this line)
+        book_counts = {pt: len(entries) for pt, entries in line_groups.items()}
+        canonical_line = max(book_counts, key=book_counts.get)
+        entries_at_line = line_groups[canonical_line]  # [(over_price, under_price, book_key)]
+
+        if len(entries_at_line) < min_books:
+            continue
+
+        # Step 4: Compute vig-free consensus probability using no_vig_probability()
+        over_fair_probs: list[float] = []
+        for (over_price, under_price, _) in entries_at_line:
+            if not (passes_collar(over_price) and passes_collar(under_price)):
+                continue
+            try:
+                over_fp, _ = no_vig_probability(over_price, under_price)
+                over_fair_probs.append(over_fp)
+            except (ZeroDivisionError, ValueError):
+                continue
+
+        if len(over_fair_probs) < min_books:
+            continue
+
+        consensus_over = sum(over_fair_probs) / len(over_fair_probs)
+        consensus_under = 1.0 - consensus_over
+
+        # Step 5: Find best available price for each direction at canonical line
+        best_over_price = max(
+            (ep[0] for ep in entries_at_line if passes_collar(ep[0])),
+            default=None,
+        )
+        best_under_price = max(
+            (ep[1] for ep in entries_at_line if passes_collar(ep[1])),
+            default=None,
+        )
+        best_over_book = next(
+            (ep[2] for ep in entries_at_line if ep[0] == best_over_price),
+            "?",
+        ) if best_over_price is not None else "?"
+        best_under_book = next(
+            (ep[2] for ep in entries_at_line if ep[1] == best_under_price),
+            "?",
+        ) if best_under_price is not None else "?"
+
+        mkt_label = _PROP_MARKET_LABELS.get(mkt_key, mkt_key.replace("player_", "").upper())
+        n = len(over_fair_probs)
+
+        # Step 6: Compute edge for each direction and build PropCandidates
+        for direction, consensus_prob, best_price, best_book in (
+            ("Over", consensus_over, best_over_price, best_over_book),
+            ("Under", consensus_under, best_under_price, best_under_book),
+        ):
+            if best_price is None:
+                continue
+            market_implied = implied_probability(best_price)
+            edge = consensus_prob - market_implied
+
+            if edge < min_edge:
+                continue
+
+            grade = _prop_grade(edge)
+            candidates.append(PropCandidate(
+                player=player,
+                market_key=mkt_key,
+                market_label=mkt_label,
+                line=canonical_line,
+                direction=direction,
+                price=best_price,
+                best_book=best_book,
+                win_prob=round(consensus_prob, 4),
+                market_implied=round(market_implied, 4),
+                edge_pct=round(edge, 4),
+                n_books=n,
+                grade=grade,
+            ))
+
+    candidates.sort(key=lambda c: -c.edge_pct)
+    return candidates

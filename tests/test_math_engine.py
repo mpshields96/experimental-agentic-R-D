@@ -48,6 +48,8 @@ from core.math_engine import (
     BetCandidate,
     parse_game_markets,
     assign_grade,
+    PropCandidate,
+    parse_props_candidates,
     COLLAR_MIN,
     COLLAR_MAX,
     COLLAR_MIN_SOCCER,
@@ -2249,6 +2251,219 @@ class TestRLMDirectionFix:
         assert drift_up > 0, f"Price worsening must give positive drift, got {drift_up}"
         assert drift_down < 0, f"Price improvement must give negative drift, got {drift_down}"
         assert drift_up > drift_down, "Positive drift must exceed negative drift"
+
+
+# ---------------------------------------------------------------------------
+# PropCandidate + parse_props_candidates (Props Math Layer)
+# ---------------------------------------------------------------------------
+
+def _make_props_event(
+    player: str = "LeBron James",
+    market_key: str = "player_points",
+    line: float = 24.5,
+    books: list | None = None,
+) -> dict:
+    """Build a minimal Odds API event dict for props tests.
+
+    Default 3-book setup (2 sharp + 1 soft) creates genuine edge:
+      sharp1: Over -170 / Under +135
+      sharp2: Over -165 / Under +130
+      soft:   Over -105 / Under -115
+
+    consensus_over ≈ 0.558  best_over=-105  implied≈0.512  edge≈+4.6% (A)
+    consensus_under ≈ 0.442 best_under=+135 implied≈0.426  edge≈+1.6% (B)
+    """
+    if books is None:
+        books = [
+            {"key": "sharp1", "over": -170, "under": 135},
+            {"key": "sharp2", "over": -165, "under": 130},
+            {"key": "soft",   "over": -105, "under": -115},
+        ]
+    return {
+        "id": "test_event_01",
+        "home_team": "Lakers",
+        "away_team": "Celtics",
+        "bookmakers": [
+            {
+                "key": b["key"],
+                "markets": [
+                    {
+                        "key": market_key,
+                        "outcomes": [
+                            {
+                                "description": player,
+                                "name": "Over",
+                                "price": b["over"],
+                                "point": line,
+                            },
+                            {
+                                "description": player,
+                                "name": "Under",
+                                "price": b["under"],
+                                "point": line,
+                            },
+                        ],
+                    }
+                ],
+            }
+            for b in books
+        ],
+    }
+
+
+class TestParsePropsCandiates:
+    """Tests for parse_props_candidates() and PropCandidate dataclass."""
+
+    # --- Input edge cases ---
+
+    def test_empty_event_returns_empty(self):
+        assert parse_props_candidates({}) == []
+
+    def test_no_bookmakers_returns_empty(self):
+        assert parse_props_candidates({"bookmakers": []}) == []
+
+    def test_single_book_below_min_books_filtered(self):
+        event = _make_props_event(books=[{"key": "dk", "over": -110, "under": -110}])
+        assert parse_props_candidates(event, min_books=2) == []
+
+    def test_min_books_one_allows_single_book_no_edge(self):
+        # With 1 book, consensus = fair_prob of that book → edge = 0 (no vig removed edge)
+        # Still filtered because edge will be 0 (fair - implied = 0)
+        event = _make_props_event(books=[{"key": "dk", "over": -110, "under": -110}])
+        result = parse_props_candidates(event, min_books=1)
+        # edge = 0.0 < NEAR_MISS_MIN_EDGE (-0.01)? No — 0.0 > -0.01 → passes filter
+        # But no_vig_probability(-110,-110) gives 0.5 each; implied(-110)=0.5238; edge=-0.0238
+        # Wait: with 1 book consensus = no_vig = 0.5; best_over=-110; implied=0.5238
+        # edge = 0.5 - 0.5238 = -0.0238 < NEAR_MISS_MIN_EDGE (-0.01) → filtered
+        assert result == []
+
+    # --- Basic successful parse ---
+
+    def test_returns_prop_candidates(self):
+        result = parse_props_candidates(_make_props_event())
+        assert len(result) > 0
+        assert all(isinstance(c, PropCandidate) for c in result)
+
+    def test_player_name_set_correctly(self):
+        result = parse_props_candidates(_make_props_event(player="Jayson Tatum"))
+        assert all(c.player == "Jayson Tatum" for c in result)
+
+    def test_market_key_set_correctly(self):
+        result = parse_props_candidates(_make_props_event(market_key="player_rebounds"))
+        assert all(c.market_key == "player_rebounds" for c in result)
+
+    def test_market_label_pts(self):
+        result = parse_props_candidates(_make_props_event(market_key="player_points"))
+        assert all(c.market_label == "PTS" for c in result)
+
+    def test_market_label_reb(self):
+        result = parse_props_candidates(_make_props_event(market_key="player_rebounds"))
+        assert all(c.market_label == "REB" for c in result)
+
+    def test_market_label_unknown_fallback(self):
+        # Unknown market key → strip "player_" prefix and uppercase
+        result = parse_props_candidates(_make_props_event(market_key="player_custom_stat"))
+        assert all(c.market_label == "CUSTOM_STAT" for c in result)
+
+    # --- Edge and grade computation ---
+
+    def test_over_edge_positive(self):
+        """3-book setup: 2 sharp + 1 soft → Over has significant positive edge."""
+        result = parse_props_candidates(_make_props_event())
+        over_candidates = [c for c in result if c.direction == "Over"]
+        assert len(over_candidates) >= 1
+        assert over_candidates[0].edge_pct > 0
+
+    def test_over_grade_a(self):
+        """3-book setup produces A-grade Over candidate (edge ≈ 4.6%)."""
+        result = parse_props_candidates(_make_props_event())
+        over_candidates = [c for c in result if c.direction == "Over"]
+        assert over_candidates[0].grade == "A"
+
+    def test_no_edge_filtered_by_default(self):
+        """3 books all -110/-110: both sides produce edge ≈ -2.4%, below NEAR_MISS threshold."""
+        flat_books = [{"key": f"bk{i}", "over": -110, "under": -110} for i in range(3)]
+        result = parse_props_candidates(_make_props_event(books=flat_books))
+        assert result == []
+
+    def test_min_edge_param_a_only(self):
+        """min_edge=MIN_EDGE should return only A-grade candidates."""
+        result = parse_props_candidates(_make_props_event(), min_edge=MIN_EDGE)
+        assert len(result) > 0
+        assert all(c.edge_pct >= MIN_EDGE for c in result)
+
+    def test_sorted_descending_by_edge(self):
+        """Output is sorted by edge_pct descending."""
+        result = parse_props_candidates(_make_props_event())
+        edges = [c.edge_pct for c in result]
+        assert edges == sorted(edges, reverse=True)
+
+    # --- Structural correctness ---
+
+    def test_n_books_correct(self):
+        """n_books reflects the number of books that passed collar at the canonical line."""
+        result = parse_props_candidates(_make_props_event())  # 3-book setup
+        assert all(c.n_books == 3 for c in result)
+
+    def test_line_value_correct(self):
+        result = parse_props_candidates(_make_props_event(line=28.5))
+        assert all(c.line == 28.5 for c in result)
+
+    def test_canonical_line_pinning(self):
+        """2 books at 24.5, 1 book at 25.5 → all candidates use modal line 24.5."""
+        event = _make_props_event(books=[
+            {"key": "sharp1", "over": -170, "under": 135},
+            {"key": "sharp2", "over": -165, "under": 130},
+        ])
+        # Inject minority-line bookmaker
+        event["bookmakers"].append({
+            "key": "outlier",
+            "markets": [{
+                "key": "player_points",
+                "outcomes": [
+                    {"description": "LeBron James", "name": "Over",  "price": -120, "point": 25.5},
+                    {"description": "LeBron James", "name": "Under", "price": -110, "point": 25.5},
+                ],
+            }],
+        })
+        result = parse_props_candidates(event, min_books=2)
+        # Canonical = 24.5 (2 books) — outlier's 25.5 excluded
+        assert all(c.line == 24.5 for c in result)
+
+    def test_collar_filters_extreme_price(self):
+        """Books with prices outside COLLAR_MIN/MAX are excluded from consensus."""
+        # over=-200 < COLLAR_MIN(-180) and under=+200 > COLLAR_MAX(150) → book skipped
+        books = [
+            {"key": "extreme", "over": -200, "under": 200},   # both out of collar
+            {"key": "sharp1",  "over": -170, "under": 135},
+            {"key": "soft",    "over": -105, "under": -115},
+        ]
+        result = parse_props_candidates(_make_props_event(books=books), min_books=2)
+        # extreme book skipped → 2 valid books remain, should still produce candidates
+        assert len(result) > 0
+        assert all(c.n_books == 2 for c in result)
+
+    def test_both_directions_can_appear(self):
+        """Both Over and Under candidates can be present in results."""
+        result = parse_props_candidates(_make_props_event())
+        directions = {c.direction for c in result}
+        assert "Over" in directions
+        assert "Under" in directions
+
+    def test_multiple_players_parsed(self):
+        """Multiple players in the same event are parsed independently."""
+        event = _make_props_event()
+        # Append Anthony Davis to all 3 bookmaker markets at same line
+        prices = [(-160, 130), (-155, 125), (-110, -110)]
+        for bk, (over_p, under_p) in zip(event["bookmakers"], prices):
+            bk["markets"][0]["outcomes"].extend([
+                {"description": "Anthony Davis", "name": "Over",  "price": over_p, "point": 19.5},
+                {"description": "Anthony Davis", "name": "Under", "price": under_p, "point": 19.5},
+            ])
+        result = parse_props_candidates(event)
+        players = {c.player for c in result}
+        assert "LeBron James" in players
+        assert "Anthony Davis" in players
 
 
 # ---------------------------------------------------------------------------

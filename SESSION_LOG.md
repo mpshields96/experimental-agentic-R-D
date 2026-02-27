@@ -2,6 +2,32 @@
 
 ---
 
+## Session 35 — 2026-02-26
+
+### Objective
+Player props feature — end-to-end: API fetch, math layer, UI with edge + grade display.
+
+### What shipped
+- `core/odds_fetcher.py` — `PropsQuotaTracker`, `props_quota`, `PROP_MARKETS`, `PROPS_SESSION_CREDIT_CAP=50`, `get_props_api_key()` (tries ODDS_API_KEY_PROPS first), `fetch_props_for_event()`
+- `core/math_engine.py` — `PropCandidate` dataclass, `parse_props_candidates()` (canonical line pinning, no-vig consensus, edge/grade assignment)
+- `pages/08_player_props.py` — on-demand props UI: event_id input, sport/market selector, per-player cards with Over/Under best odds, edge % + grade pill per direction
+- `tests/test_odds_fetcher.py` — +27 tests (PropsQuotaTracker, fetch_props_for_event)
+- `tests/test_math_engine.py` — +21 tests (TestParsePropsCandiates, _make_props_event helper)
+- `REVIEW_LOG.md`, `V37_INBOX.md` — Session 35 coord files updated; 3 open V37 ruling requests
+
+### Test count
+1106 → 1154 (+48) — all 1154 pass ✅
+
+### V37 coordination flags (ruling needed)
+1. File placement: props code in `odds_fetcher.py` vs V37's preferred `core/props_fetcher.py`
+2. Daily credit log: session cap only (50 credits), no DailyCreditLog for props yet
+3. 422 no-retry: `requester.get()` direct (not `_fetch_with_backoff`) — awaiting V37 confirmation
+
+### Commit
+Pending — will push after V37 rulings or next session
+
+---
+
 ## Session 33 — 2026-02-25
 
 ### Objective

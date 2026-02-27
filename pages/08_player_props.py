@@ -20,6 +20,7 @@ from collections import defaultdict
 
 import streamlit as st
 
+from core.math_engine import PropCandidate, parse_props_candidates
 from core.odds_fetcher import (
     PROP_MARKETS,
     PROPS_SESSION_CREDIT_CAP,
@@ -200,6 +201,49 @@ _CSS = """
     text-align: center;
 }
 
+.pp-edge-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    background: rgba(34,197,94,0.04);
+    border-top: 1px solid #2d3139;
+}
+
+.pp-edge-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+
+.pp-edge-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #22c55e;
+}
+
+.pp-edge-value.negative { color: #6b7280; }
+.pp-edge-value.warn     { color: #f59e0b; }
+
+.pp-grade-pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+    text-transform: uppercase;
+}
+.pp-grade-pill.A         { background: rgba(34,197,94,0.15);  border: 1px solid rgba(34,197,94,0.35);  color: #22c55e; }
+.pp-grade-pill.B         { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3);  color: #f59e0b; }
+.pp-grade-pill.C         { background: rgba(156,163,175,0.1); border: 1px solid rgba(156,163,175,0.25); color: #9ca3af; }
+.pp-grade-pill.NEAR_MISS { background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.2);   color: #ef4444; }
+.pp-grade-pill.BELOW_MIN { background: transparent;            border: 1px solid #2d3139;               color: #4b5563; }
+
 .pp-guide {
     background: rgba(245,158,11,0.05);
     border: 1px solid rgba(245,158,11,0.18);
@@ -307,7 +351,13 @@ def _market_label(key: str) -> str:
     return labels.get(key, key.replace("player_", "").upper())
 
 
-def _render_player_card(player: str, market_key: str, sides: dict) -> str:
+def _render_player_card(
+    player: str,
+    market_key: str,
+    sides: dict,
+    over_cand: PropCandidate | None = None,
+    under_cand: PropCandidate | None = None,
+) -> str:
     """Render a single player+market prop card as HTML."""
     p = html.escape(player)
     mkt_label = html.escape(_market_label(market_key))
@@ -346,6 +396,31 @@ def _render_player_card(player: str, market_key: str, sides: dict) -> str:
     over_html = _side_html("Over", "over", over_entries, best_over)
     under_html = _side_html("Under", "under", under_entries, best_under)
 
+    # Edge + grade row — shown only if at least one direction has a PropCandidate
+    edge_row_html = ""
+    edge_parts = []
+    for cand in (over_cand, under_cand):
+        if cand is None:
+            continue
+        sign = "+" if cand.edge_pct >= 0 else ""
+        edge_cls = (
+            "negative" if cand.edge_pct < 0
+            else "warn" if cand.edge_pct < 0.015
+            else ""
+        )
+        grade_cls = html.escape(cand.grade)
+        edge_parts.append(
+            f'<span class="pp-grade-pill {grade_cls}">{html.escape(cand.grade)}</span>'
+            f' <span class="pp-edge-label">{html.escape(cand.direction)}</span>'
+            f' <span class="pp-edge-value {edge_cls}">{sign}{cand.edge_pct*100:.1f}%</span>'
+        )
+    if edge_parts:
+        edge_row_html = f"""
+        <div class="pp-edge-row">
+            <span class="pp-edge-label">Edge</span>
+            {"&nbsp;&nbsp;".join(edge_parts)}
+        </div>"""
+
     return f"""
     <div class="pp-player-card">
         <div class="pp-player-header">
@@ -356,6 +431,7 @@ def _render_player_card(player: str, market_key: str, sides: dict) -> str:
             {over_html}
             {under_html}
         </div>
+        {edge_row_html}
     </div>"""
 
 
@@ -481,6 +557,13 @@ if fetch_clicked and not fetch_disabled:
         if not parsed:
             st.html('<div class="pp-no-results">No player prop outcomes found in response.</div>')
         else:
+            # Run edge/grade analysis — produces PropCandidate list sorted by edge desc
+            prop_candidates = parse_props_candidates(raw)
+            # Build lookup: (player, market_key, direction) → PropCandidate
+            cand_lookup: dict[tuple[str, str, str], PropCandidate] = {
+                (c.player, c.market_key, c.direction): c for c in prop_candidates
+            }
+
             # Group by market, then player — consistent order
             market_order = [m for m in selected_markets if m in
                             {mkt for player_data in parsed.values() for mkt in player_data}]
@@ -490,7 +573,12 @@ if fetch_clicked and not fetch_disabled:
                 cards_html = ""
                 for player in sorted(parsed.keys()):
                     if mkt_key in parsed[player]:
-                        cards_html += _render_player_card(player, mkt_key, parsed[player][mkt_key])
+                        over_cand = cand_lookup.get((player, mkt_key, "Over"))
+                        under_cand = cand_lookup.get((player, mkt_key, "Under"))
+                        cards_html += _render_player_card(
+                            player, mkt_key, parsed[player][mkt_key],
+                            over_cand=over_cand, under_cand=under_cand,
+                        )
                 if cards_html:
                     st.html(cards_html)
                 else:
