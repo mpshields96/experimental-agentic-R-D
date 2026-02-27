@@ -19,6 +19,7 @@ import core.odds_fetcher as _of_module
 from core.odds_fetcher import (
     QuotaTracker,
     CreditLedger,
+    DailyCreditLog,
     get_api_key,
     fetch_game_lines,
     fetch_batch_odds,
@@ -770,6 +771,7 @@ def _reset_props_quota() -> None:
     """Reset module-level props quota tracker to pristine state."""
     _module_props_quota.session_used = 0
     _module_props_quota.last_cost = 0
+    _module_props_quota.daily_log._data["used_today"] = 0
 
 
 def _make_props_mock_response(data: dict, status: int = 200, last_cost: int = 2) -> MagicMock:
@@ -837,6 +839,60 @@ class TestPropsQuotaTracker:
         report = qt.report()
         assert "15" in report
         assert str(PROPS_SESSION_CREDIT_CAP) in report
+
+
+class TestPropsDailyCreditLog:
+    """Tests for DailyCreditLog wired into PropsQuotaTracker.
+
+    All tests use tmp_path to avoid touching data/props_daily_log.json.
+    """
+
+    def _qt(self, tmp_path) -> PropsQuotaTracker:
+        """Fresh PropsQuotaTracker with daily_log redirected to tmp_path."""
+        qt = PropsQuotaTracker()
+        qt.daily_log = DailyCreditLog(str(tmp_path / "props.json"))
+        return qt
+
+    def test_daily_log_path_separate_from_main(self):
+        """PropsQuotaTracker.daily_log path ends with props_daily_log.json (not daily_quota.json)."""
+        qt = PropsQuotaTracker()
+        assert qt.daily_log._path.endswith("props_daily_log.json")
+        assert "daily_quota" not in qt.daily_log._path
+
+    def test_is_daily_cap_hit_false_below_cap(self, tmp_path):
+        qt = self._qt(tmp_path)
+        qt.daily_log._data["used_today"] = PROPS_DAILY_CREDIT_CAP - 1
+        assert not qt.is_daily_cap_hit()
+
+    def test_is_daily_cap_hit_true_at_cap(self, tmp_path):
+        qt = self._qt(tmp_path)
+        qt.daily_log._data["used_today"] = PROPS_DAILY_CREDIT_CAP
+        assert qt.is_daily_cap_hit()
+
+    def test_is_daily_cap_hit_true_over_cap(self, tmp_path):
+        qt = self._qt(tmp_path)
+        qt.daily_log._data["used_today"] = PROPS_DAILY_CREDIT_CAP + 10
+        assert qt.is_daily_cap_hit()
+
+    def test_is_session_hard_stop_triggered_by_daily_cap(self, tmp_path):
+        """Daily cap hit triggers is_session_hard_stop even when session_used == 0."""
+        qt = self._qt(tmp_path)
+        qt.daily_log._data["used_today"] = PROPS_DAILY_CREDIT_CAP
+        qt.session_used = 0
+        assert qt.is_session_hard_stop()
+
+    def test_record_with_remaining_updates_daily_log(self, tmp_path):
+        """record(cost, remaining=N) propagates remaining into daily_log."""
+        qt = self._qt(tmp_path)
+        qt.record(3, remaining=490)  # first call → start_remaining = 490
+        qt.record(2, remaining=485)  # second call → used = 490 - 485 = 5
+        assert qt.daily_log.used_today() == 5
+
+    def test_record_without_remaining_does_not_update_daily_log(self, tmp_path):
+        """record(cost) without remaining leaves daily_log.used_today at 0."""
+        qt = self._qt(tmp_path)
+        qt.record(3)
+        assert qt.daily_log.used_today() == 0
 
 
 class TestFetchPropsForEvent:

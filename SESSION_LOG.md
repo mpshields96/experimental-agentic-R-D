@@ -2,6 +2,34 @@
 
 ---
 
+## Session 36 (continued) — 2026-02-26
+
+### Objective
+V37 Session 36 directive: props DailyCreditLog gate + key warning + fixture probe. Also: titanium-session-wrap + titanium-context-monitor skills.
+
+### What shipped
+- `core/odds_fetcher.py` — `DailyCreditLog` wired into `PropsQuotaTracker` via `_PROPS_DAILY_LOG_PATH`, `is_daily_cap_hit()`, daily cap check in `is_session_hard_stop()`, `record(cost, remaining=None)` propagates to daily_log; `get_props_api_key()` debug→warning
+- `tests/test_odds_fetcher.py` — `TestPropsDailyCreditLog` class (+8 tests, tmp_path isolation); `_reset_props_quota()` resets daily_log
+- `tests/fixtures/props_sample.json` — synthetic 3-book NBA props fixture
+- `tests/test_math_engine.py` — `test_fixture_file_produces_a_grade_over` fixture probe test
+- `~/.claude/skills/titanium-session-wrap/SKILL.md` — session ritual checklist skill
+- `~/.claude/skills/titanium-context-monitor/SKILL.md` — traffic light context budget skill
+- `MASTER_ROADMAP.md` — Sections 10+11 (skills + session summary S19-S36)
+- `CLAUDE.md` — both skills added to mandatory table
+
+### Test count
+1154 → 1162 (+8) — all 1162 pass ✅
+
+### V37 coordination
+V37 Session 36 directive completed. Gate met: DailyCreditLog for props is live — second API account (`ODDS_API_KEY_PROPS`) can now be activated.
+
+### Commits
+- 50a0362 — Session 36 titanium-session-wrap skill
+- eea4770 — Session 36 titanium-context-monitor skill + GSD V37 loop-in
+- [this session] V37 Session 36 directive: props DailyCreditLog + warning + fixture
+
+---
+
 ## Session 35 — 2026-02-26
 
 ### Objective

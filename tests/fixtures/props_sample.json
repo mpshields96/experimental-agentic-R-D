@@ -1,0 +1,48 @@
+{
+  "id": "evt_fixture_001",
+  "sport_key": "basketball_nba",
+  "home_team": "Los Angeles Lakers",
+  "away_team": "Boston Celtics",
+  "commence_time": "2026-03-01T02:00:00Z",
+  "bookmakers": [
+    {
+      "key": "draftkings",
+      "title": "DraftKings",
+      "markets": [
+        {
+          "key": "player_points",
+          "outcomes": [
+            {"description": "LeBron James", "name": "Over",  "price": -170, "point": 24.5},
+            {"description": "LeBron James", "name": "Under", "price":  135, "point": 24.5}
+          ]
+        }
+      ]
+    },
+    {
+      "key": "fanduel",
+      "title": "FanDuel",
+      "markets": [
+        {
+          "key": "player_points",
+          "outcomes": [
+            {"description": "LeBron James", "name": "Over",  "price": -165, "point": 24.5},
+            {"description": "LeBron James", "name": "Under", "price":  130, "point": 24.5}
+          ]
+        }
+      ]
+    },
+    {
+      "key": "betmgm",
+      "title": "BetMGM",
+      "markets": [
+        {
+          "key": "player_points",
+          "outcomes": [
+            {"description": "LeBron James", "name": "Over",  "price": -105, "point": 24.5},
+            {"description": "LeBron James", "name": "Under", "price": -115, "point": 24.5}
+          ]
+        }
+      ]
+    }
+  ]
+}

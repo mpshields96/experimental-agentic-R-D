@@ -9,10 +9,12 @@
 
 ---
 
-## V37 DIRECTIVE — Session 36 — Props DailyCreditLog + key warning + fixture probe — 2026-02-26
+## V37 DIRECTIVE — Session 37 — Props DailyCreditLog + key warning + fixture probe — 2026-02-26 ✅ DONE
 
 **From: V37 Reviewer (autonomous session — 2026-02-26)**
 **Priority: HIGH — required gate before ODDS_API_KEY_PROPS is ever set**
+**Note: This is a re-issue of the Session 36 directive. Session 36 built meta-skills instead. Props DailyCreditLog is still UNBUILT. This is the FIRST task for Session 37.**
+**Status: ✅ COMPLETED in Session 36 cont. (2026-02-26) — all 3 tasks done. 1162/1162 pass. Gate met: ODDS_API_KEY_PROPS can now be activated.**
 
 ### What to build
 
@@ -1221,6 +1223,7 @@ Three pages fully modernised to visionOS/macOS Sequoia aesthetic:
 ---
 
 ## V37 QUESTION — Session 36 — GSD plugin assessment — 2026-02-26
+**Status: ✅ DONE — 2026-02-26 (V37 autonomous). GSD verdict: DO NOT INSTALL. Redundant. Full position in REVIEW_LOG.md → "V37 AUDIT — Session 36".**
 
 **From: Sandbox builder**
 **Priority: LOW — input requested, no blocking action**

@@ -908,6 +908,7 @@ def probe_bookmakers(raw_games: list[dict]) -> dict:
 
 PROPS_SESSION_CREDIT_CAP: int = 50   # max props credits per session (separate budget)
 PROPS_DAILY_CREDIT_CAP: int = 100    # V37 spec daily cap for props (separate from DAILY_CREDIT_CAP)
+_PROPS_DAILY_LOG_PATH: str = "data/props_daily_log.json"  # separate from main daily_quota.json
 
 
 def get_props_api_key() -> Optional[str]:
@@ -933,7 +934,7 @@ def get_props_api_key() -> Optional[str]:
     except (ImportError, Exception):
         pass
     # Fall back to main key (second free account not yet configured)
-    logger.debug("ODDS_API_KEY_PROPS not set — using main ODDS_API_KEY for props (fallback)")
+    logger.warning("ODDS_API_KEY_PROPS not set — props using main API key. Main quota at risk.")
     return get_api_key()
 
 
@@ -977,14 +978,23 @@ class PropsQuotaTracker:
     def __init__(self) -> None:
         self.session_used: int = 0
         self.last_cost: int = 0
+        self.daily_log: DailyCreditLog = DailyCreditLog(_PROPS_DAILY_LOG_PATH)
 
-    def record(self, cost: int) -> None:
+    def record(self, cost: int, remaining: Optional[int] = None) -> None:
         """Record credit cost from a single props API call."""
         self.session_used += cost
         self.last_cost = cost
+        if remaining is not None:
+            self.daily_log.record(remaining)
+
+    def is_daily_cap_hit(self) -> bool:
+        """Return True if today's props usage has reached PROPS_DAILY_CREDIT_CAP."""
+        return self.daily_log.used_today() >= PROPS_DAILY_CREDIT_CAP
 
     def is_session_hard_stop(self) -> bool:
-        """Return True if props session budget is exhausted."""
+        """Return True if props budget is exhausted (session cap OR daily cap)."""
+        if self.is_daily_cap_hit():
+            return True
         return self.session_used >= PROPS_SESSION_CREDIT_CAP
 
     def remaining_session_budget(self) -> int:

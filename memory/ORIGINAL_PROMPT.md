@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 34 — 2026-02-25
-# Session work: UI polish pass (CST times, Pinnacle probe removal, collar map, guide rewrite) + stale-ref fixes + V37 docstrings
-# Priority reset: #1 Live run (grade 6 more bets), #2 Player props (V37 approved), #3 SHARP_THRESHOLD gate
+# Last updated: Session 36 — 2026-02-26
+# Session work: (1) titanium-session-wrap + titanium-context-monitor skills; (2) V37 Session 36/37 directive: props DailyCreditLog + key warning + fixture probe. +8 tests → 1162.
+# Priority reset: #1 Live run (need 6 resolved bets), #2 Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met), #3 SHARP_THRESHOLD gate
 # Maintained by: sandbox builder chat
 
 ---
@@ -147,10 +147,9 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file. Write tasks to V37_INBOX.md.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
 
-Current V37 status (Session 34): Sessions 33-34 summaries written to REVIEW_LOG.md. Awaiting V37 audit.
-Sandbox Sessions 33-34 were UI-only + cleanup — no math changes. V37 should flag anything missed.
-V37 validated: Layer 1 totals canonical line fix (_canonical_totals_books) — confirmed correct.
-V37 also pending: originator_engine caller fix + nhl_data promotion (lower priority, not blocking).
+Current V37 status (Session 35): Sessions 33-35 summaries written to REVIEW_LOG.md. V37 audit of 33-34 was clean (UI only). Session 35 awaiting V37 audit.
+V37 RULING NEEDED: (1) Props in odds_fetcher.py vs props_fetcher.py — V37 spec said separate file; (2) Props daily credit log (session cap only for now); (3) 422 no-retry confirmation.
+V37 also pending (low priority): originator_engine caller fix + nhl_data promotion.
 
 ---
 
@@ -173,19 +172,36 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 34 — 2026-02-25)
+## 📍 CURRENT PROJECT STATE (Session 36 — 2026-02-26)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1106 / 1106 passing ✅
+Tests:    1162 / 1162 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commits (all PUSHED):
+Latest commits (7 local, NOT YET PUSHED):
+  - [Session 36 cont.] — V37 directive: props DailyCreditLog + warning + fixture (1162 tests)
+  - eea4770 — Session 36 titanium-context-monitor skill + GSD V37 loop-in
+  - 50a0362 — Session 36 titanium-session-wrap skill
+  - 586ea20 — Session 35: CLAUDE.md learnings
+  - cdc6e6f — Session 35 props math layer: PropCandidate + edge/grade UI (1154 tests)
+  - 9252e8f — Session 35 player props: PropsQuotaTracker, fetch_props_for_event, page 08 (1133 tests)
+Already pushed:
   - 3d751c1 — Session 34 cont: V37 docstrings + REVIEW_LOG session summaries
-  - 0f4da34 — Session 34: stale 30-bet refs fixed, KPI label polish, Pinnacle removed from bet tracker
-  - bd30fb0 — Session 33: CST game times, Pinnacle probe → Book Coverage, collar map legend, guide rewrite
-  - a33149c — Session 33: coordination files (V37_INBOX, SESSION_LOG, REVIEW_LOG)
-  - 246168c — Session 32: daily credit budget (CreditLedger + daily_allowance + daily guards)
+
+✅ SESSION 36 COMPLETE:
+  - Skills: ~/.claude/skills/titanium-session-wrap/ + titanium-context-monitor/ (both tested, CLAUDE.md updated)
+  - core/odds_fetcher.py: DailyCreditLog in PropsQuotaTracker, is_daily_cap_hit(), daily cap gate in is_session_hard_stop(), record(remaining=) propagation; get_props_api_key() debug→warning
+  - tests/test_odds_fetcher.py: TestPropsDailyCreditLog (+8 tests, tmp_path isolation)
+  - tests/fixtures/props_sample.json: synthetic 3-book NBA props fixture (LeBron PTS 24.5)
+  - tests/test_math_engine.py: test_fixture_file_produces_a_grade_over
+  - GATE MET: DailyCreditLog for props live → ODDS_API_KEY_PROPS can now be activated
+
+✅ SESSION 35 COMPLETE (Player props):
+  - core/odds_fetcher.py: PropsQuotaTracker, props_quota, PROP_MARKETS, PROPS_SESSION_CREDIT_CAP=50, get_props_api_key(), fetch_props_for_event()
+  - core/math_engine.py: PropCandidate dataclass, parse_props_candidates()
+  - pages/08_player_props.py: on-demand props UI — event_id + sport + market selector
+  - tests: +48 → 1154 total
 
 ✅ SESSION 33 COMPLETE (UI polish pass):
   - CST game times on bet cards (zoneinfo.ZoneInfo → %-I:%M %p CST/CDT)
@@ -200,12 +216,12 @@ Latest commits (all PUSHED):
   - V37 Session 32-A audit docstring additions: daily_allowance() ASSUMPTION + is_session_hard_stop() guard interaction note
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
-📋 PRIORITY ORDER (Session 35):
-  #1 — Live run: grade/log 6 more resolved bets to unlock analytics gate (need 10 resolved)
-  #2 — Player props (V37 APPROVED with conditions): separate quota, on-demand event-level only
+📋 PRIORITY ORDER (Session 37):
+  #1 — Live run: grade/log 6 more resolved bets to unlock analytics gate (need 10 resolved, 4 logged, 0 resolved)
+  #2 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate now met, user sets env var)
   #3 — SHARP_THRESHOLD raise gate: 45→50 (gate: 5 live sessions + 20 RLM fires)
-  #4 — V37 validation of canonical line implementation (Layer 1 modal line pinning)
-  #5 — MLB kill switch (HOLD — Apr 1, 2026)
+  #4 — MLB kill switch (HOLD — Apr 1, 2026)
+  #5 — Push all 7 local commits to origin
 
 Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)
 Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 remaining (floor=150).
@@ -255,8 +271,8 @@ Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 re
 
 | Module | Purpose | Tests |
 |--------|---------|-------|
-| `math_engine.py` | ALL math — collar, edge, Kelly, sharp score, RLM, CLV. Session 29: totals canonical line scoping, signed RLM drift, dead code removed. | 225 |
-| `odds_fetcher.py` | Odds API wrapper, quota tracking, DailyCreditLog (daily cap), rest days, tennis discovery | 51 |
+| `math_engine.py` | ALL math — collar, edge, Kelly, sharp score, RLM, CLV. Session 29: totals canonical line fix. Session 35: PropCandidate + parse_props_candidates (props edge/grade layer). | 246 |
+| `odds_fetcher.py` | Odds API wrapper, quota tracking, DailyCreditLog (daily cap), rest days. Session 35: PropsQuotaTracker, fetch_props_for_event, PROP_MARKETS, get_props_api_key() | 105 |
 | `line_logger.py` | SQLite WAL: lines, snapshots, bets, movements. log_bet() accepts 7 analytics params (sharp_score, rlm_fired, tags, book, days_to_game, line, signal). update_bet_result() validates result. | 31 |
 | `scheduler.py` | APScheduler: poll loop, inactivity guard (24h), NHL goalie hook, purge | 40 |
 | `nhl_data.py` | Free NHL API: goalie starter detection, zero quota | 34 |
@@ -286,6 +302,7 @@ Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 re
 | `pages/05_rd_output.py` | Math validation dashboard (pure math_engine, no live data) |
 | `pages/06_simulator.py` | Trinity game simulator (NBA + Soccer Poisson modes) |
 | `pages/07_analytics.py` | Advanced analytics Phase 1 — sharp/RLM/CLV/equity/rolling/book (sample guard at N<10) |
+| `pages/08_player_props.py` | On-demand player props — event_id input, market selector, per-player Over/Under cards with edge%+grade. Separate PropsQuotaTracker (50cr/session cap). |
 
 ---
 
@@ -418,20 +435,18 @@ CURRENT KEY STATUS:
 
 ---
 
-## 🎯 NEXT SESSION TARGETS (Session 35 — priority order)
+## 🎯 NEXT SESSION TARGETS (Session 36 — priority order)
 
-**DONE (Sessions 33-34 — do NOT re-implement):**
-- ✅ CST game times on bet cards (zoneinfo → %-I:%M %p CST/CDT in _bet_card())
-- ✅ Pinnacle probe widget → Book Coverage (Pinnacle stripped; always ABSENT for US markets)
-- ✅ Collar map legend overlap fixed (legend y=-0.22, margin.b=70)
-- ✅ Guide page Steps 1-7 rewritten for Claude-in-the-loop workflow
-- ✅ Stale "30 resolved bets" text fixed → 10 (pages/07_analytics.py, core/calibration.py)
-- ✅ Pinnacle removed from bet tracker book selectbox (04_bet_tracker.py)
-- ✅ KPI label readability improved (0.48→0.55rem, #374151→#4b5563)
-- ✅ V37 Session 32-A docstrings: daily_allowance() ASSUMPTION + is_session_hard_stop() guard note
-- ✅ REVIEW_LOG.md updated with Sessions 33 + 34 summaries
+**DONE (Sessions 33-35 — do NOT re-implement):**
+- ✅ CST game times, Pinnacle probe → Book Coverage, collar map legend, guide rewrite (S33)
+- ✅ Stale 30-bet refs, KPI label polish, V37 docstrings (S34)
+- ✅ Player props: PropsQuotaTracker, fetch_props_for_event, PropCandidate, parse_props_candidates, page 08 with edge+grade cards (S35)
 
-**P0 — Live run: grade bets to unlock analytics (human + sandbox)**
+**P0 — V37 ruling (check REVIEW_LOG.md before any new work)**
+- Ruling needed: props file placement (odds_fetcher.py OK or migrate to props_fetcher.py?), daily credit log, 422 no-retry
+- If V37 says migrate: create core/props_fetcher.py, move PROP_MARKETS + PropsQuotaTracker + fetch_props_for_event there, update imports in page 08 and tests
+
+**P1 — Live run: grade bets to unlock analytics (human + sandbox)**
 - Grade the 4 pending bets:
   ```
   python3 scripts/grade_bet.py --id 1 --result [win/loss] --stake 50 --close [close_price]
@@ -574,6 +589,7 @@ Fonts:        IBM Plex Mono (monospace) + IBM Plex Sans (body) — never substit
 58. Plotly legend below x-axis (Session 33): When `add_vline()` annotations occupy the top of a chart, placing `legend(y=1.02)` causes overlap. Fix: `layout["legend"] = dict(yanchor="top", y=-0.22, orientation="h")` with `layout["margin"]["b"] = 70` to give room below x-axis. Always check for vline annotations when positioning legends.
 59. Analytics + calibration gate = 10 bets (Sessions 27 + 33 confirmed): `MIN_RESOLVED=10` in `analytics.py` and `MIN_BETS_FOR_CALIBRATION=10` in `calibration.py`. Stale "30" text appears in: display strings in pages/07_analytics.py (chart placeholder text, docstring), core/calibration.py docstring. After any future gate change: grep for the old number in pages/ and core/ docstrings to find stale display text.
 60. V37 docstring contract (Session 34): V37 Session 32-A audit classified two items as LOW-priority documentation improvements. Pattern: V37 flags → sandbox implements as docstring additions in current or next session. `daily_allowance()` gets ASSUMPTION block (x-requests-used reset behaviour). `is_session_hard_stop()` gets guard-interaction note (Guard 1 vs Guard 4 relationship). This pattern scales: low-severity V37 flags go in docstrings; high-severity flags go in math changes with tests.
+61. Props canonical line pinning (Session 35): parse_props_candidates() uses same modal-line rule as _canonical_totals_books(). Groups outcomes by (player, market_key, point), finds modal point across books, uses only those books for consensus. Ensures no cross-line false edge. Best price = max() over in-collar entries. edge = consensus_prob - implied(best_price). With only 1 book consensus = no_vig(book), implied = same price → edge = 0 → filtered. Genuine edge requires ≥2 books with divergent pricing. PROPS_SESSION_CREDIT_CAP=50 enforced by PropsQuotaTracker (separate from main QuotaTracker). get_props_api_key() tries ODDS_API_KEY_PROPS env var first, falls back to main key.
 
 ---
 

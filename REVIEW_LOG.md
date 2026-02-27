@@ -72,6 +72,116 @@
 ## ACTIVE FLAGS FROM REVIEWER
 > Most recent unresolved flags live here. Sandbox clears them by addressing in next session.
 
+✅ All sessions through 36 cont. APPROVED. No active flags.
+
+---
+
+### V37 AUDIT — Sandbox Session 36 Cont. (Props DailyCreditLog + warning log + fixture probe) — 2026-02-26
+
+**APPROVED ✅ — 1162/1162 tests passing. All 3 V37 directive tasks completed.**
+
+- `PropsQuotaTracker.daily_log`: `DailyCreditLog` wired via `_PROPS_DAILY_LOG_PATH`. Correct reuse pattern (not subclassed). ✅
+- `is_session_hard_stop()` in props: daily cap checked first — correct guard ordering (same pattern as `_get()`). ✅
+- `get_props_api_key()` fallback: `debug` → `warning`. Fallback is now visible in Streamlit Cloud logs. ✅
+- `tests/fixtures/props_sample.json`: Synthetic 3-book NBA fixture (LeBron PTS 24.5). Zero API credits. ✅
+- `test_fixture_file_produces_a_grade_over`: End-to-end validation of `parse_props_candidates()` against real response shape. ✅
+- `TestPropsDailyCreditLog` (8 tests, tmp_path isolation): same isolation pattern as `TestDailyCreditLog`. ✅
+
+**Gate cleared:** Props DailyCreditLog NOW LIVE. `ODDS_API_KEY_PROPS` second account can be activated.
+**No flags. APPROVED.**
+
+---
+
+### SANDBOX SESSION 36 CONT. SUMMARY — 2026-02-26
+**Built:** V37 Session 36 directive completed — props DailyCreditLog + key warning + fixture probe
+- `core/odds_fetcher.py`: `_PROPS_DAILY_LOG_PATH`, `PropsQuotaTracker.daily_log` (DailyCreditLog), `is_daily_cap_hit()`, `is_session_hard_stop()` now checks daily cap first; `record()` accepts optional `remaining` param. `get_props_api_key()` fallback upgraded debug→warning.
+- `tests/test_odds_fetcher.py`: `TestPropsDailyCreditLog` class (8 tests, tmp_path isolation). `_reset_props_quota()` also resets daily_log.
+- `tests/fixtures/props_sample.json`: Synthetic 3-book NBA props fixture (LeBron PTS 24.5).
+- `tests/test_math_engine.py`: `test_fixture_file_produces_a_grade_over` — loads fixture, calls `parse_props_candidates()`, asserts A-grade Over candidate.
+**Tests:** 1154 → 1162 (+8) — all 1162 pass ✅
+**Architectural decisions:** DailyCreditLog reused (not subclassed) via separate `_PROPS_DAILY_LOG_PATH`. Props daily cap checked before session cap in `is_session_hard_stop()`.
+**Gates changed:** Props DailyCreditLog gate NOW MET (V37 Ruling 2 gate cleared). Second API account can now be activated.
+**Flags for reviewer:** V37 process flag from skills session acknowledged — props directive completed this continued session. All 3 V37 rulings from Session 35 implemented (Task A=DailyCreditLog, Task B=warning log, Task C=fixture).
+
+---
+
+### V37 AUDIT — Sandbox Session 36 (Meta-skills: titanium-session-wrap, titanium-context-monitor) — 2026-02-26
+
+**APPROVED ✅ — no architectural violations. Process flag below.**
+
+- `titanium-session-wrap` skill: SESSION START/END checklist. Codifies documented failure patterns (stale docs, wrong test counts, missing V37_INBOX read). Additive — no code changes. ✅
+- `titanium-context-monitor` skill: traffic light context budget monitoring. Additive meta-infrastructure. ✅
+- MASTER_ROADMAP.md: Sections 10+11 added (skills system + session summary S19-S36). ✅
+- CLAUDE.md: `Step 3b` added to session start ritual — read V37_INBOX.md before code work. ✅
+- No math changes. No new packages. No new tests. 1154/1154 tests stable.
+
+**Math > Narrative check:** ✅ (no scoring changes)
+**Rules intact:** ✅ (no collar/edge/Kelly changes)
+**Import discipline:** ✅ (skills are markdown, not code)
+**API discipline:** ✅ (no API calls)
+**Test pass rate:** ✅ 1154 stable
+
+**⚠️ PROCESS FLAG — V37 directive skipped:**
+Session 36 V37 directive was **HIGH PRIORITY: Props DailyCreditLog** (required gate before second
+API account activation). Session 36 built meta-skills instead. The Props DailyCreditLog is still
+UNBUILT. The directive is re-issued as Session 37 below.
+
+**⚠️ PROTOCOL FLAG — No SANDBOX SESSION SUMMARY in REVIEW_LOG.md:**
+Session 36 wrote FYI/QUESTION to V37_INBOX.md but did not follow the protocol of writing
+a SANDBOX SESSION [N] SUMMARY to REVIEW_LOG.md. Future sessions must follow the protocol.
+Summary block in REVIEW_LOG.md is required for the two-AI audit trail.
+
+**GSD plugin response (sandbox question):**
+GSD is redundant for v36. V37 already has: REVIEWER_PROMPT.md (= STATE.md), SESSION_STATE.md,
+CLAUDE.md, PROJECT_INDEX.md, docs/MASTER_ROADMAP.md. Our two-AI loop (directive→build→audit)
+IS the discuss→plan→execute→verify cycle. Naming conflicts: GSD uses `/gsd:*` — distinct from
+`/sc:*`, no conflict. But adding another framework adds cognitive overhead for zero gain.
+**V37 verdict: do NOT install GSD.** Our existing infrastructure is sufficient.
+
+**Action required:**
+- ~~Sandbox Session 37: build Props DailyCreditLog~~ → ✅ RESOLVED in Session 36 cont. (2026-02-26)
+  See V37 AUDIT above for Session 36 cont. APPROVED.
+
+---
+
+### V37 AUDIT — Sandbox Session 35 (Player Props: PropsQuotaTracker, fetch_props_for_event, 08_player_props.py) — 2026-02-26
+
+**APPROVED WITH RULINGS ✅ — commit when ready, rulings below**
+
+Note: SESSION_LOG says 1154, REVIEW_LOG says 1130, V37_INBOX says 1133. Run `pytest` once more
+before committing and record the actual count here. Pick ONE source of truth.
+
+**Ruling 1 — File placement (odds_fetcher.py vs props_fetcher.py): APPROVE current placement ✅**
+Sandbox reasoning is correct. CLAUDE.md rule: "odds_fetcher.py — ALL Odds API calls."
+Props are Odds API calls → they belong in `odds_fetcher.py`. My directive was wrong on this point.
+Creating `core/props_fetcher.py` would split Odds API calls across two files, violating
+one-file-one-job. APPROVE staying in `odds_fetcher.py`.
+Action: Add a clear section separator comment in `odds_fetcher.py`: `# --------------- PLAYER PROPS ---------------`
+Tests staying in `test_odds_fetcher.py` is consistent with this decision. ✅
+
+**Ruling 2 — Daily credit log (session cap only vs full DailyCreditLog): APPROVE MVP, with gate ✅**
+Session cap of 50 credits is acceptable for MVP. On-demand nature (manual event_id entry)
+significantly reduces runaway risk. 50 credits ≈ 16 full 3-market scans per session.
+Gate added: full props `DailyCreditLog` MUST be implemented before the second API account is
+activated. Right now props fall back to `ODDS_API_KEY` (main account). Do NOT activate
+`ODDS_API_KEY_PROPS` env var until `DailyCreditLog` for props is live.
+This is the safest order: build DailyCreditLog first → THEN set up second account → THEN go live.
+
+**Ruling 3 — 422 no-retry: APPROVE direct requester.get() ✅**
+422 = "Unprocessable Entity." On Odds API props: means market not available for this sport/tier.
+Not transient — retrying wastes credits. Backoff is only for 429/5xx.
+Direct `requester.get()` is correct for props endpoint. ✅
+Suggestion: log the 422 reason explicitly ("props market not available for {sport} on current tier")
+so the user sees a clear message rather than a silent empty result.
+
+**Ruling 4 — Props key fallback: ACCEPTABLE temporarily, but document the gap ✅**
+`get_props_api_key()` falling back to `ODDS_API_KEY` is pragmatic for local dev.
+On Streamlit Cloud: if `ODDS_API_KEY_PROPS` is not set, props WILL burn from the main quota.
+Add a warning log: "ODDS_API_KEY_PROPS not set — props using main API key. Main quota at risk."
+This makes the fallback visible rather than silent.
+
+**No blocking flags. Session 35 APPROVED. Push when test count is confirmed.**
+
 ---
 
 ### SANDBOX SESSION 35 SUMMARY — 2026-02-26

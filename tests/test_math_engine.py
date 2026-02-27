@@ -7,6 +7,7 @@ Every mathematical function must have a test before moving to the UI layer.
 Run: pytest tests/test_math_engine.py -v
 """
 
+import json
 import pytest
 import sys
 import os
@@ -2449,6 +2450,18 @@ class TestParsePropsCandiates:
         directions = {c.direction for c in result}
         assert "Over" in directions
         assert "Under" in directions
+
+    def test_fixture_file_produces_a_grade_over(self):
+        """tests/fixtures/props_sample.json (3-book setup) → A-grade Over candidate."""
+        fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "props_sample.json")
+        with open(fixture_path) as f:
+            event = json.load(f)
+        result = parse_props_candidates(event)
+        assert len(result) > 0
+        assert all(isinstance(c, PropCandidate) for c in result)
+        over_cands = [c for c in result if c.direction == "Over"]
+        assert len(over_cands) >= 1
+        assert over_cands[0].grade == "A"
 
     def test_multiple_players_parsed(self):
         """Multiple players in the same event are parsed independently."""
