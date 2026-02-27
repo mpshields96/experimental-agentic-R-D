@@ -152,6 +152,7 @@ _BET_LOG_MIGRATIONS = [
     "ALTER TABLE bet_log ADD COLUMN line REAL DEFAULT 0.0",
     "ALTER TABLE bet_log ADD COLUMN signal TEXT DEFAULT ''",
     "ALTER TABLE bet_log ADD COLUMN grade TEXT DEFAULT ''",
+    "ALTER TABLE bet_log ADD COLUMN event_id TEXT DEFAULT ''",
 ]
 
 
@@ -615,6 +616,40 @@ def count_snapshots(db_path: Optional[str] = None) -> dict[str, int]:
 # Bet log — write
 # ---------------------------------------------------------------------------
 
+def is_bet_already_logged(
+    event_id: str,
+    market_type: str,
+    target: str,
+    db_path: Optional[str] = None,
+) -> bool:
+    """
+    Return True if this event+market+target combo already exists in bet_log.
+
+    Used by the scheduler auto-paper-bet scan to prevent duplicate entries
+    when the same qualifying bet appears across multiple polling cycles.
+
+    Args:
+        event_id:    Odds API event identifier.
+        market_type: "spread", "total", "moneyline".
+        target:      Bet string e.g. "Lakers -4.5" or "Over 221.0".
+        db_path:     Optional DB path override.
+
+    Returns:
+        True if a matching row exists (pending or resolved), False otherwise.
+    """
+    if not event_id:
+        return False
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM bet_log WHERE event_id = ? AND market_type = ? AND target = ?",
+            (event_id, market_type, target),
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
 def log_bet(
     sport: str,
     matchup: str,
@@ -633,6 +668,7 @@ def log_bet(
     line: float = 0.0,
     signal: str = "",
     grade: str = "",
+    event_id: str = "",
     db_path: Optional[str] = None,
 ) -> int:
     """
@@ -666,12 +702,14 @@ def log_bet(
             INSERT INTO bet_log
                 (logged_at, sport, matchup, market_type, target,
                  price, edge_pct, kelly_size, stake, notes,
-                 sharp_score, rlm_fired, tags, book, days_to_game, line, signal, grade)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 sharp_score, rlm_fired, tags, book, days_to_game, line, signal, grade,
+                 event_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (now, sport, matchup, market_type, target,
              price, edge_pct, kelly_size, stake, notes,
-             sharp_score, int(rlm_fired), tags, book, days_to_game, line, signal, grade),
+             sharp_score, int(rlm_fired), tags, book, days_to_game, line, signal, grade,
+             event_id),
         )
         conn.commit()
         return cursor.lastrowid

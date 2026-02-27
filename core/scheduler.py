@@ -22,8 +22,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 from core.odds_fetcher import fetch_batch_odds, quota, probe_bookmakers
-from core.line_logger import init_db, log_snapshot
-from core.math_engine import rlm_gate_status
+from core.line_logger import init_db, log_snapshot, is_bet_already_logged, log_bet
+from core.math_engine import rlm_gate_status, parse_game_markets, GRADE_B_MIN_EDGE
 from core.price_history_store import (
     init_price_history_db,
     integrate_with_session_cache,
@@ -71,6 +71,86 @@ _last_idle_hours: float = 0.0  # Most recent inactivity check result (for UI dis
 
 
 # ---------------------------------------------------------------------------
+# Auto paper-bet scan — runs after each successful odds fetch
+# ---------------------------------------------------------------------------
+def _auto_paper_bet_scan(
+    games: list,
+    sport: str,
+    db_path: Optional[str] = None,
+) -> int:
+    """
+    Parse raw game list and auto-log Grade A/B bets as paper bets.
+
+    Deduplication: skips any event+market_type+target already in bet_log
+    (checked via is_bet_already_logged). Prevents duplicate entries when
+    the same qualifying bet appears across multiple polling cycles.
+
+    Only Grade A (≥3.5%) and Grade B (≥1.5%) bets are logged — C and
+    NEAR_MISS are display-only and not worth tracking in auto mode.
+
+    Args:
+        games:   Raw game list from fetch_batch_odds() for this sport.
+        sport:   Sport name string (e.g. "NBA").
+        db_path: Optional DB path override.
+
+    Returns:
+        Number of new paper bets logged this cycle.
+    """
+    logged = 0
+    for game in games:
+        try:
+            injury_lev = compute_injury_leverage_from_event(game, sport)
+            bets = parse_game_markets(game, sport, injury_leverage=injury_lev,
+                                      min_edge=GRADE_B_MIN_EDGE)
+            for bet in bets:
+                if bet.kill_reason.startswith("KILL"):
+                    continue
+                if bet.grade not in ("A", "B"):
+                    continue
+                if is_bet_already_logged(bet.event_id, bet.market_type, bet.target, db_path):
+                    continue
+                stake = bet.kelly_size if bet.grade == "A" else bet.kelly_size
+                rlm_fired = bool(bet.sharp_breakdown.get("rlm_component", 0) > 0)
+                try:
+                    from datetime import datetime, timezone
+                    start_str = bet.commence_time
+                    days = 0.0
+                    if start_str:
+                        start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                        days = max(0.0, (start - datetime.now(timezone.utc)).total_seconds() / 86400)
+                except (ValueError, AttributeError):
+                    days = 0.0
+                log_bet(
+                    sport=bet.sport,
+                    matchup=bet.matchup,
+                    market_type=bet.market_type,
+                    target=bet.target,
+                    price=bet.price,
+                    edge_pct=bet.edge_pct,
+                    kelly_size=bet.kelly_size,
+                    stake=stake,
+                    notes="auto-paper",
+                    sharp_score=int(bet.sharp_score),
+                    rlm_fired=rlm_fired,
+                    book=bet.book,
+                    days_to_game=days,
+                    line=bet.line,
+                    signal=bet.signal,
+                    grade=bet.grade,
+                    event_id=bet.event_id,
+                    db_path=db_path,
+                )
+                logged += 1
+                logger.info(
+                    "Auto paper bet logged: %s %s @ %+d (grade=%s edge=%.1f%%)",
+                    bet.matchup, bet.target, bet.price, bet.grade, bet.edge_pct * 100,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Auto paper bet scan error for %s: %s", sport, exc)
+    return logged
+
+
+# ---------------------------------------------------------------------------
 # Internal poll job
 # ---------------------------------------------------------------------------
 def _poll_all_sports(db_path: Optional[str] = None) -> None:
@@ -109,6 +189,10 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
                 inject_historical_prices_into_cache(games, effective_db)
                 snapshots = log_snapshot(games, sport, effective_db)
                 results_summary[sport] = len(snapshots)
+                # Auto paper-bet scan: log Grade A/B bets that haven't been seen yet
+                new_bets = _auto_paper_bet_scan(games, sport, effective_db)
+                if new_bets:
+                    logger.info("Auto paper bets logged: %d for %s", new_bets, sport)
                 # Probe: log bookmaker coverage for this sport's fetch
                 probe_result = probe_bookmakers(games)
                 log_probe_result(probe_result, sport=sport)

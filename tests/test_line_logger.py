@@ -507,6 +507,73 @@ class TestGradeColumn:
         init_db(db_path)  # second call should not raise
 
 
+class TestEventIdColumn:
+    """event_id column on bet_log — auto-paper-bet deduplication (Session 41)."""
+
+    def test_event_id_stored(self, tmp_path):
+        """log_bet() stores event_id when provided."""
+        from core.line_logger import log_bet, get_bets, init_db
+        db_path = str(tmp_path / "evtid.db")
+        init_db(db_path)
+        log_bet("NBA", "A @ B", "spread", "B -4.5", -110, 0.04, 0.02,
+                event_id="abc123", db_path=db_path)
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["event_id"] == "abc123"
+
+    def test_event_id_defaults_empty(self, tmp_path):
+        """Callers that omit event_id get empty string (backward compat)."""
+        from core.line_logger import log_bet, get_bets, init_db
+        db_path = str(tmp_path / "evtid_def.db")
+        init_db(db_path)
+        log_bet("NBA", "A @ B", "spread", "B -4.5", -110, 0.04, 0.02,
+                db_path=db_path)
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["event_id"] == ""
+
+    def test_event_id_migration_idempotent(self, tmp_path):
+        """init_db() with event_id migration runs twice without error."""
+        from core.line_logger import init_db
+        db_path = str(tmp_path / "evtid_migr.db")
+        init_db(db_path)
+        init_db(db_path)  # idempotent
+
+
+class TestIsBetAlreadyLogged:
+    """is_bet_already_logged() deduplication guard for auto-paper-bet scan."""
+
+    def test_false_when_no_bets(self, tmp_path):
+        """Returns False when bet_log is empty."""
+        from core.line_logger import is_bet_already_logged, init_db
+        db_path = str(tmp_path / "dup0.db")
+        init_db(db_path)
+        assert is_bet_already_logged("evt1", "spread", "A -3.5", db_path) is False
+
+    def test_true_after_logging_bet(self, tmp_path):
+        """Returns True after the same event+market+target is logged."""
+        from core.line_logger import is_bet_already_logged, log_bet, init_db
+        db_path = str(tmp_path / "dup1.db")
+        init_db(db_path)
+        log_bet("NBA", "A @ B", "spread", "A -3.5", -110, 0.04, 0.02,
+                event_id="evt1", db_path=db_path)
+        assert is_bet_already_logged("evt1", "spread", "A -3.5", db_path) is True
+
+    def test_false_for_different_target(self, tmp_path):
+        """Different target on same event is NOT a duplicate."""
+        from core.line_logger import is_bet_already_logged, log_bet, init_db
+        db_path = str(tmp_path / "dup2.db")
+        init_db(db_path)
+        log_bet("NBA", "A @ B", "spread", "A -3.5", -110, 0.04, 0.02,
+                event_id="evt1", db_path=db_path)
+        assert is_bet_already_logged("evt1", "h2h", "A ML", db_path) is False
+
+    def test_false_for_empty_event_id(self, tmp_path):
+        """Empty event_id is never considered duplicate (safe default)."""
+        from core.line_logger import is_bet_already_logged, init_db
+        db_path = str(tmp_path / "dup3.db")
+        init_db(db_path)
+        assert is_bet_already_logged("", "spread", "A -3.5", db_path) is False
+
+
 if __name__ == "__main__":
     import subprocess
     result = subprocess.run(

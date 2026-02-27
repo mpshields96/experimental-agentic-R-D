@@ -1181,6 +1181,7 @@ def parse_game_markets(
     wind_mph: float = 0.0,
     nba_pdo: Optional[dict] = None,
     min_edge: float = MIN_EDGE,
+    injury_leverage: float = 0.0,
 ) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
@@ -1325,7 +1326,7 @@ def parse_game_markets(
             kelly = fractional_kelly(cp, best_price)
             public_on_side = best_price < -105
             rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
-            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap, injury_leverage=injury_leverage)
             # NBA B2B — home/road differentiated flag
             _kill_reason = ""
             if is_nba:
@@ -1384,7 +1385,7 @@ def parse_game_markets(
                 kelly = fractional_kelly(cp, best_price)
                 public_on_side = best_price < -105
                 rlm_confirmed, _rlm_drift = compute_rlm(event_id, outcome_name, best_price, public_on_side)
-                score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+                score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap, injury_leverage=injury_leverage)
                 label = outcome_name if outcome_name == "Draw" else f"{outcome_name} ML"
                 candidates.append(BetCandidate(
                     sport=sport,
@@ -1424,7 +1425,7 @@ def parse_game_markets(
                 kelly = fractional_kelly(cp, best_price)
                 public_on_side = best_price < -105
                 rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
-                score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+                score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap, injury_leverage=injury_leverage)
                 # NBA B2B — h2h (spread=0 proxy)
                 _h2h_kill_reason = ""
                 if is_nba:
@@ -1539,7 +1540,7 @@ def parse_game_markets(
             # Totals: "Over" tends to be the public side (fans like scoring)
             public_on_side = (side == "Over" and best_price < -105)
             rlm_confirmed, _rlm_drift = compute_rlm(event_id, side, best_price, public_on_side)
-            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap)
+            score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap, injury_leverage=injury_leverage)
             # NFL FORCE_UNDER: keep candidate but mark with kill_reason
             _totals_kill_reason = ""
             if is_nfl:

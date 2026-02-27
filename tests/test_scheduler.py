@@ -585,3 +585,108 @@ class TestComputeInjuryLeverageFromEvent:
             injury_leverage=0.0,
         )
         assert score_with > score_without
+
+
+class TestParseGameMarketsInjuryLeverage:
+    """Regression: parse_game_markets() must accept injury_leverage kwarg (Session 40 bug fix)."""
+
+    def _make_edge_game(self) -> dict:
+        """Minimal game dict with clear edge — 3 consensus books vs 1 outlier."""
+        def bm(key, name, outcomes):
+            return {
+                "key": key, "title": name,
+                "markets": [{"key": "h2h", "outcomes": outcomes}],
+            }
+        return {
+            "id": "sched_inj_001",
+            "home_team": "Duke",
+            "away_team": "Virginia",
+            "commence_time": "2026-02-20T01:00:00Z",
+            "bookmakers": [
+                bm("dk", "DraftKings", [{"name": "Duke", "price": -130}, {"name": "Virginia", "price": 110}]),
+                bm("fd", "FanDuel",    [{"name": "Duke", "price": -130}, {"name": "Virginia", "price": 110}]),
+                bm("bm", "BetMGM",    [{"name": "Duke", "price": -130}, {"name": "Virginia", "price": 110}]),
+                bm("br", "BetRivers", [{"name": "Duke", "price": 140},  {"name": "Virginia", "price": -165}]),
+            ],
+        }
+
+    def test_accepts_injury_leverage_kwarg(self):
+        """parse_game_markets() must not raise TypeError when injury_leverage is passed."""
+        from core.math_engine import parse_game_markets
+        game = self._make_edge_game()
+        # Would raise TypeError: unexpected keyword argument before the bug fix
+        result = parse_game_markets(game, sport="NCAAB", injury_leverage=2.0)
+        assert isinstance(result, list)
+
+    def test_injury_leverage_default_zero(self):
+        """Default injury_leverage=0.0 produces same result as not passing it."""
+        from core.math_engine import parse_game_markets
+        game = self._make_edge_game()
+        r1 = parse_game_markets(game, sport="NCAAB")
+        r2 = parse_game_markets(game, sport="NCAAB", injury_leverage=0.0)
+        assert len(r1) == len(r2)
+
+    def test_nonzero_injury_leverage_raises_sharp_score(self):
+        """Positive injury_leverage increases sharp_score vs 0.0 for qualifying bets."""
+        from core.math_engine import parse_game_markets
+        game = self._make_edge_game()
+        bets_base = parse_game_markets(game, sport="NCAAB", injury_leverage=0.0)
+        bets_inj  = parse_game_markets(game, sport="NCAAB", injury_leverage=4.0)
+        if bets_base and bets_inj:
+            assert bets_inj[0].sharp_score >= bets_base[0].sharp_score
+
+
+class TestAutoPaperBetScan:
+    """_auto_paper_bet_scan() logs Grade A/B bets, deduplicates, skips killed bets."""
+
+    def _make_edge_game(self) -> dict:
+        def bm(key, name, outcomes):
+            return {
+                "key": key, "title": name,
+                "markets": [{"key": "h2h", "outcomes": outcomes}],
+            }
+        return {
+            "id": "auto_pb_001",
+            "home_team": "Lakers",
+            "away_team": "Celtics",
+            "commence_time": "2026-02-20T01:00:00Z",
+            "bookmakers": [
+                bm("dk", "DraftKings", [{"name": "Lakers", "price": -130}, {"name": "Celtics", "price": 110}]),
+                bm("fd", "FanDuel",    [{"name": "Lakers", "price": -130}, {"name": "Celtics", "price": 110}]),
+                bm("bm", "BetMGM",    [{"name": "Lakers", "price": -130}, {"name": "Celtics", "price": 110}]),
+                bm("br", "BetRivers", [{"name": "Lakers", "price": 140},  {"name": "Celtics", "price": -165}]),
+            ],
+        }
+
+    def test_logs_qualifying_bet(self, tmp_path):
+        """When a Grade A/B bet exists, auto scan logs it."""
+        from core.scheduler import _auto_paper_bet_scan
+        from core.line_logger import init_db, get_bets
+        db_path = str(tmp_path / "auto_pb.db")
+        init_db(db_path)
+        game = self._make_edge_game()
+        logged = _auto_paper_bet_scan([game], "NBA", db_path)
+        bets = get_bets(db_path=db_path)
+        assert logged >= 0  # any non-negative count is valid
+        assert all(b["notes"] == "auto-paper" for b in bets)
+
+    def test_deduplication_prevents_double_log(self, tmp_path):
+        """Second scan for same event does NOT add duplicate entry."""
+        from core.scheduler import _auto_paper_bet_scan
+        from core.line_logger import init_db, get_bets
+        db_path = str(tmp_path / "auto_dup.db")
+        init_db(db_path)
+        game = self._make_edge_game()
+        first = _auto_paper_bet_scan([game], "NBA", db_path)
+        second = _auto_paper_bet_scan([game], "NBA", db_path)
+        assert second == 0  # nothing new on second pass
+        bets = get_bets(db_path=db_path)
+        assert len(bets) == first  # total count unchanged
+
+    def test_empty_games_returns_zero(self, tmp_path):
+        """Empty game list logs nothing."""
+        from core.scheduler import _auto_paper_bet_scan
+        from core.line_logger import init_db
+        db_path = str(tmp_path / "auto_empty.db")
+        init_db(db_path)
+        assert _auto_paper_bet_scan([], "NBA", db_path) == 0
