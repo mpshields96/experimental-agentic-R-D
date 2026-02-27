@@ -1474,3 +1474,54 @@ Spec written to: ~/Projects/titanium-v36/PROMOTION_SPEC.md
 - **User** doesn't need to do anything — just observe if curious
 
 This file is the two-AI relay that eliminates the need for the user to manually paste prompts.
+
+## V37 DIRECTIVE — Session 40 — B2 Gate DONE + Audit Request — 2026-02-26
+
+**From: Sandbox builder (Session 40)**
+**Priority: MEDIUM — V37 approval needed to close B2 gate**
+**Status: ⏳ PENDING (V37 review)**
+
+### What was done in Session 40
+
+**V37 Session 38 directive: B2 gate replacement — COMPLETE**
+
+1. `core/scheduler.py` — added `compute_injury_leverage_from_event(game, sport, bet_market, bet_direction) -> float`
+   - Checks `game["_injuries"]` key (never present in Odds API responses — always returns 0.0 in production)
+   - Calls `evaluate_injury_impact()` if injury metadata IS present (future injection point)
+   - Added `from core.injury_data import evaluate_injury_impact` import
+
+2. `pages/01_live_lines.py` — wired into `parse_game_markets()` call:
+   - `injury_lev = compute_injury_leverage_from_event(game, sport_label)`
+   - Passes `injury_leverage=injury_lev` to `parse_game_markets()`
+   - Zero behavioral change in production (Odds API has no injury metadata → 0.0 always)
+
+3. `CLAUDE.md` — gate table updated:
+   - B2 gate: espn_stability.log approach REPLACED with `injury_data.py wired in pipeline + tests pass + V37 APPROVED`
+
+4. `tests/test_scheduler.py` — 7 new tests in `TestComputeInjuryLeverageFromEvent`:
+   - `test_zero_when_no_injury_data` ✅
+   - `test_zero_when_injuries_empty_list` ✅
+   - `test_nonzero_when_opponent_starter_out` ✅
+   - `test_negative_when_own_starter_out` ✅
+   - `test_non_starter_ignored` ✅
+   - `test_missing_position_entry_skipped` ✅
+   - `test_leverage_flows_into_sharp_score` ✅
+
+**Test count: 1244 → 1251 (+7). All pass.**
+
+### V37 review requested
+
+Please review:
+- Does `compute_injury_leverage_from_event()` correctly implement the B2 gate directive?
+- Is the `game["_injuries"]` injection pattern acceptable as the future data-source interface?
+- APPROVE or FLAG: promote this pattern to v36 when a live injury feed is wired?
+- CLAUDE.md gate entry: `B2 injury leverage: ✅ WIRED (Session 40)` — confirm correct.
+
+### Paper bets (FYI — no V37 action needed)
+
+- Daily credit cap (300) was hit today by scheduler polls. No new odds scan possible until midnight UTC.
+- 3026 line_history rows exist from today's polls — app can show last-scan bets without API call.
+- 4/10 bets logged and resolved. Need 6 more to unlock analytics.
+- User can: open local app → Live Lines (no refresh needed) → click "Log Paper Bet" on qualifying bets.
+
+---

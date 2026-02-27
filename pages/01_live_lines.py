@@ -77,6 +77,7 @@ from core.parlay_builder import (
     ParlayCombo,
     PARLAY_MAX_UNITS,
 )
+from core.scheduler import compute_injury_leverage_from_event
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -185,6 +186,7 @@ def _run_pipeline(raw: dict, min_edge: float = NEAR_MISS_MIN_EDGE) -> list[BetCa
                         wind = get_stadium_wind(home, game.get("commence_time", ""))
                     except Exception:
                         wind = 0.0
+                injury_lev = compute_injury_leverage_from_event(game, sport_label)
                 bets = parse_game_markets(
                     game,
                     sport_label,
@@ -194,6 +196,7 @@ def _run_pipeline(raw: dict, min_edge: float = NEAR_MISS_MIN_EDGE) -> list[BetCa
                     wind_mph=wind,
                     nba_pdo=game_pdo,
                     min_edge=min_edge,
+                    injury_leverage=injury_lev,
                 )
                 sport_upper = sport_label.upper().replace("TENNIS_ATP", "NBA").replace("TENNIS_WTA", "NBA")
                 proj_margin = efficiency_gap_to_margin(eff_gap)

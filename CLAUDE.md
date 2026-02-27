@@ -430,6 +430,7 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 | SHARP_THRESHOLD raise | 0/5 live sessions, 0/20 RLM fires | MANUALLY change 45→50 in math_engine.py after gate is met |
 | Pinnacle origination | REMOVED — always ABSENT for US markets | Never add back; Book Coverage widget replaced Pinnacle Probe (Session 33) |
 | CLV verdict | 0/10 graded bets | Check clv_summary() verdict |
+| B2 injury leverage | ✅ WIRED (Session 40) — compute_injury_leverage_from_event() in scheduler.py, called from parse_game_markets(). Returns 0.0 (safe default — Odds API has no injury metadata). Future: populate game["_injuries"] from live feed. V37 approval pending. | V37 APPROVE → promote pattern to v36 |
 | NHL kill switch | ✅ COMPLETE (Session 13) | nhl_data.py + nhl_kill_switch() + scheduler wired |
 | MLB kill switch | Season gate (Apr 1) | See MASTER_ROADMAP 3B |
 | Tennis kill switch | ✅ COMPLETE (Session 15) | tennis_data.py — ZERO cost. Wire tennis_atp/wta into SPORT_KEYS next. |

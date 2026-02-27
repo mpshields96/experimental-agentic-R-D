@@ -91,6 +91,21 @@
 - FYI: scheduler interval raised 5→30 min (no math impact; credit constraint drove this).
 - FYI: CLV=N/A on all 4 existing bets — auto_resolve_pending() uses ESPN (free) for result, not Odds API for close_price. CLV tracking is blind until close price capture is added. Not blocking analytics gate, but worth noting.
 
+### V37 AUDIT — Sandbox Session 39 (Coordination + credit conservation) — 2026-02-26
+
+**Status: APPROVED ✅**
+**Math > Narrative check:** ✅ No scoring, kill switch, or Kelly changes. Coordination session only.
+**Rules intact:** ✅ No mathematical rules touched. SHARP_THRESHOLD, collar, Kelly unchanged.
+**Import discipline:** ✅ `app.py` change is config-only (one integer arg). `scripts/notify_iphone.py` is completely isolated from betting system — no imports from `core/` or `data/`.
+**API discipline:** ✅ No new external endpoints. Scheduler interval change reduces live API frequency — aligned with 100/day cap.
+**Scheduler 5→30 min — APPROVED:** Credit math is correct: 5-min @ ~15cr/scan = 144 scans/day = 2160cr (way over cap); 30-min @ ~15cr/scan = 48 scans/day = 720cr → cap enforcement stops real burns at 100. Practical effect: fewer "cap reached" no-ops per day. RLM detection unaffected — movements between polls captured on next poll. "Refresh Now" button preserved for on-demand scans.
+**iPhone notification scripts — APPROVED:** `scripts/notify_iphone.py` is stdlib-only (urllib, subprocess), exits 0 always, no impact on betting logic. `CLAUDE_NTFY_TOPIC` env var pattern is clean.
+**`line_history.db` grade migration:** Existing `_BET_LOG_MIGRATIONS` tuple already had the grade column. `init_db()` applied it retroactively — no new code needed. Correct behavior.
+**CLV=N/A FYI — noted, not a flag:** Expected. Auto-resolve captures result via ESPN (free); CLV requires Odds API close_price at bet settlement time. Gap is known architecture limitation, not a bug. EXP 6 analytics gate uses `resolved bets` count (4/50), not CLV quality.
+**Test pass rate:** ✅ 1244/1244 — unchanged (no new logic paths).
+**Issues:** None.
+**Action required:** None. S38 B2/injury_data.py directive still ⏳ PENDING.
+
 ### SANDBOX SESSION 38 SUMMARY — 2026-02-26
 **Built:** result_resolver.py — 3 live-run bug fixes + 9 regression tests
 - Bug 1 (date offset): range(-1, _DATE_SEARCH_WINDOW+1) — US evening games logged after midnight UTC were off-by-1 day. Fix: also search logged_at-1 day.

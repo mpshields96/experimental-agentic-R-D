@@ -13,6 +13,7 @@ import pytest
 
 import core.scheduler as sched_mod
 from core.scheduler import (
+    compute_injury_leverage_from_event,
     get_status,
     is_running,
     reset_state,
@@ -511,3 +512,76 @@ class TestResetState:
         assert sched_mod._poll_errors == []
         assert sched_mod._db_path is None
         assert sched_mod._scheduler is None
+
+
+# ---------------------------------------------------------------------------
+# compute_injury_leverage_from_event
+# ---------------------------------------------------------------------------
+class TestComputeInjuryLeverageFromEvent:
+    """V37 Session 38 directive: injury_data.py wired into pipeline call path."""
+
+    def test_zero_when_no_injury_data(self):
+        """Default Odds API event dict has no _injuries key → always 0.0."""
+        game = {"id": "abc", "home_team": "Lakers", "away_team": "Celtics"}
+        result = compute_injury_leverage_from_event(game, "NBA")
+        assert result == 0.0
+
+    def test_zero_when_injuries_empty_list(self):
+        """Explicit empty list is also a no-op."""
+        game = {"_injuries": []}
+        result = compute_injury_leverage_from_event(game, "NBA")
+        assert result == 0.0
+
+    def test_nonzero_when_opponent_starter_out(self):
+        """Away PG out → positive leverage for home spread bet (opponent weakened)."""
+        game = {
+            "_injuries": [
+                {"position": "PG", "team_side": "away", "is_starter": True}
+            ]
+        }
+        result = compute_injury_leverage_from_event(game, "NBA", "spreads", "home")
+        assert result > 0.0
+
+    def test_negative_when_own_starter_out(self):
+        """Home PG out → negative leverage for home spread bet (our side weakened)."""
+        game = {
+            "_injuries": [
+                {"position": "PG", "team_side": "home", "is_starter": True}
+            ]
+        }
+        result = compute_injury_leverage_from_event(game, "NBA", "spreads", "home")
+        assert result < 0.0
+
+    def test_non_starter_ignored(self):
+        """Non-starter absence → 0.0 (injury_data rule: depth chart absorbs backups)."""
+        game = {
+            "_injuries": [
+                {"position": "PG", "team_side": "away", "is_starter": False}
+            ]
+        }
+        result = compute_injury_leverage_from_event(game, "NBA", "spreads", "home")
+        assert result == 0.0
+
+    def test_missing_position_entry_skipped(self):
+        """Entry without 'position' key is silently skipped."""
+        game = {"_injuries": [{"team_side": "away", "is_starter": True}]}
+        result = compute_injury_leverage_from_event(game, "NBA")
+        assert result == 0.0
+
+    def test_leverage_flows_into_sharp_score(self):
+        """Sanity check: signed_impact flows into calculate_sharp_score min(5.0, leverage)."""
+        from core.math_engine import calculate_sharp_score
+        # Non-zero injury_leverage raises situational points
+        score_with, _ = calculate_sharp_score(
+            edge_pct=0.05,
+            rlm_confirmed=False,
+            efficiency_gap=0.0,
+            injury_leverage=4.0,
+        )
+        score_without, _ = calculate_sharp_score(
+            edge_pct=0.05,
+            rlm_confirmed=False,
+            efficiency_gap=0.0,
+            injury_leverage=0.0,
+        )
+        assert score_with > score_without

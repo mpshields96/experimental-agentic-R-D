@@ -32,6 +32,7 @@ from core.price_history_store import (
 )
 from core.probe_logger import log_probe_result
 from core.nhl_data import get_starters_for_odds_game, cache_goalie_status
+from core.injury_data import evaluate_injury_impact
 
 logger = logging.getLogger(__name__)
 
@@ -312,6 +313,65 @@ def get_status() -> dict:
         "inactive": idle_hours > INACTIVITY_TIMEOUT_HOURS,
         "inactivity_timeout_hours": INACTIVITY_TIMEOUT_HOURS,
     }
+
+
+def compute_injury_leverage_from_event(
+    game: dict,
+    sport: str,
+    bet_market: str = "spreads",
+    bet_direction: str = "home",
+) -> float:
+    """
+    Compute injury leverage from event metadata.
+
+    Odds API does not currently provide structured injury data, so this returns
+    0.0 in production. The call path exists so external injury feeds can inject
+    non-zero leverage by populating game["_injuries"].
+
+    ASSUMPTION: game["_injuries"] is populated by a separate injury feed (not
+    the Odds API standard response). It is absent in all standard Odds API
+    responses — meaning this always returns 0.0 in the live pipeline today.
+
+    Args:
+        game:          Odds API event dict. Checks for optional "_injuries" key.
+        sport:         Sport identifier passed to evaluate_injury_impact().
+        bet_market:    "spreads", "h2h", or "totals".
+        bet_direction: "home" or "away" — which side the bet favours.
+
+    Returns:
+        float: Sum of signed_impact values across all flagged injuries.
+               0.0 when no "_injuries" key present (safe default — always in
+               production until a live injury feed is wired).
+
+    game["_injuries"] format (future injection point)::
+
+        [{"position": "PG", "team_side": "home", "is_starter": True}, ...]
+
+    Each entry calls evaluate_injury_impact(); signed_impact values are summed.
+    Non-starter entries are skipped (depth chart absorbs backup absences).
+    Errors in evaluate_injury_impact are silently swallowed — 0.0 is the safe
+    fallback if the injury model raises on an unknown position.
+    """
+    injuries = game.get("_injuries") or []
+    if not injuries:
+        return 0.0
+
+    total = 0.0
+    for inj in injuries:
+        pos = inj.get("position", "")
+        team_side = inj.get("team_side", "home")
+        is_starter = bool(inj.get("is_starter", True))
+        if not pos:
+            continue
+        try:
+            report = evaluate_injury_impact(
+                sport, pos, is_starter, team_side, bet_market, bet_direction
+            )
+            total += report.signed_impact
+        except Exception:  # noqa: BLE001
+            pass
+
+    return total
 
 
 def is_running() -> bool:
