@@ -481,6 +481,8 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 55. **Props event endpoint — 422 is permanent, no retry** (Session 35): `/v4/sports/{sport}/events/{event_id}/odds` returns 422 when a market is not on the API tier. This is a permanent rejection, not transient. Use `requester.get()` directly — do NOT use `_fetch_with_backoff()`. Retrying a 422 burns quota with no benefit.
 56. **Props canonical line pinning = same modal-line rule as totals** (Session 35): `parse_props_candidates()` groups outcomes by (player, market_key, point), finds modal point across books, uses only those books for consensus. With 1 book: no_vig fair_prob and implied_prob derive from the same price → edge = 0 → always filtered. Props edge requires ≥2 books with divergent pricing. `_make_props_event()` in test_math_engine.py is the canonical fixture (2 sharp + 1 soft outlier → A-grade edge).
 57. **Separate quota tracker per API budget domain** (Session 35): `PropsQuotaTracker` is completely isolated from main `QuotaTracker` — no shared state, no shared DB, no shared session counter. Module-level singleton: `props_quota = PropsQuotaTracker()`. Any future secondary API gets its own tracker class; never add flags or tags to an existing tracker.
+58. **DailyCreditLog test isolation** (Session 36): Two things needed: (1) in individual tests, redirect via `obj.daily_log = DailyCreditLog(str(tmp_path / "file.json"))` to avoid touching real JSON; (2) in module-level reset functions, add `obj.daily_log._data["used_today"] = 0` (matching `_reset_quota()` pattern). To control state in tests: set `daily_log._data["used_today"] = N` directly — no file I/O needed.
+59. **tests/fixtures/ — saved API response fixtures** (Session 36): `tests/fixtures/props_sample.json` is the canonical 3-book NBA props fixture (LeBron PTS 24.5 — produces A-grade Over). Load in tests: `json.load(open(os.path.join(os.path.dirname(__file__), "fixtures", "file.json")))`. Add a fixture here for any new endpoint shape to catch format drift without API calls.
 
 ---
 
@@ -516,16 +518,16 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 35 — 2026-02-26)
+## 🚦 CURRENT PROJECT STATE (as of Session 36 — 2026-02-26)
 
 ```
-Test suite:   1154/1154 passing ✅
-Last commit:  cdc6e6f (Session 35 props math layer) — NOT YET PUSHED (2 commits ahead)
+Test suite:   1162/1162 passing ✅
+Last commit:  5e188b3 (Session 36 cont: V37 directive) — NOT YET PUSHED (6 commits ahead)
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App:          LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
 App port:     8504 | launch: ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
 
-✅ SESSIONS 29-35 COMPLETE:
+✅ SESSIONS 29-36 COMPLETE:
   Session 29: totals canonical line fix, RLM direction fix, dead code audit (1103→1079)
   Session 30: visionOS UI pass (pages 01, 04, 07), PRECONDITION docstrings, SQLite MCP
   Session 31: Streamlit Cloud deploy (titaniumv37agentic.streamlit.app), DB init fix
@@ -534,13 +536,15 @@ App port:     8504 | launch: ODDS_API_KEY=<key> streamlit run app.py --server.po
   Session 34: Stale 30-bet refs fixed → 10, KPI label polish, V37 docstrings, REVIEW_LOG updated
   Session 35: Player props E2E — PropsQuotaTracker, fetch_props_for_event, PropCandidate,
               parse_props_candidates, page 08 with edge+grade cards (+48 tests → 1154)
+  Session 36: titanium-session-wrap + titanium-context-monitor skills; props DailyCreditLog
+              gate met (+8 tests → 1162). ODDS_API_KEY_PROPS can now be activated.
 
-📋 SESSION 36 PRIORITY ORDER:
-  #1 V37 ruling (check REVIEW_LOG.md): props file placement + daily log + 422 no-retry
-  #2 Live run: grade/log 6 more resolved bets for analytics gate (need 10 resolved)
-  #3 Props live test: use page 08 with real NBA event_id to validate E2E
-  #4 SHARP_THRESHOLD gate: 5 live sessions + 20 RLM fires (currently 0/5, 0/20)
-  #5 MLB kill switch: HOLD until Apr 1, 2026
+📋 SESSION 37 PRIORITY ORDER:
+  #1 Live run: grade/log 6 more resolved bets for analytics gate (need 10 resolved, 4 logged)
+  #2 Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met — user sets env var, test page 08 E2E)
+  #3 SHARP_THRESHOLD gate: 5 live sessions + 20 RLM fires (currently 0/5, 0/20)
+  #4 MLB kill switch: HOLD until Apr 1, 2026
+  #5 Push all 6 local commits to origin
 
 LIVE BET STATUS (4 logged, 0 resolved — analytics locked until 10 resolved):
   id=1: OKC -7.5 @ -115 | id=2: CLE -17.5 @ +120
