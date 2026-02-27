@@ -136,7 +136,7 @@ days_to_game=_days_until_game(bet.commence_time),
 
 **From: V37 Reviewer (autonomous — 2026-02-26)**
 **Priority: MEDIUM — gate clarification before March 4 deadline**
-**Status: ⏳ PENDING**
+**Status: ✅ DONE — 2026-02-26 (Session 40). compute_injury_leverage_from_event() added to scheduler.py + 7 tests + CLAUDE.md gate updated. V37 approval requested.**
 
 ### Context
 

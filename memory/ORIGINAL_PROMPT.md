@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 39 — 2026-02-26
-# Session work S39: V37 coordination (inbox updated, S38 review DONE), all commits pushed, scheduler 5→30 min (credit conservation), grade migration applied to local DB. No new tests.
-# Priority reset: #1 Live run — log 6 more paper bets to hit analytics gate (4/10 → 10/10), #2 Activate ODDS_API_KEY_PROPS, #3 CLV close-price capture (auto-resolve doesn't get close_price)
+# Last updated: Session 40 — 2026-02-26
+# Session work S40: V37 S38 directive DONE — compute_injury_leverage_from_event() added to scheduler.py, wired into live_lines.py parse_game_markets() call, 7 new tests, CLAUDE.md B2 gate updated. 1251 tests.
+# Priority reset: #1 Live run — log 6 more paper bets (4/10 → 10/10). Daily credit cap hit (318/300) — no API scan until midnight UTC 2/27. Use app with cached data. #2 Activate ODDS_API_KEY_PROPS, #3 CLV close-price capture
 # Maintained by: sandbox builder chat
 
 ---
@@ -185,20 +185,30 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 39 — 2026-02-26)
+## 📍 CURRENT PROJECT STATE (Session 40 — 2026-02-26)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1244 / 1244 passing ✅
+Tests:    1251 / 1251 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commit (all pushed ✅):
+Latest commit (NOT YET PUSHED — push at next session start):
+  - f2ee1ee — Session 40: wire injury_data.py into pipeline (V37 S38 directive) + B2 gate update
   - 4271736 — Session 39: notify_iphone scripts tracked
   - cf3e660 — Session 39: scheduler interval 5→30 min (credit conservation)
   - e595a33 — Session 39: V37 coordination + PROJECT_INDEX + REVIEW_LOG V37 audits
   - a818794 — Session 38: wrap docs (gate 0→4/10 resolved bets)
-  - 2c8f38d — Session 38: result_resolver 3 bug fixes + 9 regression tests
-All previous sessions (35-38) fully pushed. Last push: 2026-02-26 Session 39.
+All previous sessions (35-39) fully pushed. Session 40 commit NOT pushed (awaits user push).
+
+✅ SESSION 40 COMPLETE (2026-02-26) — B2 gate wiring (V37 S38 directive):
+  - core/scheduler.py: compute_injury_leverage_from_event() — checks game["_injuries"], calls evaluate_injury_impact(), 0.0 safe default (Odds API has no injury metadata in production)
+  - pages/01_live_lines.py: parse_game_markets() now receives injury_leverage=compute_injury_leverage_from_event(game, sport_label) instead of hardcoded 0.0
+  - CLAUDE.md: B2 gate table updated — espn_stability.log approach REPLACED with injury_data.py wired pattern
+  - tests/test_scheduler.py: 7 new tests (TestComputeInjuryLeverageFromEvent)
+  - V37 S38 directive: ✅ DONE. V37 audit requested.
+  - Tests: 1244 → 1251 (+7)
+  - Commit: f2ee1ee — NOT YET PUSHED
+  - Credits: ~3 used (daily cap hit 318/300 from scheduler polls — no further scans today)
 
 ✅ SESSION 37 COMPLETE:
   - core/result_resolver.py (new) — ESPN unofficial scoreboard API auto-resolver: fetch_espn_scoreboard(), _find_game() (fuzzy team match), _resolve_spread/total/moneyline(), auto_resolve_pending() → ResolveResult. _fetcher injection for test isolation. Zero Odds API credits.
@@ -236,19 +246,22 @@ All previous sessions (35-38) fully pushed. Last push: 2026-02-26 Session 39.
   - V37 Session 32-A audit docstring additions: daily_allowance() ASSUMPTION + is_session_hard_stop() guard interaction note
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
-📋 PRIORITY ORDER (Session 39 — current):
+📋 PRIORITY ORDER (Session 40 — current):
+  #0 — PUSH Session 40 commit: `git push origin main` (1 unpushed commit: f2ee1ee)
   #1 — Live run: log 6 more paper bets (currently 4/10). Need 10 resolved to unlock analytics.
-       Workflow: open local app → "↺ Refresh Now" → Live Lines → click "Log Paper Bet" → next day → Bet Tracker → "Auto-Resolve"
-       Credit note: scheduler now 30 min (was 5). "Refresh Now" = manual on-demand scan.
-  #2 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met; user sets env var ODDS_API_KEY_PROPS)
-  #3 — CLV close-price capture: auto_resolve_pending() gets result (ESPN, free) but NOT close_price (needs Odds API). CLV=N/A on all 4 existing bets. Consider adding Odds API close-price fetch at resolve time.
-  #4 — SHARP_THRESHOLD raise gate: 45→50 (gate: 5 live sessions + 20 RLM fires)
-  #5 — MLB kill switch (HOLD — Apr 1, 2026)
+       IMPORTANT: Daily credit cap (300) was hit on 2/26 by scheduler polls. No fresh API scan until midnight UTC 2/27.
+       Option A: Start app → Live Lines (uses last cached data — no API call needed) → click "Log Paper Bet"
+       Option B: Wait until 2/27 morning → "Refresh Now" → Live Lines → click "Log Paper Bet"
+  #2 — V37 audit: V37 must review Session 40 changes (compute_injury_leverage_from_event + B2 gate). PENDING in V37_INBOX.md.
+  #3 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met; user sets env var ODDS_API_KEY_PROPS)
+  #4 — CLV close-price capture: auto_resolve_pending() gets result (ESPN, free) but NOT close_price (needs Odds API). CLV=N/A on all 4 existing bets.
+  #5 — SHARP_THRESHOLD raise gate: 45→50 (gate: 5 live sessions + 20 RLM fires)
+  #6 — MLB kill switch (HOLD — Apr 1, 2026)
 
 Bets: 4 logged, 4 resolved. Paper profit: $97.88 (3W-1L). Need 6 more to unlock analytics (gate=10).
 CLV: N/A on all 4 existing bets (auto_resolve gets result only, not close_price). Future improvement needed.
-Scheduler: 30 min interval (was 5 min). "Refresh Now" button in sidebar for on-demand scans.
-Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 remaining (floor=150).
+Scheduler: 30 min interval. "Refresh Now" button in sidebar for on-demand scans.
+Odds API: Daily cap 300, billing resets 3/1/26. ~7 credits remaining today (floor=150). Fresh scan available 2/27 00:00 UTC.
   User willing to upgrade to $50/month ONLY if objectively superior + fully meets requirements.
 ```
 
@@ -378,7 +391,7 @@ EDGE TIER LABELS (for display in export_bets.py and future UI):
 | CLV verdict | 0/10 graded bets | Check clv_summary() verdict |
 | MLB kill switch | Season gate (Apr 1) | Don't touch before Apr 1, 2026 |
 | Pinnacle presence | REMOVED — always ABSENT for US markets | Never add back; widget renamed to Book Coverage |
-| B2 gate monitor | Waiting — gate date 2026-03-04 | V37 checks espn_stability.log on/after that date |
+| B2 gate monitor | ✅ WIRED (Session 40) — compute_injury_leverage_from_event() in scheduler.py | V37 approval PENDING in V37_INBOX.md. Approve → promote to v36. |
 
 ---
 

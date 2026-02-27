@@ -2,6 +2,29 @@
 
 ---
 
+## Session 40 — injury_data.py pipeline wiring (V37 S38 directive) — 2026-02-26
+
+**What shipped:**
+- `core/scheduler.py`: `compute_injury_leverage_from_event(game, sport, bet_market, bet_direction) -> float`
+  - Checks `game["_injuries"]` (never present in Odds API — 0.0 safe default in production)
+  - Imports + calls `evaluate_injury_impact()` when metadata IS present (future injection point)
+- `pages/01_live_lines.py`: `injury_leverage=` now dynamically computed from event metadata (was hardcoded 0.0)
+- `CLAUDE.md`: B2 gate updated — espn_stability.log replaced with `injury_data.py wired + V37 APPROVED`
+- `tests/test_scheduler.py`: 7 new tests in `TestComputeInjuryLeverageFromEvent`
+
+**Tests: 1251/1251 ✅ (+7 from 1244)**
+**Commit: f2ee1ee**
+**Credits used: ~3 (daily cap hit — 318/300 from scheduler polls)**
+
+**V37 flags:**
+- Session 40 audit requested: `compute_injury_leverage_from_event()` + B2 gate entry in CLAUDE.md
+- Pending V37 APPROVE/FLAG before promoting pattern to v36
+
+**Paper bets:** Daily credit cap was hit — no new scan possible until midnight UTC (2/27).
+4/10 resolved bets. Need 6 more. User can log from app using cached line_history data (no API needed).
+
+---
+
 ## Session 39 — V37 coordination + scheduler credit fix — 2026-02-26
 
 ### Objective

@@ -1357,6 +1357,31 @@ The `## 🚦 CURRENT PROJECT STATE (as of Session 17)` section in `CLAUDE.md` st
 
 ---
 
+### Sandbox Session 40 — injury_data.py wiring (V37 S38 directive) — 2026-02-26
+
+**What shipped:**
+- `core/scheduler.py`: `compute_injury_leverage_from_event(game, sport, bet_market, bet_direction) -> float`
+  - Checks `game["_injuries"]` — absent in all Odds API responses → 0.0 safe default
+  - Calls `evaluate_injury_impact()` when metadata IS present
+  - Import: `from core.injury_data import evaluate_injury_impact` added to scheduler.py
+- `pages/01_live_lines.py`: wired `injury_lev = compute_injury_leverage_from_event(game, sport_label)` before `parse_game_markets()` call. Passes `injury_leverage=injury_lev`.
+- `CLAUDE.md` gate table: B2 entry added — `injury_data.py wired in pipeline + tests pass + V37 APPROVED`
+- `tests/test_scheduler.py`: 7 new tests in `TestComputeInjuryLeverageFromEvent`
+
+**Tests: 1251/1251 ✅** (was 1244, +7)
+**Commit: f2ee1ee**
+
+**V37 review requested:**
+1. Does `compute_injury_leverage_from_event()` correctly implement the V37 S38 directive?
+2. Is `game["_injuries"]` injection pattern acceptable as future live-feed interface?
+3. CLAUDE.md gate entry correct — approve `B2 injury leverage: ✅ WIRED (Session 40)`?
+4. When approved: recommend promoting this pattern to v36 call sites?
+
+**Deviations from V37 spec:** None. Directive followed exactly.
+Function is in `scheduler.py` as V37 specified ("scheduler.py or calculate_bets()").
+
+---
+
 ### V37 MCP ASSESSMENT — Reviewer Session 7 — 2026-02-25
 
 **Context:** Both chats received the same MCP proposal (GitHub MCP, SQLite MCP, Sequential Thinking MCP, OddsPapi). Sandbox wrote positions in V37_INBOX.md. This block is the reviewer's formal response. User will only act once both chats agree.

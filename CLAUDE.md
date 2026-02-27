@@ -498,6 +498,10 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 57. **Separate quota tracker per API budget domain** (Session 35): `PropsQuotaTracker` is completely isolated from main `QuotaTracker` — no shared state, no shared DB, no shared session counter. Module-level singleton: `props_quota = PropsQuotaTracker()`. Any future secondary API gets its own tracker class; never add flags or tags to an existing tracker.
 58. **DailyCreditLog test isolation** (Session 36): Two things needed: (1) in individual tests, redirect via `obj.daily_log = DailyCreditLog(str(tmp_path / "file.json"))` to avoid touching real JSON; (2) in module-level reset functions, add `obj.daily_log._data["used_today"] = 0` (matching `_reset_quota()` pattern). To control state in tests: set `daily_log._data["used_today"] = N` directly — no file I/O needed.
 59. **tests/fixtures/ — saved API response fixtures** (Session 36): `tests/fixtures/props_sample.json` is the canonical 3-book NBA props fixture (LeBron PTS 24.5 — produces A-grade Over). Load in tests: `json.load(open(os.path.join(os.path.dirname(__file__), "fixtures", "file.json")))`. Add a fixture here for any new endpoint shape to catch format drift without API calls.
+60. **`assign_grade()` takes BetCandidate, NOT float** (Session 40): `assign_grade(bet.edge_pct)` raises `AttributeError: 'float' object has no attribute 'edge_pct'`. Always `assign_grade(bet)`. In standalone scripts without BetCandidate: inline `grade = 'A' if e >= MIN_EDGE else 'B' if e >= GRADE_B_MIN_EDGE else 'C' if e >= GRADE_C_MIN_EDGE else 'NEAR_MISS'`.
+61. **`calculate_sharp_score()` signature** (Session 40): Takes `rest_edge: float` (pre-computed value), NOT `rest_days: dict`. Returns `(score, breakdown_dict)` tuple — must unpack both. In tests: `score, _ = calculate_sharp_score(edge_pct=0.05, rlm_confirmed=False, efficiency_gap=0.0, injury_leverage=4.0)`. The `rest_days` dict is processed UPSTREAM (e.g., in `parse_game_markets`) before reaching `calculate_sharp_score`.
+62. **Backup 200MB guard recovery** (Session 40): When `.backups/` exceeds 200MB, `backup.sh` skips and prints the exact `rm` command to run. Recovery pattern: `ls -lh .backups/` → `rm` two oldest tarballs → re-run `backup.sh`. At current project size (~166-193MB/tarball), only 1-2 tarballs fit within the 200MB limit.
+63. **Daily credit cap consumed by scheduler** (Session 40): 12 sports × 30-min polling × ~1.5 cr/sport ≈ 36 cr/poll × 2/hr. The 300 daily cap is typically exhausted by early afternoon. Standalone scripts calling `fetch_batch_odds()` may succeed on FIRST call when `quota.remaining=None` (uninitialized — first call bypasses DailyCreditLog), but all subsequent calls in the same process are blocked. Plan manual scans for early morning UTC when the daily budget resets at midnight UTC.
 
 ---
 
@@ -601,4 +605,4 @@ SYSTEM GATES:
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 37, 2026-02-26*
+*Last updated: Session 40, 2026-02-26*
