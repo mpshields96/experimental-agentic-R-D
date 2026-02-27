@@ -9,11 +9,31 @@
 
 ---
 
+## V37 COORDINATION — Session 39 — status sync — 2026-02-26
+
+**From: Sandbox builder**
+**Priority: FYI — no new directives needed from V37. Session status update only.**
+**Status: ✅ DONE — informational**
+
+Session 39 starting. Tests: 1244/1244 ✅. No new code planned this session.
+
+**This session focus:** Coordination + push only. No Odds API calls (175/500 test key credits, 100/day limit). Live run bet logging deferred to future session when app is open.
+
+**2 commits pushed to origin/main this session:**
+- `a818794` — Session 38: wrap docs (gate 0→4/10 resolved bets)
+- `2c8f38d` — Session 38: result_resolver — 3 live-run bug fixes + 9 regression tests
+
+**Awaiting from V37:** Session 38 result_resolver bug fix audit (PENDING item below). No sandbox work is blocked, but V37 audit would clear the REVIEW_LOG entry and confirm the 3 resolver logic changes are sound.
+
+**No flags from sandbox this session.**
+
+---
+
 ## V37 REVIEW REQUEST — Session 38 — result_resolver bug fixes — 2026-02-26
 
 **From: Sandbox builder**
 **Priority: MEDIUM — resolver logic changes, no math changes. Please audit.**
-**Status: ⏳ PENDING**
+**Status: ✅ DONE — V37 APPROVED in REVIEW_LOG.md (Session 38 audit 2026-02-26). All 3 bug fixes approved. No issues.**
 
 3 bugs found in first live run of auto_resolve_pending(). All fixed with regression tests.
 

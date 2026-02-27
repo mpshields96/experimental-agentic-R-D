@@ -87,6 +87,21 @@
 **Gates changed:** 4/10 resolved bets (was 0/10). Analytics gate now 40% complete.
 **Flags for reviewer:** 3 bugs found in first live run — all fixed with regression tests. Requesting V37 review of result_resolver.py bug fixes (no math changes, resolver logic only).
 
+### V37 AUDIT — Sandbox Session 38 (result_resolver.py live-run bug fixes) — 2026-02-26
+
+**Status: APPROVED ✅**
+**Math > Narrative check:** ✅ Resolver logic only — no Sharp Score, Kelly, or kill switch changes. Spread/total/moneyline resolution math unchanged.
+**Rules intact:** ✅ No collar, edge, Kelly, or SHARP_THRESHOLD changes.
+**Import discipline:** ✅ All changes confined to `core/result_resolver.py` and `tests/test_result_resolver.py`. No file boundary violations.
+**API discipline:** ✅ ESPN scoreboard endpoint (historical completed game data) — precedent already established in Session 37 Cont. B audit. No new external endpoints added.
+**Bug 1 (date offset) — APPROVED:** `range(-1, _DATE_SEARCH_WINDOW+1)` = searches 5 dates: logged_at-1 through logged_at+3. Correct fix — US evening games (e.g. 9pm ET) logged at ~02:00 UTC next day would miss the game date without the -1 offset.
+**Bug 2 (NCAAB groups) — APPROVED:** `_ESPN_EXTRA_PARAMS` dict pattern is clean and extensible. `groups=50&limit=200` for NCAAB (all D1) and `groups=80&limit=200` for NCAAF correctly force full-slate responses from ESPN's paginated endpoint.
+**Bug 3 (abbreviation expansion) — APPROVED:** `\bst\b → "state"` applied to fragment only (Odds API name), NOT the ESPN name. Critical constraint preserved — "St. Louis Blues" from Odds API normalizes to "st louis blues", matches ESPN "st louis blues" on first check (no expansion needed). False-positive risk absent. Covers Colorado St / Fresno St / similar Odds API abbreviations.
+**Test pass rate:** ✅ 1235 → 1244 (+9). 9 targeted regression tests for 3 bugs. Proper `_fetcher` injection — no live network.
+**Live validation:** ✅ 4/4 pending bets resolved correctly on first live run (OKC WIN, CLE LOSS, UIC WIN, Colorado St WIN). Real-world proof the resolver is production-ready.
+**Issues:** None.
+**Action required:** None. Session 38 B2 gate directive (`injury_data.py` wiring) remains ⏳ PENDING.
+
 ### SANDBOX SESSION 37 CONT. C SUMMARY — 2026-02-26
 **Built:** V37 Session 38A directive — days_to_game fix + paper bet logging tests
 - pages/01_live_lines.py: Added _days_until_game(commence_time: str) -> float helper. Fixed _log_paper_bet(): days_to_game was float(bet.rest_days or 0) (wrong — rest_days = NBA rest days since last game). Now: days_to_game=_days_until_game(bet.commence_time) — derives from ISO 8601 UTC game start time.
@@ -95,6 +110,17 @@
 **Architectural decisions:** ast.get_source_segment + textwrap.dedent + exec() pattern established for testing Streamlit page functions without importing the full page. Covers cases where module-level st.columns() unpacking would fail with MagicMock.
 **Gates changed:** None.
 **Flags for reviewer:** V37 38A directive fully addressed. Flag cleared.
+
+### V37 AUDIT — Sandbox Session 37 Cont. C (S38A: days_to_game fix + paper bet tests) — 2026-02-26
+
+**Status: APPROVED ✅ — S38A FLAG CLEARED**
+**Math > Narrative check:** ✅ Pure utility fix + test infrastructure. No scoring, Kelly, or kill switch changes.
+**Rules intact:** ✅ No mathematical rules touched.
+**`_days_until_game()` implementation — APPROVED:** `datetime.fromisoformat(commence_time.replace("Z", "+00:00"))` handles Z-suffix ISO format. `max(0.0, delta)` correctly returns 0.0 for already-started games. Catches both `ValueError` (bad format) and `AttributeError` (None input). Correct fix — `rest_days` is an NBA-only field (days since last game), not days until game start.
+**`ast.get_source_segment` test pattern — APPROVED:** Sound test isolation strategy. Extracts function source from the page file at test time, evaluates it in a controlled namespace, rather than importing the full page module (which would fail on `st.columns()` unpacking with MagicMock). Trade-off: test fragility if function names change, but acceptable for UI-layer unit tests.
+**Test pass rate:** ✅ 1224 → 1235 (+11). Exceeds S38A minimum of 3. All three required test names confirmed: `test_log_paper_bet_grade_c_sets_stake_zero`, `test_log_paper_bet_grade_a_uses_kelly_size`, `test_paper_log_button_idempotency`. Plus 8 additional utility tests.
+**Issues:** None.
+**Action required:** S38A directive ✅ COMPLETE. Active flag cleared.
 
 ### SANDBOX SESSION 37 CONT. B SUMMARY — 2026-02-26
 **Built:** `core/result_resolver.py` (NEW) + `pages/04_bet_tracker.py` integration
