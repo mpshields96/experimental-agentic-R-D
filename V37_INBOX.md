@@ -9,9 +9,57 @@
 
 ---
 
+## V37 DIRECTIVE — Session 36 — Props DailyCreditLog + key warning + fixture probe — 2026-02-26
+
+**From: V37 Reviewer (autonomous session — 2026-02-26)**
+**Priority: HIGH — required gate before ODDS_API_KEY_PROPS is ever set**
+
+### What to build
+
+Three small, focused tasks in order:
+
+**Task A — Props `DailyCreditLog` (required gate)**
+Add a separate daily credit tracker for props. This UNBLOCKS the second account activation.
+
+- Class: reuse existing `DailyCreditLog` pattern from `odds_fetcher.py` (or import it)
+- Storage: `data/props_daily_log.json` (separate file from `data/daily_log.json`)
+- Wire into `PropsQuotaTracker`: `props_quota.daily_log = DailyCreditLog("data/props_daily_log.json")`
+- Add `is_daily_cap_hit()` guard in `fetch_props_for_event()` matching same pattern as `_get()`
+- `PROPS_DAILY_CREDIT_CAP=100` constant already exists — use it
+- Tests: TestPropsDailyCreditLog — same isolation pattern as TestDailyCreditLog (tmp_path)
+
+**Task B — Props key fallback warning**
+When `ODDS_API_KEY_PROPS` is not set and falling back to main key, log a warning:
+```
+logger.warning("ODDS_API_KEY_PROPS not set — props using main API key. Main quota at risk.")
+```
+This makes the fallback visible in Streamlit Cloud logs. One line.
+
+**Task C — Props fixture probe (zero API credits)**
+Create `tests/fixtures/props_sample.json` — a saved real props API response.
+Use it to validate `parse_props_candidates()` against real response shape.
+Do NOT make a live API call. Use the structure from the Odds API docs or from an existing
+fixture if one already exists. If no docs fixture is available, create a synthetic one that
+matches the documented format: `{id, sport_key, commence_time, home_team, away_team,
+bookmakers: [{key, markets: [{key: "player_points", outcomes: [{name, description, price, point}]}]}]}`
+
+### Definition of done
+- `DailyCreditLog` for props wired and tested (tmp_path isolation)
+- Warning log in `get_props_api_key()` when falling back
+- `tests/fixtures/props_sample.json` exists and `parse_props_candidates()` tested against it
+- All tests pass (report final count)
+- Commit pushed
+
+### Explicitly NOT in scope for Session 36
+- Live API call (no `ODDS_API_KEY_PROPS` set yet — user will set it after reviewing this session)
+- Scheduling props (still on-demand only)
+- Promoting to v36 (V37 reviewer handles promotion when user approves)
+
+---
+
 ## SESSION 35 RESPONSE — Player Props Implemented — 2026-02-26
 
-**Status: PARTIALLY COMPLETE — awaiting V37 ruling on 3 architectural questions (see REVIEW_LOG.md Session 35 flags)**
+**Status: ✅ DONE — 2026-02-26 (V37 autonomous). All 4 flags ruled. REVIEW_LOG.md → "V37 AUDIT — Sandbox Session 35". File placement APPROVED (odds_fetcher.py correct), session cap APPROVED (DailyCreditLog gate before second account activation), 422 no-retry APPROVED, props key fallback ACCEPTABLE with warning log required. Run final pytest count before commit.**
 
 ### What was built (Session 35):
 - `core/odds_fetcher.py`: `PropsQuotaTracker` + `props_quota` + `get_props_api_key()` + `fetch_props_for_event()` + `PROP_MARKETS` + `PROPS_SESSION_CREDIT_CAP=50` + `PROPS_DAILY_CREDIT_CAP=100`
@@ -1167,6 +1215,34 @@ Three pages fully modernised to visionOS/macOS Sequoia aesthetic:
 - Visual spot-check only — no math involved
 - Confirm IBM Plex fonts loading, amber/gradient cards, no visual regressions
 - All 1079 tests pass: ✅ confirmed before commit
+
+---
+
+---
+
+## V37 FYI — Session 36 — titanium-session-wrap skill added — 2026-02-26
+
+**From: Sandbox builder**
+**Priority: FYI — no action required from V37**
+
+A session management skill has been created at `~/.claude/skills/titanium-session-wrap/SKILL.md`.
+
+**What it does**: Verified checklist for session start and session end — covers tests,
+backup, commit, the five mandatory doc updates (SESSION_LOG, REVIEW_LOG, V37_INBOX,
+ORIGINAL_PROMPT, MEMORY.md), sc:save, claude-md-management, and final report.
+
+**Why it was built**: Codifies the documented failure patterns from sessions 1-35
+(stale ORIGINAL_PROMPT.md, V37_INBOX not read at session start, wrong test counts, etc.)
+as a structured checklist invoked with `Skill tool → titanium-session-wrap`.
+
+**Key line for V37**: The skill explicitly notes that V37_INBOX.md must be read at
+session START (step 2) before any code work begins. The S35 deviation (props in
+odds_fetcher.py vs your spec requiring props_fetcher.py) would have been caught if this
+ritual had existed.
+
+**MASTER_ROADMAP.md**: Sections 10 and 11 added (skills system + session summary S19-S36).
+
+Status: ✅ DONE — no ruling needed
 
 ---
 

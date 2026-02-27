@@ -299,6 +299,7 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 | `claude-md-management:revise-claude-md` | At every session end checkpoint |
 | `superpowers:verification-before-completion` | Before claiming any task is done or tests pass |
 | `superpowers:systematic-debugging` | Before proposing any fix for a bug or test failure |
+| `titanium-session-wrap` | Session start AND session end — full ritual checklist |
 
 **2-session save rule (HARD RULE)**: `sc:save` + `claude-md-management:revise-claude-md` MUST run at minimum every 2 sessions. If approaching a context limit / new chat, run the full session end ritual first, then write a comprehensive ORIGINAL_PROMPT.md update before transitioning. Never fall more than 2 sessions behind on MD file updates.
 
