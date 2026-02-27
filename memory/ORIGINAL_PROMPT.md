@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 36 — 2026-02-26
-# Session work: (1) titanium-session-wrap + titanium-context-monitor skills; (2) V37 Session 36/37 directive: props DailyCreditLog + key warning + fixture probe. +8 tests → 1162.
-# Priority reset: #1 Live run (need 6 resolved bets), #2 Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met), #3 SHARP_THRESHOLD gate
+# Last updated: Session 37 — 2026-02-26
+# Session work: (1) Paper bet one-click logging + _days_until_game fix (V37 38A); (2) core/result_resolver.py ESPN auto-resolver + 62 tests; (3) 04_bet_tracker Auto-Resolve button; (4) tests/test_paper_bet_logging.py 11 tests. +73 tests → 1235.
+# Priority reset: #1 Auto-resolve pending bets (4 logged, 0 resolved — use new Auto-Resolve button), #2 Live run to gate analytics, #3 Activate ODDS_API_KEY_PROPS
 # Maintained by: sandbox builder chat
 
 ---
@@ -158,9 +158,9 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file. Write tasks to V37_INBOX.md.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
 
-Current V37 status (Session 35): Sessions 33-35 summaries written to REVIEW_LOG.md. V37 audit of 33-34 was clean (UI only). Session 35 awaiting V37 audit.
-V37 RULING NEEDED: (1) Props in odds_fetcher.py vs props_fetcher.py — V37 spec said separate file; (2) Props daily credit log (session cap only for now); (3) 422 no-retry confirmation.
-V37 also pending (low priority): originator_engine caller fix + nhl_data promotion.
+Current V37 status (Session 37): Sessions 37 complete. V37 38A flag CLEARED. result_resolver.py APPROVED. ESPN scoreboard precedent established (no gate for historical scores). V37 inbox: 38A DONE, ESPN FYI added.
+V37 RULINGS: Props in odds_fetcher.py APPROVED (V37 ruled no migration needed). ESPN scoreboard APPROVED. No open V37 flags.
+V37 pending (low priority): originator_engine caller fix + nhl_data promotion in v36.
 
 ---
 
@@ -185,14 +185,17 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 36 — 2026-02-26)
+## 📍 CURRENT PROJECT STATE (Session 37 — 2026-02-26)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1162 / 1162 passing ✅
+Tests:    1235 / 1235 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commits (7 local, NOT YET PUSHED):
+Latest commits (11 local, NOT YET PUSHED):
+  - 477926c — Session 37: V37 38A — days_to_game fix + paper bet logging tests (1235 tests)
+  - 5ededf1 — Session 37: paper bet auto-resolver + 04_bet_tracker integration (1224 tests)
+  - 2290a2e — Session 37: paper bet one-click logging on all bet cards (1162 tests)
   - [Session 36 cont.] — V37 directive: props DailyCreditLog + warning + fixture (1162 tests)
   - eea4770 — Session 36 titanium-context-monitor skill + GSD V37 loop-in
   - 50a0362 — Session 36 titanium-session-wrap skill
@@ -201,6 +204,15 @@ Latest commits (7 local, NOT YET PUSHED):
   - 9252e8f — Session 35 player props: PropsQuotaTracker, fetch_props_for_event, page 08 (1133 tests)
 Already pushed:
   - 3d751c1 — Session 34 cont: V37 docstrings + REVIEW_LOG session summaries
+
+✅ SESSION 37 COMPLETE:
+  - core/result_resolver.py (new) — ESPN unofficial scoreboard API auto-resolver: fetch_espn_scoreboard(), _find_game() (fuzzy team match), _resolve_spread/total/moneyline(), auto_resolve_pending() → ResolveResult. _fetcher injection for test isolation. Zero Odds API credits.
+  - pages/01_live_lines.py — _log_paper_bet() + _paper_log_button() one-click paper bet buttons on Grade A/B/C cards. _days_until_game(commence_time) helper (V37 38A fix — was rest_days, now ISO UTC derive).
+  - tests/test_result_resolver.py — 62 tests (all mocked, no live network)
+  - tests/test_paper_bet_logging.py — 11 tests (V37 38A directive: grade_c_stake_zero, grade_a_kelly_size, commence_time_fix, idempotency)
+  - pages/04_bet_tracker.py — Auto-Resolve button calls auto_resolve_pending(); toast feedback
+  - V37 38A FLAG: CLEARED. days_to_game fix + 11 tests. All V37 directives current.
+  - Tests: 1162 -> 1235 (+73)
 
 ✅ SESSION 36 COMPLETE:
   - Skills: ~/.claude/skills/titanium-session-wrap/ + titanium-context-monitor/ (both tested, CLAUDE.md updated)
@@ -229,12 +241,13 @@ Already pushed:
   - V37 Session 32-A audit docstring additions: daily_allowance() ASSUMPTION + is_session_hard_stop() guard interaction note
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
-📋 PRIORITY ORDER (Session 37):
-  #1 — Live run: grade/log 6 more resolved bets to unlock analytics gate (need 10 resolved, 4 logged, 0 resolved)
-  #2 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate now met, user sets env var)
-  #3 — SHARP_THRESHOLD raise gate: 45→50 (gate: 5 live sessions + 20 RLM fires)
-  #4 — MLB kill switch (HOLD — Apr 1, 2026)
-  #5 — Push all 7 local commits to origin
+📋 PRIORITY ORDER (Session 38):
+  #1 — Auto-resolve the 4 pending paper bets: click Auto-Resolve on 04_bet_tracker.py Pending Bets panel (ESPN pulls completed game scores automatically)
+  #2 — Live run: log more bets to hit analytics gate (goal 10 resolved; currently 4 logged, 0 resolved)
+  #3 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met; user sets env var ODDS_API_KEY_PROPS)
+  #4 — SHARP_THRESHOLD raise gate: 45->50 (gate: 5 live sessions + 20 RLM fires)
+  #5 — MLB kill switch (HOLD — Apr 1, 2026)
+  #6 — Push all 11 local commits to origin
 
 Bets: 4 logged, 0 resolved (need 6 more resolved to unlock analytics, gate=10)
 Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 remaining (floor=150).
@@ -299,6 +312,7 @@ Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 re
 | `king_of_the_court.py` | DraftKings Tuesday KOTC analyzer — static season data, zero API | 74 |
 | `analytics.py` | Pure analytics: sharp/RLM/CLV/equity/rolling/book breakdown. source-agnostic list[dict] API. MIN_RESOLVED=10. | 51 |
 | `calibration.py` | Sharp score calibration pipeline — activates at 10 graded bets (MIN_BETS_FOR_CALIBRATION=10) | 46 |
+| `result_resolver.py` | ESPN unofficial scoreboard auto-resolver. fetch_espn_scoreboard(), _find_game() fuzzy, _resolve_spread/total/moneyline(), auto_resolve_pending() → ResolveResult. NBA/NFL/NCAAB/NHL/NCAAF. Zero API credits. _fetcher injection. | 62 |
 | `clv_tracker.py` | CLV snapshot CSV log + summary | 46 |
 | `price_history_store.py` | Persistent open-price store — multi-session RLM continuity | 36 |
 | `probe_logger.py` | Bookmaker probe log (JSON) | 36 |
@@ -311,7 +325,7 @@ Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 re
 | `pages/01_live_lines.py` | Full bet pipeline, injury sidebar (+5 boost), KOTC Tuesday widget |
 | `pages/02_analysis.py` | KPI summary, P&L, edge/CLV histograms, line pressure |
 | `pages/03_line_history.py` | Movement cards, sparklines, RLM seed table |
-| `pages/04_bet_tracker.py` | Bet log, grading, P&L, CLV tracker — 7 analytics metadata fields on form |
+| `pages/04_bet_tracker.py` | Bet log, grading, P&L, CLV tracker — 7 analytics metadata fields on form. Auto-Resolve button (calls auto_resolve_pending()) |
 | `pages/05_rd_output.py` | Math validation dashboard (pure math_engine, no live data) |
 | `pages/06_simulator.py` | Trinity game simulator (NBA + Soccer Poisson modes) |
 | `pages/07_analytics.py` | Advanced analytics Phase 1 — sharp/RLM/CLV/equity/rolling/book (sample guard at N<10) |
@@ -361,7 +375,7 @@ EDGE TIER LABELS (for display in export_bets.py and future UI):
 | Gate | Status | Action when met |
 |------|--------|-----------------|
 | SHARP_THRESHOLD raise | 0/5 live sessions, 0/20 RLM fires | Manually change 45→50 in math_engine.py |
-| Calibration activation | 0/10 graded bets (4 logged, 0 resolved) | calibration.py auto-activates at 10 |
+| Calibration activation | 0/10 graded bets (4 logged, 0 resolved — auto-resolve ready) | calibration.py auto-activates at 10 |
 | Analytics unlock | 0/10 graded bets | pages/07_analytics.py removes sample guard |
 | CLV verdict | 0/10 graded bets | Check clv_summary() verdict |
 | MLB kill switch | Season gate (Apr 1) | Don't touch before Apr 1, 2026 |

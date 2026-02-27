@@ -9,6 +9,141 @@
 
 ---
 
+## V37 FYI — Session 37 — ESPN unofficial scoreboard API — auto-resolve live — 2026-02-26
+
+**From: Sandbox builder**
+**Priority: FYI — V37 APPROVED in REVIEW_LOG.md (Session 37 Cont. B audit). No further action needed.**
+
+core/result_resolver.py ships: auto_resolve_pending() uses ESPN unofficial scoreboard API
+(site.api.espn.com/apis/site/v2/sports/{path}/scoreboard) to resolve pending paper bets.
+Zero Odds API credits. No API key. Sports: NBA, NFL, NCAAB, NHL, NCAAF.
+V37 ruling: ESPN scoreboard endpoint = stable historical data (different from injury endpoint).
+No stability gate required for scoreboard (completed game scores). Precedent established.
+
+pages/04_bet_tracker.py: "Auto-Resolve" button calls auto_resolve_pending(db_path=DB_PATH).
+62 tests added (test_result_resolver.py). All mocked via _fetcher injection (zero network).
+
+**Status: ✅ DONE — V37 approved in REVIEW_LOG.md. No V37 action needed.**
+
+---
+
+## V37 DIRECTIVE — Session 38A — Paper bet tests + days_to_game fix (REQUIRED before next commit) — 2026-02-26
+
+**From: V37 Reviewer (autonomous — 2026-02-26)**
+**Priority: HIGH — 🔴 FLAG in REVIEW_LOG.md. Do this BEFORE any other Session 38 work.**
+**Status: ✅ DONE — 2026-02-26 (sandbox). days_to_game fix + 11 tests in tests/test_paper_bet_logging.py. Commit 477926c. 1235/1235 tests pass.**
+
+### What to fix (from V37 AUDIT — Session 37 Cont.)
+
+**Task A — Add 3 missing tests for paper bet logging**
+
+In `tests/test_live_lines.py` (or create `tests/test_paper_bet.py`):
+
+```python
+def test_log_paper_bet_grade_c_sets_stake_zero():
+    """Grade C paper bets must log stake=0.0 (tracking only)."""
+
+def test_log_paper_bet_grade_a_uses_kelly_size():
+    """Grade A paper bets log stake=kelly_size."""
+
+def test_paper_log_button_idempotency():
+    """After logging, session_state key prevents re-log on next call."""
+```
+
+Mock `_log_bet` — do NOT write to real DB. Use `monkeypatch` or `unittest.mock.patch`.
+
+**Task B — Fix days_to_game field in `_log_paper_bet()`**
+
+Current (wrong): `days_to_game=float(bet.rest_days or 0)`
+`rest_days` = NBA rest days (days since last game). NOT days until game.
+
+Fix — derive from `commence_time`:
+```python
+from datetime import datetime, timezone
+
+def _days_until_game(commence_time_str: str) -> float:
+    if not commence_time_str:
+        return 0.0
+    try:
+        commence = datetime.fromisoformat(commence_time_str.replace("Z", "+00:00"))
+        delta = (commence - datetime.now(timezone.utc)).total_seconds()
+        return max(0.0, delta / 86400)
+    except (ValueError, TypeError):
+        return 0.0
+```
+
+Then in `_log_paper_bet()`:
+```python
+days_to_game=_days_until_game(bet.commence_time),
+```
+
+**Definition of done:**
+- 3 tests pass (all using mocked `_log_bet`, no real DB writes)
+- `days_to_game` computed from `commence_time` (not `rest_days`)
+- Tests: 1162 → 1165+ (at least +3)
+- 🟡 FLAG in REVIEW_LOG.md cleared to ✅ APPROVED
+
+---
+
+## V37 DIRECTIVE — Session 38 — B2 Gate Replacement: wire injury_data.py + drop ESPN gate — 2026-02-26
+
+**From: V37 Reviewer (autonomous — 2026-02-26)**
+**Priority: MEDIUM — gate clarification before March 4 deadline**
+**Status: ⏳ PENDING**
+
+### Context
+
+The original B2 gate condition was: `espn_stability.log date ≥ 2026-03-04, error <5%, NBA records >50`.
+This was designed for the R&D ESPN unofficial API approach. The R&D chat was RETIRED on Feb 24.
+
+**Current state:**
+- `espn_stability.log` has 10 entries, all from 2026-02-19. Not being updated. Will never meet the date gate.
+- Sandbox built `core/injury_data.py` — a static positional impact model with ZERO external API calls.
+- BUT `injury_data.py` is not wired into the pipeline. `injury_leverage=0.0` everywhere.
+
+**Why this is better than ESPN approach:**
+- No unofficial API = no stability concern = no monitoring gate needed
+- The academic/historical leverage model is verifiable offline
+- The caller-provides-injury-status pattern (from Odds API metadata) is the correct architecture
+
+### Directive for Session 38
+
+**Task A — Wire `injury_data.py` into the pipeline (sandbox only — do NOT promote to v36 yet)**
+
+1. In `scheduler.py` or `calculate_bets()`: after fetching game data, check if any `injury` metadata
+   exists on the event (Odds API sometimes provides this in `description` or event metadata).
+   If no live injury data available: keep `injury_leverage=0.0` (correct default).
+   If available: call `evaluate_injury_impact()` from `injury_data.py` and pass result to Sharp Score.
+
+2. Add tests for the injection path:
+   - `test_injury_leverage_zero_when_no_injury_data()` — default case, no change to score
+   - `test_injury_leverage_applied_when_impact_flagged()` — non-zero leverage raises sit_pts correctly
+   - Use synthetic injury report (no ESPN calls)
+
+3. Gate after completion: Review `injury_leverage` in `compute_sharp_score()` — confirm it's capped at `min(5.0, injury_leverage)` (already in math_engine.py).
+
+**Task B — Update `CLAUDE.md` gate table**
+
+Change the B2 gate entry from:
+```
+B2 injury leverage: espn_stability.log date ≥ 2026-03-04 (ESPN unofficial API stability)
+```
+To:
+```
+B2 injury leverage: injury_data.py wired in pipeline + tests pass + V37 APPROVED
+```
+
+### Definition of done
+- `injury_data.py` called in pipeline when injury metadata present (no-op default when absent)
+- `injury_leverage` field on BetCandidate/PropCandidate passes non-zero for flagged injuries
+- Tests added (at least 2)
+- CLAUDE.md gate updated
+- V37 reviewer reviews and either APPROVES promotion to v36 or issues follow-up ruling
+
+**Note: Do NOT make live ESPN calls. Use synthetic injury reports in tests. The static model requires no live data source.**
+
+---
+
 ## V37 DIRECTIVE — Session 37 — Props DailyCreditLog + key warning + fixture probe — 2026-02-26 ✅ DONE
 
 **From: V37 Reviewer (autonomous session — 2026-02-26)**

@@ -2,6 +2,54 @@
 
 ---
 
+## Session 37 Cont. C — V37 38A directive — 2026-02-26
+
+### Objective
+Address V37 Session 38A FLAG: missing paper bet tests + days_to_game fix.
+
+### What shipped
+- pages/01_live_lines.py: _days_until_game(commence_time: str) -> float helper added; _log_paper_bet() fixed: days_to_game now derived from bet.commence_time (was incorrectly using bet.rest_days = NBA rest days, not days until game)
+- tests/test_paper_bet_logging.py (new) — 11 tests (V37 Session 38A directive): TestDaysUntilGame (5), TestLogPaperBet (3: grade_c_stake_zero, grade_a_kelly_size, commence_time_fix), TestPaperLogButtonIdempotency (3); uses ast.get_source_segment to extract functions without Streamlit import failures
+
+### Test count
+1224 -> 1235 (+11) — 1235/1235 all pass
+
+### Odds API credits used
+0
+
+### V37 flags / rulings needed
+None — V37 38A flag fully addressed.
+
+### Commits
+- 477926c — Session 37: V37 38A — days_to_game fix + paper bet logging tests
+
+---
+
+## Session 37 — 2026-02-26
+
+### Objective
+Paper bet full-loop automation: one-click logging (Live Lines) → auto-resolve via ESPN scores.
+Also: commit paper bet buttons, commit V37 Session 37 audit in REVIEW_LOG.
+
+### What shipped
+- `pages/01_live_lines.py` — `_log_paper_bet(BetCandidate)` + `_paper_log_button()` helpers; one-click "📋 Log Paper Bet" button wired into Grade A/B/C render loops (Grade C stake=0.0)
+- `core/result_resolver.py` (new) — ESPN unofficial API resolver (zero Odds API credits): `fetch_espn_scoreboard()`, `_find_game()` (fuzzy team match), `_resolve_spread()` (adjusted margin), `_resolve_total()` (O/U), `_resolve_moneyline()`; `auto_resolve_pending()` → `ResolveResult`; `_fetcher` injection for full test isolation
+- `tests/test_result_resolver.py` (new) — 62 tests covering sport path, fuzzy match, scoreboard fetch, spread/total/ML resolution, auto_resolve integration with temp SQLite DB
+- `pages/04_bet_tracker.py` — "🔄 Auto-Resolve" button in Pending Bets header; imports `auto_resolve_pending`; toast feedback (resolved/skipped/errors)
+- `REVIEW_LOG.md` — V37 Session 37 audit entry (process-only, approved) committed
+
+### Test count
+1162 → 1224 (+62) — 1224/1224 ✅
+
+### Odds API credits used
+0 (no live fetch — ESPN unofficial API for resolver)
+
+### V37 flags / rulings needed
+- **New external API**: `result_resolver.py` uses ESPN unofficial API (`site.api.espn.com`). Needs V37 audit/gate review per ORIGINAL_PROMPT.md V37 veto authority note on unofficial APIs.
+- ESPN API is free, no key, widely used in hobbyist projects. No commercial ToS concerns for personal use.
+
+---
+
 ## Session 36 (continued) — 2026-02-26
 
 ### Objective
