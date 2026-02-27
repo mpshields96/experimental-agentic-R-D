@@ -2,6 +2,23 @@
 
 ---
 
+## Session 41 — injury_leverage bug fix + auto paper-bet scan — 2026-02-27
+
+**What shipped:**
+- **Bug fix:** `parse_game_markets()` missing `injury_leverage` param → `TypeError` on live_lines render.
+  Added `injury_leverage: float = 0.0` to signature + wired into all 4 `calculate_sharp_score()` calls.
+- **Auto paper-bet scan:** `_auto_paper_bet_scan(games, sport, db_path)` in `core/scheduler.py`.
+  Runs after every successful odds fetch. Logs Grade A/B bets with deduplication.
+- **`event_id` column:** Added to `bet_log` via idempotent migration. `log_bet()` accepts `event_id`.
+  `is_bet_already_logged(event_id, market_type, target)` added to `core/line_logger.py`.
+
+**Tests: 1264/1264 ✅ (+13 from 1251)**
+**Commit: 9e99854 — NOT YET PUSHED (3 commits ahead: 97021d2, f2ee1ee, 9e99854)**
+**Credit usage this session: 0 credits (daily cap 321/300 hit earlier today)**
+**V37 audit requested (Session 41) — PENDING**
+
+---
+
 ## Session 40 — injury_data.py pipeline wiring (V37 S38 directive) — 2026-02-26
 
 **What shipped:**

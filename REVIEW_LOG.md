@@ -76,6 +76,26 @@
 
 ---
 
+### SANDBOX SESSION 41 SUMMARY — 2026-02-27
+**Commit:** 9e99854
+**Tests:** 1264/1264 ✅ (+13)
+**What shipped:**
+- **Bug fix (S40 regression):** `parse_game_markets()` was missing `injury_leverage` param —
+  live_lines.py passed it → `TypeError` on every page render. Added `injury_leverage: float = 0.0`
+  to signature, wired into all 4 `calculate_sharp_score()` call sites (spreads, soccer h2h,
+  moneyline h2h, totals). App was silently broken since S40 commit.
+- **Auto paper-bet scan:** Scheduler now auto-logs Grade A/B bets after every successful fetch.
+  Deduplication via `event_id + market_type + target` prevents repeat logging across polls.
+  `_auto_paper_bet_scan()` added to scheduler.py, wired after `log_snapshot()` in `_poll_all_sports()`.
+- **`event_id` column:** Added to `bet_log` schema via idempotent migration. `log_bet()` now
+  accepts `event_id`. `is_bet_already_logged()` added to `line_logger.py`.
+**Gates changed:** None. SHARP_THRESHOLD still 45.
+**Flags for reviewer:** S40+S41 both unpushed — need GitHub token to push. Auto paper-bet feature
+  uses `GRADE_B_MIN_EDGE` as scan threshold (logs Grade A + B). Grade C/NEAR_MISS excluded.
+  V37: please verify `_auto_paper_bet_scan` + `is_bet_already_logged` approach is sound.
+
+---
+
 ### SANDBOX SESSION 39 SUMMARY — 2026-02-26
 **Built:** Coordination + credit conservation (no math changes)
 - V37_INBOX.md: Session 38 review marked DONE (V37 APPROVED result_resolver autonomously). Session 39 coordination note added.

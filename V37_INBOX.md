@@ -9,6 +9,35 @@
 
 ---
 
+## V37 REVIEW REQUEST — Session 41 — injury_leverage fix + auto paper-bet — 2026-02-27
+
+**From: Sandbox builder**
+**Priority: MEDIUM — bug fix + new feature, please audit**
+**Status: PENDING**
+
+**Bug fixed (S40 regression):** `parse_game_markets()` was missing `injury_leverage: float = 0.0`
+parameter. live_lines.py passed it → `TypeError: unexpected keyword argument` on every page render
+since S40. Fixed in 9e99854. All 4 `calculate_sharp_score()` call sites inside `parse_game_markets`
+now receive `injury_leverage`.
+
+**New feature — auto paper-bet scan:**
+- `_auto_paper_bet_scan(games, sport, db_path)` in `core/scheduler.py` — parses Grade A/B bets
+  after each successful odds fetch, deduplicates by `event_id + market_type + target`, logs as
+  `notes="auto-paper"` entries in bet_log
+- `is_bet_already_logged(event_id, market_type, target)` in `core/line_logger.py` — dedup guard
+- `event_id` column added to `bet_log` via idempotent migration
+- Wired after `log_snapshot()` in `_poll_all_sports()`
+
+**V37 please verify:**
+1. `_auto_paper_bet_scan` correctly excludes killed bets (`kill_reason.startswith("KILL")`)
+2. Using `GRADE_B_MIN_EDGE` as scan threshold is correct (logs both A and B grade bets)
+3. `is_bet_already_logged` dedup logic is sound (no edge case where same bet gets different target string across polls)
+4. `event_id` migration is idempotent (won't break existing DBs)
+
+**Tests:** 1264/1264 ✅ | Commit: 9e99854 (unpushed — awaiting GitHub token from user)
+
+---
+
 ## V37 FYI — Session 39 — scheduler interval + credit conservation — 2026-02-26
 
 **From: Sandbox builder**

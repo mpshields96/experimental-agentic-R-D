@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 40 — 2026-02-26
-# Session work S40: V37 S38 directive DONE — compute_injury_leverage_from_event() added to scheduler.py, wired into live_lines.py parse_game_markets() call, 7 new tests, CLAUDE.md B2 gate updated. 1251 tests.
-# Priority reset: #1 Live run — log 6 more paper bets (4/10 → 10/10). Daily credit cap hit (318/300) — no API scan until midnight UTC 2/27. Use app with cached data. #2 Activate ODDS_API_KEY_PROPS, #3 CLV close-price capture
+# Last updated: Session 41 — 2026-02-27
+# Session work S41: Bug fix — parse_game_markets() missing injury_leverage param (TypeError on page render). Fixed. Auto paper-bet scan added to scheduler: _auto_paper_bet_scan() logs Grade A/B bets after each fetch, dedup by event_id. event_id column added to bet_log. 1264 tests (+13).
+# Priority reset: #0 PUSH (3 unpushed commits: f2ee1ee, 97021d2, 9e99854) — needs GitHub token. #1 V37 audit Sessions 40+41 PENDING. #2 Activate ODDS_API_KEY_PROPS. #3 Log 6 more paper bets (auto-scan will handle once daily cap resets 2/28 UTC)
 # Maintained by: sandbox builder chat
 
 ---
@@ -185,30 +185,31 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 40 — 2026-02-26)
+## 📍 CURRENT PROJECT STATE (Session 41 — 2026-02-27)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1251 / 1251 passing ✅
+Tests:    1264 / 1264 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commit (NOT YET PUSHED — push at next session start):
+  - 9e99854 — Session 41: fix injury_leverage wiring + auto-paper-bet scan
+  - 97021d2 — Session 40: wrap docs — B2 gate done, 4 new CLAUDE.md lessons, daily cap note
   - f2ee1ee — Session 40: wire injury_data.py into pipeline (V37 S38 directive) + B2 gate update
-  - 4271736 — Session 39: notify_iphone scripts tracked
-  - cf3e660 — Session 39: scheduler interval 5→30 min (credit conservation)
-  - e595a33 — Session 39: V37 coordination + PROJECT_INDEX + REVIEW_LOG V37 audits
-  - a818794 — Session 38: wrap docs (gate 0→4/10 resolved bets)
-All previous sessions (35-39) fully pushed. Session 40 commit NOT pushed (awaits user push).
+  - 4271736 — Session 39: notify_iphone scripts tracked (already pushed)
+All sessions through S39 fully pushed. S40+S41 (3 commits) awaiting push.
+
+✅ SESSION 41 COMPLETE (2026-02-27) — Bug fix + auto paper-bet scan:
+  - **Bug fixed:** parse_game_markets() missing `injury_leverage` param — TypeError on every live_lines render since S40. Added to signature + wired into all 4 calculate_sharp_score() calls (spreads/soccer_h2h/h2h/totals).
+  - core/scheduler.py: _auto_paper_bet_scan(games, sport, db_path) — parses Grade A/B bets after each fetch, deduplicates by event_id+market_type+target, auto-logs as notes="auto-paper". Wired into _poll_all_sports() after log_snapshot().
+  - core/line_logger.py: event_id column added to bet_log (idempotent migration), is_bet_already_logged(), log_bet() accepts event_id
+  - Tests: 1251 → 1264 (+13: TestEventIdColumn, TestIsBetAlreadyLogged, TestParseGameMarketsInjuryLeverage, TestAutoPaperBetScan)
+  - Commit: 9e99854 — NOT YET PUSHED
+  - Credits: 0 used (daily cap still at 321/300 from earlier scheduler polls)
 
 ✅ SESSION 40 COMPLETE (2026-02-26) — B2 gate wiring (V37 S38 directive):
-  - core/scheduler.py: compute_injury_leverage_from_event() — checks game["_injuries"], calls evaluate_injury_impact(), 0.0 safe default (Odds API has no injury metadata in production)
-  - pages/01_live_lines.py: parse_game_markets() now receives injury_leverage=compute_injury_leverage_from_event(game, sport_label) instead of hardcoded 0.0
-  - CLAUDE.md: B2 gate table updated — espn_stability.log approach REPLACED with injury_data.py wired pattern
-  - tests/test_scheduler.py: 7 new tests (TestComputeInjuryLeverageFromEvent)
-  - V37 S38 directive: ✅ DONE. V37 audit requested.
-  - Tests: 1244 → 1251 (+7)
-  - Commit: f2ee1ee — NOT YET PUSHED
-  - Credits: ~3 used (daily cap hit 318/300 from scheduler polls — no further scans today)
+  - compute_injury_leverage_from_event() in scheduler.py
+  - Tests: 1244 → 1251 (+7) | Commit: f2ee1ee
 
 ✅ SESSION 37 COMPLETE:
   - core/result_resolver.py (new) — ESPN unofficial scoreboard API auto-resolver: fetch_espn_scoreboard(), _find_game() (fuzzy team match), _resolve_spread/total/moneyline(), auto_resolve_pending() → ResolveResult. _fetcher injection for test isolation. Zero Odds API credits.
@@ -246,14 +247,11 @@ All previous sessions (35-39) fully pushed. Session 40 commit NOT pushed (awaits
   - V37 Session 32-A audit docstring additions: daily_allowance() ASSUMPTION + is_session_hard_stop() guard interaction note
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
-📋 PRIORITY ORDER (Session 40 — current):
-  #0 — PUSH Session 40 commit: `git push origin main` (1 unpushed commit: f2ee1ee)
-  #1 — Live run: log 6 more paper bets (currently 4/10). Need 10 resolved to unlock analytics.
-       IMPORTANT: Daily credit cap (300) was hit on 2/26 by scheduler polls. No fresh API scan until midnight UTC 2/27.
-       Option A: Start app → Live Lines (uses last cached data — no API call needed) → click "Log Paper Bet"
-       Option B: Wait until 2/27 morning → "Refresh Now" → Live Lines → click "Log Paper Bet"
-  #2 — V37 audit: V37 must review Session 40 changes (compute_injury_leverage_from_event + B2 gate). PENDING in V37_INBOX.md.
-  #3 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met; user sets env var ODDS_API_KEY_PROPS)
+📋 PRIORITY ORDER (Session 42 — next):
+  #0 — PUSH: git push origin main (3 unpushed commits: f2ee1ee, 97021d2, 9e99854) — needs GitHub token
+  #1 — V37 audit: Sessions 40+41 PENDING. V37_INBOX.md has both entries. Wait for V37 to clear.
+  #2 — Live run: log 6 more paper bets (4/10 → 10/10). Auto-paper-bet scan now active — will auto-log Grade A/B bets after each scheduler poll. Daily cap resets 2/28 00:00 UTC.
+  #3 — Activate ODDS_API_KEY_PROPS: user sets env var in .streamlit/secrets.toml as `ODDS_API_KEY_PROPS = "key_here"`. DailyCreditLog gate already met (Session 36).
   #4 — CLV close-price capture: auto_resolve_pending() gets result (ESPN, free) but NOT close_price (needs Odds API). CLV=N/A on all 4 existing bets.
   #5 — SHARP_THRESHOLD raise gate: 45→50 (gate: 5 live sessions + 20 RLM fires)
   #6 — MLB kill switch (HOLD — Apr 1, 2026)
