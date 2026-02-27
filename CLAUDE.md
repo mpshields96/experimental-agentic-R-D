@@ -105,13 +105,20 @@ Git strategy:
 - You detect you need to access files outside the sandbox
 - You have intent to write to ~/Projects/titanium-v36/ or any other non-sandbox path —
   STOP. Single write domain is absolute. State the intent and wait for user confirmation before acting.
-- Tool call count reaches 60 (warn) or 75 (stop)
+- Tool call count reaches 45 → invoke `Skill: titanium-context-monitor` (assess 🟡 state, decide next action)
+- Tool call count reaches 60 → `titanium-context-monitor` returns RED → invoke `Skill: titanium-session-wrap` END mode immediately
 - Any action requires a credential or API key not available from env
 - User types "STOP" or "HALT" → save SESSION_LOG.md, commit WIP, report status
 
 ---
 
 ## 📋 SESSION START RITUAL (execute in order, every session)
+
+> **⚡ MANDATORY FIRST ACTION — non-negotiable:**
+> `Skill: titanium-session-wrap` → select START mode.
+> Do NOT read any file, run any command, or write any code until this skill has been invoked.
+> The skill is the checklist. It ensures MEMORY.md, V37_INBOX.md, and test count are verified
+> in the correct order before any work begins.
 
 0. **Cross-domain intent check**: If you have any plan today to write outside ~/ClaudeCode/agentic-rd-sandbox/,
    declare it NOW before any other work and wait for explicit user confirmation. Lesson: Session 24
@@ -124,6 +131,8 @@ Git strategy:
 3b. **Read V37_INBOX.md** — check for pre-written V37 architectural specs or directives. V37 writes specs here before sessions begin. If a spec exists for planned work, follow it or file a ruling request — do NOT begin deviating work before reading this file.
 4. Read MASTER_ROADMAP.md Section 9 — today's priority checklist
 5. Run: `python3 -m pytest tests/ -q` — confirm test count and all passing
+5b. **`Skill: titanium-context-monitor`** — invoke immediately after test run. Establishes 🟢/🟡/🔴
+    budget status for the session. Determines which tasks fit in remaining tool call budget.
 6. Run: `git status` — confirm clean sandbox
 7. **Verify NEXT SESSION TARGETS are still pending** — sandbox may have already implemented them.
    `grep -n` for the target's key function in PROJECT_INDEX.md before planning the build.
@@ -137,6 +146,11 @@ PROJECT_INDEX.md has the full public API surface.
 ---
 
 ## 📋 SESSION END RITUAL (execute before stopping)
+
+> **⚡ MANDATORY FIRST ACTION — non-negotiable:**
+> `Skill: titanium-session-wrap` → select END mode.
+> The skill walks through all 14 steps in verified order. Do NOT attempt the ritual
+> from memory. The checklist exists precisely because memory-based rituals drift.
 
 1. Run full test suite — all must pass before commit
 2. Run `scripts/backup.sh` — creates timestamped tarball of sandbox + V36 in .backups/

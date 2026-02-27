@@ -84,15 +84,20 @@ FORBIDDEN — NEVER DO THESE:
 
 ## 📋 SESSION START RITUAL (execute in this exact order every session)
 
+> **⚡ MANDATORY FIRST ACTION — non-negotiable:**
+> `Skill: titanium-session-wrap` → START mode. Invoke before reading any file or running any command.
+
 0. **Cross-domain intent check**: If you have ANY plan today to write outside ~/ClaudeCode/agentic-rd-sandbox/,
    state it NOW and wait for user confirmation before proceeding.
 
 1. Read `~/ClaudeCode/agentic-rd-sandbox/CLAUDE.md` (rules, math, architecture)
 2. Read `~/ClaudeCode/agentic-rd-sandbox/PROJECT_INDEX.md` (full codebase map — ~3K tokens)
 3. Read `~/ClaudeCode/agentic-rd-sandbox/REVIEW_LOG.md` — check for V37 FLAGS. If FLAG present, address before new work.
+3b. **Read `V37_INBOX.md`** — check for PENDING V37 directives. Complete before starting planned work.
 4. Run: `cd ~/ClaudeCode/agentic-rd-sandbox && python3 -m pytest tests/ -q`
+4b. **`Skill: titanium-context-monitor`** — invoke after tests. Establishes 🟢/🟡/🔴 budget for session.
 5. Run: `git status`
-6. Announce: "Session N ready. Tests: X/X. V37 flags: [none / FLAG: description]. Ready to work."
+6. Announce: "Session N ready. Tests: X/X. V37 flags: [none / FLAG: description]. Budget: 🟢. Ready to work."
 7. Begin work
 
 Do NOT read individual source files unless debugging requires it.
@@ -101,6 +106,12 @@ Do NOT read individual source files unless debugging requires it.
 ---
 
 ## 📋 SESSION END RITUAL (execute before stopping)
+
+> **⚡ MANDATORY FIRST ACTION — non-negotiable:**
+> `Skill: titanium-session-wrap` → END mode. The skill walks through all steps in order.
+> Do NOT attempt the ritual from memory. Context pressure = ritual drift = broken handoffs.
+> **RED rule**: if `titanium-context-monitor` returns 🔴, invoke session-wrap immediately —
+> even mid-task. A clean partial wrap beats a messy forced stop.
 
 1. Run full test suite — ALL must pass before any commit. Zero exceptions.
 2. Run `scripts/backup.sh` — timestamped tarball of sandbox + V36 in .backups/
@@ -159,6 +170,8 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 | Skill | When to invoke |
 |---|---|
+| `titanium-session-wrap` | **SESSION START** (first action) AND **SESSION END** (first action) |
+| `titanium-context-monitor` | After tests at session start; before any task ≥10 tool calls; at tool call 45 |
 | `sc:index-repo` | Session start OR after any major module addition |
 | `sc:save` | Session end, before git commit. HARD: every ≤2 sessions. |
 | `sc:analyze` | Before any refactor or architectural decision |
