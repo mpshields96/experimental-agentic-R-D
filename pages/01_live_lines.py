@@ -566,12 +566,29 @@ def _parlay_card(combo: ParlayCombo, rank: int) -> str:
 # Paper bet logging — one-click from Live Lines cards
 # ---------------------------------------------------------------------------
 
+def _days_until_game(commence_time: str) -> float:
+    """Compute days until game start from ISO 8601 UTC commence_time string.
+
+    Returns 0.0 if commence_time is empty, already past, or unparseable.
+    Uses the correct begin time (not rest_days which is NBA-only and unrelated).
+    """
+    if not commence_time:
+        return 0.0
+    try:
+        start = datetime.fromisoformat(commence_time.replace("Z", "+00:00"))
+        delta = (start - datetime.now(timezone.utc)).total_seconds() / 86400
+        return max(0.0, delta)
+    except (ValueError, AttributeError):
+        return 0.0
+
+
 def _log_paper_bet(bet: BetCandidate) -> int:
     """Write a BetCandidate directly to bet_log as a paper bet.
 
     Returns the new row ID (≥1) on success, -1 on error.
     kelly_size is already grade-adjusted by assign_grade() — use it directly.
     Grade C uses stake=0.0 (tracking only, no units risked per protocol).
+    days_to_game derived from bet.commence_time (days until game start, not rest_days).
     """
     try:
         stake = 0.0 if bet.grade in ("C", "NEAR_MISS") else bet.kelly_size
@@ -589,7 +606,7 @@ def _log_paper_bet(bet: BetCandidate) -> int:
             sharp_score=int(bet.sharp_score),
             rlm_fired=rlm_fired,
             book=bet.book,
-            days_to_game=float(bet.rest_days or 0),
+            days_to_game=_days_until_game(bet.commence_time),
             line=bet.line,
             signal=bet.signal,
             grade=bet.grade,
