@@ -38,6 +38,7 @@ from core.line_logger import (
 )
 from core.clv_tracker import log_clv_snapshot
 from core.math_engine import get_open_price
+from core.result_resolver import auto_resolve_pending
 
 DB_PATH = str(ROOT / "data" / "line_history.db")
 
@@ -442,12 +443,40 @@ with log_col:
                     st.error(f"Failed to log bet: {exc}")
 
 with pending_col:
-    st.html("""
-    <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.95rem;
-                font-weight:700; color:#f3f4f6; letter-spacing:-0.02em; margin-bottom:8px;">
-        Pending Bets
-    </div>
-    """)
+    _pcol_header, _pcol_btn = st.columns([2, 1], gap="small")
+    with _pcol_header:
+        st.html("""
+        <div style="font-family:'IBM Plex Sans',sans-serif; font-size:0.95rem;
+                    font-weight:700; color:#f3f4f6; letter-spacing:-0.02em; margin-bottom:8px;">
+            Pending Bets
+        </div>
+        """)
+    with _pcol_btn:
+        if st.button(
+            "🔄 Auto-Resolve",
+            key="auto_resolve_btn",
+            use_container_width=True,
+            help="Fetch ESPN scores and resolve all pending paper bets. Zero API credits.",
+        ):
+            try:
+                rr = auto_resolve_pending(db_path=DB_PATH)
+                if rr.resolved > 0:
+                    st.toast(
+                        f"✅ {rr.resolved} bet{'s' if rr.resolved != 1 else ''} resolved"
+                        + (f" · {rr.skipped} skipped" if rr.skipped else ""),
+                        icon="✅",
+                    )
+                    st.cache_data.clear()
+                    st.rerun()
+                elif rr.skipped > 0 and rr.resolved == 0:
+                    st.toast(f"⏳ {rr.skipped} bets still pending (games not completed yet)", icon="⏳")
+                else:
+                    st.toast("No pending bets to resolve.", icon="ℹ️")
+                if rr.errors:
+                    st.warning(f"{rr.errors} resolution error(s) — check logs.")
+            except Exception as exc:
+                st.error(f"Auto-resolve failed: {exc}")
+
     try:
         pending = get_bets(result_filter="pending", db_path=DB_PATH)
     except Exception:
