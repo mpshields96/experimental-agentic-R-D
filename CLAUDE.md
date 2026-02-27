@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 34 | Last updated: 2026-02-25
+## Version: Session 35 | Last updated: 2026-02-26
 ## For: New agentic R&D chat initialization
 
 ---
@@ -121,6 +121,7 @@ Git strategy:
 1. Read this CLAUDE.md fully
 2. Read PROJECT_INDEX.md — absorbs full codebase in ~3K tokens
 3. **Read REVIEW_LOG.md** — check for any V37 reviewer FLAGS. If FLAG present, address before new work.
+3b. **Read V37_INBOX.md** — check for pre-written V37 architectural specs or directives. V37 writes specs here before sessions begin. If a spec exists for planned work, follow it or file a ruling request — do NOT begin deviating work before reading this file.
 4. Read MASTER_ROADMAP.md Section 9 — today's priority checklist
 5. Run: `python3 -m pytest tests/ -q` — confirm test count and all passing
 6. Run: `git status` — confirm clean sandbox
@@ -475,6 +476,9 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 52. **Plotly legend overlaps with add_vline annotations** (Session 33): Setting `legend(y=1.02, yanchor="bottom")` at chart top collides with `add_vline()` annotation labels. Fix: `layout["legend"] = dict(yanchor="top", y=-0.22, orientation="h")` with `layout["margin"]["b"] = 70`. Always check for vlines when positioning legends.
 53. **Stale gate text after threshold changes** (Sessions 27 + 33): When MIN_RESOLVED or similar constants change in core, grep pages/ and docstrings for the old integer. Pattern: `grep -rn "30 resolved\|30 graded\|N<30" pages/ core/`. Core constants are correct; display text and docstrings lag. Session 33 found stale "30" in pages/07_analytics.py and core/calibration.py.
 54. **V37 audit severity → response protocol** (Session 34): LOW-severity V37 flags → docstring additions only, no code change. MEDIUM/HIGH → code fix with new tests. `daily_allowance()` ASSUMPTION block + `is_session_hard_stop()` guard-interaction note were LOW items — both added as inline docstring sections, batched with other session work.
+55. **Props event endpoint — 422 is permanent, no retry** (Session 35): `/v4/sports/{sport}/events/{event_id}/odds` returns 422 when a market is not on the API tier. This is a permanent rejection, not transient. Use `requester.get()` directly — do NOT use `_fetch_with_backoff()`. Retrying a 422 burns quota with no benefit.
+56. **Props canonical line pinning = same modal-line rule as totals** (Session 35): `parse_props_candidates()` groups outcomes by (player, market_key, point), finds modal point across books, uses only those books for consensus. With 1 book: no_vig fair_prob and implied_prob derive from the same price → edge = 0 → always filtered. Props edge requires ≥2 books with divergent pricing. `_make_props_event()` in test_math_engine.py is the canonical fixture (2 sharp + 1 soft outlier → A-grade edge).
+57. **Separate quota tracker per API budget domain** (Session 35): `PropsQuotaTracker` is completely isolated from main `QuotaTracker` — no shared state, no shared DB, no shared session counter. Module-level singleton: `props_quota = PropsQuotaTracker()`. Any future secondary API gets its own tracker class; never add flags or tags to an existing tracker.
 
 ---
 
@@ -510,28 +514,30 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 34 — 2026-02-25)
+## 🚦 CURRENT PROJECT STATE (as of Session 35 — 2026-02-26)
 
 ```
-Test suite:   1106/1106 passing ✅
-Last commit:  3d751c1 (Session 34 cont: docstrings + REVIEW_LOG) — PUSHED ✅
+Test suite:   1154/1154 passing ✅
+Last commit:  cdc6e6f (Session 35 props math layer) — NOT YET PUSHED (2 commits ahead)
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App:          LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
 App port:     8504 | launch: ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
 
-✅ SESSIONS 29-34 COMPLETE:
+✅ SESSIONS 29-35 COMPLETE:
   Session 29: totals canonical line fix, RLM direction fix, dead code audit (1103→1079)
   Session 30: visionOS UI pass (pages 01, 04, 07), PRECONDITION docstrings, SQLite MCP
   Session 31: Streamlit Cloud deploy (titaniumv37agentic.streamlit.app), DB init fix
   Session 32: Dynamic daily credit budget (CreditLedger, daily_allowance, daily guards) (+27 tests)
   Session 33: CST game times on bet cards, Pinnacle→Book Coverage, collar map legend, guide rewrite
   Session 34: Stale 30-bet refs fixed → 10, KPI label polish, V37 docstrings, REVIEW_LOG updated
+  Session 35: Player props E2E — PropsQuotaTracker, fetch_props_for_event, PropCandidate,
+              parse_props_candidates, page 08 with edge+grade cards (+48 tests → 1154)
 
-📋 SESSION 35 PRIORITY ORDER:
-  #1 Live run: grade/log 6 more resolved bets to unlock analytics gate (need 10 resolved)
-  #2 Player props (V37 APPROVED): separate quota, on-demand event-level only, no scheduler
-  #3 SHARP_THRESHOLD gate: 5 live sessions + 20 RLM fires (currently 0/5, 0/20)
-  #4 V37 validation: Sessions 33-34 summaries in REVIEW_LOG.md await V37 audit
+📋 SESSION 36 PRIORITY ORDER:
+  #1 V37 ruling (check REVIEW_LOG.md): props file placement + daily log + 422 no-retry
+  #2 Live run: grade/log 6 more resolved bets for analytics gate (need 10 resolved)
+  #3 Props live test: use page 08 with real NBA event_id to validate E2E
+  #4 SHARP_THRESHOLD gate: 5 live sessions + 20 RLM fires (currently 0/5, 0/20)
   #5 MLB kill switch: HOLD until Apr 1, 2026
 
 LIVE BET STATUS (4 logged, 0 resolved — analytics locked until 10 resolved):
@@ -569,4 +575,4 @@ SYSTEM GATES:
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 34, 2026-02-25*
+*Last updated: Session 35, 2026-02-26*
