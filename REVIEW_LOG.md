@@ -72,7 +72,29 @@
 ## ACTIVE FLAGS FROM REVIEWER
 > Most recent unresolved flags live here. Sandbox clears them by addressing in next session.
 
-✅ All sessions through 36 cont. APPROVED. No active flags.
+✅ All sessions through 37 APPROVED. No active flags.
+
+---
+
+### SANDBOX SESSION 37 SUMMARY — 2026-02-26
+**Built:** Protocol enforcement — `titanium-session-wrap` + `titanium-context-monitor` wired as mandatory session actions
+- `CLAUDE.md`: SESSION START → mandatory first action = `Skill: titanium-session-wrap` START mode (step added before any file read/command). Step 5b: `titanium-context-monitor` after test run. SESSION END → mandatory first action = `Skill: titanium-session-wrap` END mode. STOP CONDITIONS: tool call 45 → context-monitor, tool call 60 → immediate wrap.
+- `memory/ORIGINAL_PROMPT.md`: Same mandatory actions added to SESSION START/END. Skills table: titanium-session-wrap + titanium-context-monitor added as rows 1–2.
+**Tests:** 1162/1162 — no delta (process-only session) ✅
+**Architectural decisions:** None. Process-only.
+**Gates changed:** None.
+**Flags for reviewer:** No SANDBOX SESSION SUMMARY was written to REVIEW_LOG.md during this session. V37 audit block written by reviewer based on commit `f5fcc05`.
+
+### V37 AUDIT — Sandbox Session 37 (Protocol: session-wrap + context-monitor wired as mandatory) — 2026-02-26
+
+**Status: APPROVED ✅**
+**Math > Narrative check:** ✅ N/A — process changes only, no scoring/kill code touched
+**Rules intact:** ✅ N/A — no betting math changes
+**Import discipline:** ✅ N/A — no code imports
+**API discipline:** ✅ N/A — no API changes
+**Test pass rate:** ✅ 1162/1162 (no delta — process-only session)
+**Issues:** ⚠️ PROTOCOL NOTE: No SANDBOX SESSION SUMMARY written to REVIEW_LOG.md. Also no SESSION_LOG.md entry for Session 37. Audit block written by reviewer from commit `f5fcc05` directly. Sandbox should write summaries even for process-only sessions.
+**Action required:** Low priority — sandbox should write session summaries for process-only sessions going forward. No code change needed.
 
 ---
 

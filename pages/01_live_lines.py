@@ -563,6 +563,66 @@ def _parlay_card(combo: ParlayCombo, rank: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Paper bet logging — one-click from Live Lines cards
+# ---------------------------------------------------------------------------
+
+def _log_paper_bet(bet: BetCandidate) -> int:
+    """Write a BetCandidate directly to bet_log as a paper bet.
+
+    Returns the new row ID (≥1) on success, -1 on error.
+    kelly_size is already grade-adjusted by assign_grade() — use it directly.
+    Grade C uses stake=0.0 (tracking only, no units risked per protocol).
+    """
+    try:
+        stake = 0.0 if bet.grade in ("C", "NEAR_MISS") else bet.kelly_size
+        rlm_fired = bool(bet.sharp_breakdown.get("rlm_component", 0) > 0)
+        return _log_bet(
+            sport=bet.sport,
+            matchup=bet.matchup,
+            market_type=bet.market_type,
+            target=bet.target,
+            price=bet.price,
+            edge_pct=bet.edge_pct,
+            kelly_size=bet.kelly_size,
+            stake=stake,
+            notes="paper",
+            sharp_score=int(bet.sharp_score),
+            rlm_fired=rlm_fired,
+            book=bet.book,
+            days_to_game=float(bet.rest_days or 0),
+            line=bet.line,
+            signal=bet.signal,
+            grade=bet.grade,
+        )
+    except Exception as exc:
+        st.toast(f"Log failed: {exc}", icon="❌")
+        return -1
+
+
+def _paper_log_button(bet: BetCandidate, btn_key: str) -> None:
+    """Render a compact 'Log Paper Bet' button below a bet card.
+
+    Uses session_state to show '✅ Logged' after first click so the user
+    gets clear feedback without re-logging on every Streamlit rerun.
+    """
+    state_key = f"logged_{abs(hash(bet.matchup + bet.target + str(bet.price))):08x}"
+    if st.session_state.get(state_key):
+        st.caption("✅  Paper bet logged")
+    else:
+        if st.button(
+            "📋  Log Paper Bet",
+            key=btn_key,
+            use_container_width=False,
+            help=f"Log {bet.target} @ {bet.price:+d} as paper bet (grade {bet.grade})",
+        ):
+            row_id = _log_paper_bet(bet)
+            if row_id > 0:
+                st.session_state[state_key] = True
+                st.toast(f"📋  Paper bet logged — {bet.target} ({bet.grade})", icon="✅")
+                st.rerun()
+
+
+# ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
 
@@ -852,6 +912,7 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
         if grade_a:
             for rank, bet in enumerate(grade_a, start=1):
                 st.html(_bet_card(bet, rank))
+                _paper_log_button(bet, f"logbtn_a_{rank}")
         elif not grade_b and not grade_c and not near_miss:
             # Truly nothing at any grade — market efficient state
             st.html("""
@@ -894,6 +955,7 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
             """)
             for rank, bet in enumerate(grade_b, start=len(grade_a) + 1):
                 st.html(_bet_card(bet, rank))
+                _paper_log_button(bet, f"logbtn_b_{rank}")
 
         # ----------------------------------------------------------------
         # Grade C — tracking only (slate banner + cards)
@@ -919,6 +981,7 @@ def _render(sport_filter: str, market_filter: str, min_sharp: int) -> None:
             offset_c = len(grade_a) + len(grade_b) + 1
             for rank, bet in enumerate(grade_c[:8], start=offset_c):
                 st.html(_bet_card(bet, rank))
+                _paper_log_button(bet, f"logbtn_c_{rank}")
 
         # ----------------------------------------------------------------
         # Near Miss — market transparency (dark banner + dim cards)
