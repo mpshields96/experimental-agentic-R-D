@@ -76,6 +76,21 @@
 
 ---
 
+### SANDBOX SESSION 39 SUMMARY — 2026-02-26
+**Built:** Coordination + credit conservation (no math changes)
+- V37_INBOX.md: Session 38 review marked DONE (V37 APPROVED result_resolver autonomously). Session 39 coordination note added.
+- PROJECT_INDEX.md: Updated to Session 39 / 1244 tests / commit a818794.
+- REVIEW_LOG.md: Committed V37's pre-existing audit entries for S38 + S37 Cont. C.
+- app.py: Scheduler interval 5→30 min. Credit math: 5-min @ 15cr/scan = 180cr/hr → hits 100/day in 33 min. 30-min @ 15cr/scan = 30cr/hr → 3hr session on 100 credits. "Refresh Now" button in sidebar handles on-demand scans.
+- data/line_history.db: grade column migrated (was missing despite being in _BET_LOG_MIGRATIONS; init_db() applied retroactively).
+- scripts/: notify_iphone.py + NOTIFY_IPHONE_SETUP.md tracked (user-added Claude Code utility, not betting system).
+**Tests:** 1244 / 1244 — unchanged
+**Architectural decisions:** Scheduler interval is now a credit-budget decision, not a latency decision. "Refresh Now" button exists for when the user wants an immediate scan. Increasing to 30 min maintains RLM detection capability (movements between polls are still captured on next poll).
+**Gates changed:** None.
+**Flags for reviewer:**
+- FYI: scheduler interval raised 5→30 min (no math impact; credit constraint drove this).
+- FYI: CLV=N/A on all 4 existing bets — auto_resolve_pending() uses ESPN (free) for result, not Odds API for close_price. CLV tracking is blind until close price capture is added. Not blocking analytics gate, but worth noting.
+
 ### SANDBOX SESSION 38 SUMMARY — 2026-02-26
 **Built:** result_resolver.py — 3 live-run bug fixes + 9 regression tests
 - Bug 1 (date offset): range(-1, _DATE_SEARCH_WINDOW+1) — US evening games logged after midnight UTC were off-by-1 day. Fix: also search logged_at-1 day.

@@ -2,6 +2,36 @@
 
 ---
 
+## Session 39 — V37 coordination + scheduler credit fix — 2026-02-26
+
+### Objective
+V37 coordination, push backlog, fix scheduler interval for paper betting.
+
+### What shipped
+- V37_INBOX.md: Session 38 review marked DONE (V37 APPROVED result_resolver bug fixes autonomously in REVIEW_LOG.md). Session 39 coordination note added.
+- PROJECT_INDEX.md: Updated from Session 35/1154 → Session 39/1244 tests.
+- REVIEW_LOG.md: V37 audit entries committed (V37 had added S38 APPROVED + S37 Cont. C APPROVED).
+- app.py: Scheduler interval raised from 5 → 30 min. With 100-credit/day limit, 5-min scheduler allowed only 30 min open time; 30-min interval gives 3+ hours. Display text updated to match.
+- scripts/notify_iphone.py + NOTIFY_IPHONE_SETUP.md: Tracked in git (user-added Claude Code notification utility, not part of betting system).
+- data/line_history.db: grade column migrated via init_db() (column was missing despite being in _BET_LOG_MIGRATIONS — init_db() hadn't been called on this existing DB since S27 addition).
+
+### Test count
+1244 / 1244 — unchanged (no new tests needed for scheduler config change)
+
+### Odds API credits used
+0 (no fetches this session)
+
+### V37 flags / rulings needed
+- FYI: scheduler interval raised 5→30 min. Not a math change. Tactical credit conservation.
+- FYI: CLV=N/A on all 4 existing resolved bets — auto_resolve_pending() captures result (ESPN) but not close_price (Odds API). Closing line capture remains a future improvement.
+
+### Commits
+- e595a33 — Session 39: V37 coordination + PROJECT_INDEX + REVIEW_LOG V37 audits
+- cf3e660 — Session 39: raise scheduler interval 5→30 min
+- 4271736 — Session 39: notify_iphone scripts tracked
+
+---
+
 ## Session 37 Cont. C — V37 38A directive — 2026-02-26
 
 ### Objective

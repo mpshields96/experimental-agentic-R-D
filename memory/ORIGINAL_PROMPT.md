@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 38 — 2026-02-26
-# Session work S37: paper bet logging + result_resolver ESPN + V37 38A fix. S38: result_resolver 3 live-run bug fixes (date offset, NCAAB groups, St→State) + 4/4 bets auto-resolved. Tests 1235→1244.
-# Priority reset: #1 Auto-resolve pending bets (4 logged, 0 resolved — use new Auto-Resolve button), #2 Live run to gate analytics, #3 Activate ODDS_API_KEY_PROPS
+# Last updated: Session 39 — 2026-02-26
+# Session work S39: V37 coordination (inbox updated, S38 review DONE), all commits pushed, scheduler 5→30 min (credit conservation), grade migration applied to local DB. No new tests.
+# Priority reset: #1 Live run — log 6 more paper bets to hit analytics gate (4/10 → 10/10), #2 Activate ODDS_API_KEY_PROPS, #3 CLV close-price capture (auto-resolve doesn't get close_price)
 # Maintained by: sandbox builder chat
 
 ---
@@ -185,26 +185,20 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 
 ---
 
-## 📍 CURRENT PROJECT STATE (Session 37 — 2026-02-26)
+## 📍 CURRENT PROJECT STATE (Session 39 — 2026-02-26)
 
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
 Tests:    1244 / 1244 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commits (12 local, NOT YET PUSHED):
-  - 2c8f38d — Session 38: result_resolver 3 bug fixes + 9 regression tests (1244 tests)
-  - 477926c — Session 37: V37 38A — days_to_game fix + paper bet logging tests (1235 tests)
-  - 5ededf1 — Session 37: paper bet auto-resolver + 04_bet_tracker integration (1224 tests)
-  - 2290a2e — Session 37: paper bet one-click logging on all bet cards (1162 tests)
-  - [Session 36 cont.] — V37 directive: props DailyCreditLog + warning + fixture (1162 tests)
-  - eea4770 — Session 36 titanium-context-monitor skill + GSD V37 loop-in
-  - 50a0362 — Session 36 titanium-session-wrap skill
-  - 586ea20 — Session 35: CLAUDE.md learnings
-  - cdc6e6f — Session 35 props math layer: PropCandidate + edge/grade UI (1154 tests)
-  - 9252e8f — Session 35 player props: PropsQuotaTracker, fetch_props_for_event, page 08 (1133 tests)
-Already pushed:
-  - 3d751c1 — Session 34 cont: V37 docstrings + REVIEW_LOG session summaries
+Latest commit (all pushed ✅):
+  - 4271736 — Session 39: notify_iphone scripts tracked
+  - cf3e660 — Session 39: scheduler interval 5→30 min (credit conservation)
+  - e595a33 — Session 39: V37 coordination + PROJECT_INDEX + REVIEW_LOG V37 audits
+  - a818794 — Session 38: wrap docs (gate 0→4/10 resolved bets)
+  - 2c8f38d — Session 38: result_resolver 3 bug fixes + 9 regression tests
+All previous sessions (35-38) fully pushed. Last push: 2026-02-26 Session 39.
 
 ✅ SESSION 37 COMPLETE:
   - core/result_resolver.py (new) — ESPN unofficial scoreboard API auto-resolver: fetch_espn_scoreboard(), _find_game() (fuzzy team match), _resolve_spread/total/moneyline(), auto_resolve_pending() → ResolveResult. _fetcher injection for test isolation. Zero Odds API credits.
@@ -242,15 +236,18 @@ Already pushed:
   - V37 Session 32-A audit docstring additions: daily_allowance() ASSUMPTION + is_session_hard_stop() guard interaction note
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
-📋 PRIORITY ORDER (Session 38):
-  #1 — DONE (Session 38): 4 bets auto-resolved. OKC WIN, CLE LOSS, UIC WIN, Colorado St WIN. $97.88 paper profit.
-  #1 — Live run: log more bets. GOAL 10 resolved (currently 4/10). Log 6 more and resolve them to unlock analytics.
-  #3 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met; user sets env var ODDS_API_KEY_PROPS)
-  #4 — SHARP_THRESHOLD raise gate: 45->50 (gate: 5 live sessions + 20 RLM fires)
+📋 PRIORITY ORDER (Session 39 — current):
+  #1 — Live run: log 6 more paper bets (currently 4/10). Need 10 resolved to unlock analytics.
+       Workflow: open local app → "↺ Refresh Now" → Live Lines → click "Log Paper Bet" → next day → Bet Tracker → "Auto-Resolve"
+       Credit note: scheduler now 30 min (was 5). "Refresh Now" = manual on-demand scan.
+  #2 — Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met; user sets env var ODDS_API_KEY_PROPS)
+  #3 — CLV close-price capture: auto_resolve_pending() gets result (ESPN, free) but NOT close_price (needs Odds API). CLV=N/A on all 4 existing bets. Consider adding Odds API close-price fetch at resolve time.
+  #4 — SHARP_THRESHOLD raise gate: 45→50 (gate: 5 live sessions + 20 RLM fires)
   #5 — MLB kill switch (HOLD — Apr 1, 2026)
-  #6 — Push all 12 local commits to origin (last pushed: 3d751c1)
 
 Bets: 4 logged, 4 resolved. Paper profit: $97.88 (3W-1L). Need 6 more to unlock analytics (gate=10).
+CLV: N/A on all 4 existing bets (auto_resolve gets result only, not close_price). Future improvement needed.
+Scheduler: 30 min interval (was 5 min). "Refresh Now" button in sidebar for on-demand scans.
 Odds API: $30/month, 20K credits/month. Billing resets 3/1/26. Currently ~325 remaining (floor=150).
   User willing to upgrade to $50/month ONLY if objectively superior + fully meets requirements.
 ```

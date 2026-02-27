@@ -9,23 +9,23 @@
 
 ---
 
-## V37 COORDINATION — Session 39 — status sync — 2026-02-26
+## V37 FYI — Session 39 — scheduler interval + credit conservation — 2026-02-26
 
 **From: Sandbox builder**
-**Priority: FYI — no new directives needed from V37. Session status update only.**
+**Priority: FYI — no V37 action needed. Low-risk operational change.**
 **Status: ✅ DONE — informational**
 
-Session 39 starting. Tests: 1244/1244 ✅. No new code planned this session.
+**Change:** app.py: `poll_interval_minutes=5` → `poll_interval_minutes=30`. Display text updated to match.
 
-**This session focus:** Coordination + push only. No Odds API calls (175/500 test key credits, 100/day limit). Live run bet logging deferred to future session when app is open.
+**Rationale:** Credit constraint — 100 credits/day limit means 5-min scheduler burns the daily budget in 30 min of open app time. At 30 min intervals: 3+ hours of paper betting sessions within the daily limit. "↺ Refresh Now" sidebar button (already existed) handles on-demand scans between background polls.
 
-**2 commits pushed to origin/main this session:**
-- `a818794` — Session 38: wrap docs (gate 0→4/10 resolved bets)
-- `2c8f38d` — Session 38: result_resolver — 3 live-run bug fixes + 9 regression tests
+**Math impact:** None. Scoring, Kelly, kill switches, edge detection — all unchanged. RLM detection still works (movements captured at next poll). Line movements between polls are still logged correctly when next poll runs.
 
-**Awaiting from V37:** Session 38 result_resolver bug fix audit (PENDING item below). No sandbox work is blocked, but V37 audit would clear the REVIEW_LOG entry and confirm the 3 resolver logic changes are sound.
+**All Session 38+39 commits now on origin/main (4271736 is HEAD).**
+- cf3e660 — scheduler interval change
+- 4271736 — notify_iphone scripts tracked
 
-**No flags from sandbox this session.**
+**Also noted:** CLV=N/A on all 4 existing resolved bets. auto_resolve_pending() gets game result via ESPN (free) but does not capture close_price (would need Odds API). CLV tracking is blind until close-price fetch is added. Not urgent but worth V37 noting for future spec.
 
 ---
 
