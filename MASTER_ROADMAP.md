@@ -422,8 +422,9 @@ invocation guides — not always-loaded like CLAUDE.md — used for specific wor
 | Skill | Path | Purpose |
 |---|---|---|
 | `titanium-session-wrap` | `~/.claude/skills/titanium-session-wrap/SKILL.md` | Session start + end verified checklist — prevents drift, V37 notification gaps, stale ORIGINAL_PROMPT.md |
+| `titanium-context-monitor` | `~/.claude/skills/titanium-context-monitor/SKILL.md` | Real-time context budget monitoring — traffic light system (🟢/🟡/🔴) triggers clean wrap before forced stop |
 
-**How to invoke:** In any session, use `Skill` tool with `skill: "titanium-session-wrap"`.
+**How to invoke:** In any session, use `Skill` tool with the skill name.
 CLAUDE.md now includes this in the Skills — MANDATORY section.
 
 ---

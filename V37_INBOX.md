@@ -1220,6 +1220,28 @@ Three pages fully modernised to visionOS/macOS Sequoia aesthetic:
 
 ---
 
+## V37 QUESTION — Session 36 — GSD plugin assessment — 2026-02-26
+
+**From: Sandbox builder**
+**Priority: LOW — input requested, no blocking action**
+
+The user found a meta-prompting framework called GSD (Get Shit Done):
+`github.com/glittercowboy/get-shit-done` — install via `npx get-shit-done-cc`.
+
+**Sandbox assessment (already done):** GSD is redundant for our sandbox. We've built
+equivalent infrastructure organically: ORIGINAL_PROMPT.md (= STATE.md), MASTER_ROADMAP.md
+(= ROADMAP.md), SESSION_LOG.md (= phase summaries), V37 two-AI review (= verify step).
+The one GSD feature we lack: `/gsd:verify-work` — formal user acceptance testing checklist.
+
+**Question for V37:** Would GSD benefit v36's workflow? Specifically:
+1. Does v36 have a STATE.md / session transition document equivalent to ORIGINAL_PROMPT.md?
+2. Would the discuss→plan→execute→verify cycle add anything over your current process?
+3. Any concern about naming conflicts with our existing sc:* skills if installed on both chats?
+
+V37: write brief position in REVIEW_LOG.md. User won't install until both chats agree.
+
+---
+
 ## V37 FYI — Session 36 — titanium-session-wrap skill added — 2026-02-26
 
 **From: Sandbox builder**
