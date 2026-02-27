@@ -60,6 +60,13 @@ _ESPN_SPORT_PATHS: dict[str, str] = {
     "NCAAF":  "football/college-football",
 }
 
+# Extra URL query params per sport. NCAAB default endpoint returns ~10 featured
+# games; groups=50 (all D1) + limit=200 returns the full slate.
+_ESPN_EXTRA_PARAMS: dict[str, str] = {
+    "NCAAB": "groups=50&limit=200",
+    "NCAAF": "groups=80&limit=200",
+}
+
 # How many days forward from logged_at to search for the completed game
 _DATE_SEARCH_WINDOW = 3
 
@@ -105,7 +112,10 @@ def fetch_espn_scoreboard(
         logger.debug("result_resolver: unsupported sport '%s'", sport)
         return []
 
+    extra = _ESPN_EXTRA_PARAMS.get(sport.upper(), "")
     url = f"{_ESPN_BASE}/{path}/scoreboard?dates={date_str}"
+    if extra:
+        url = f"{url}&{extra}"
     try:
         if _fetcher is not None:
             raw = _fetcher(url)
@@ -169,18 +179,34 @@ def _team_matches(espn_name: str, fragment: str) -> bool:
     Fuzzy team name match: True if fragment is contained in espn_name or vice versa.
 
     Handles full names ("Los Angeles Lakers"), city fragments ("Lakers"),
-    and abbreviations. Case-insensitive, punctuation-stripped.
+    abbreviations, and Odds API abbreviations vs ESPN full names.
+
+    Abbreviation expansion: "Colorado St Rams" (Odds API) → "Colorado State Rams"
+    (ESPN) — applies \bst\b → "state" expansion to the fragment only, preventing
+    "St. Louis Blues" from incorrectly expanding to "State Louis Blues".
 
     >>> _team_matches("Los Angeles Lakers", "Lakers")
     True
     >>> _team_matches("Los Angeles Lakers", "Celtics")
     False
+    >>> _team_matches("Colorado State Rams", "Colorado St Rams")
+    True
+    >>> _team_matches("Fresno State Bulldogs", "Fresno St Bulldogs")
+    True
     """
     if not espn_name or not fragment:
         return False
     n_espn = _normalize(espn_name)
     n_frag = _normalize(fragment)
-    return bool(n_frag in n_espn or n_espn in n_frag)
+    if n_frag in n_espn or n_espn in n_frag:
+        return True
+    # Abbreviation expansion (fragment only — Odds API uses abbreviated names):
+    #   "colorado st rams" → "colorado state rams" → matches ESPN "Colorado State Rams"
+    # Do NOT expand n_espn to prevent "St. Louis Blues" → "State Louis Blues" errors.
+    n_frag_exp = re.sub(r"\bst\b", "state", n_frag)
+    if n_frag_exp != n_frag and (n_frag_exp in n_espn or n_espn in n_frag_exp):
+        return True
+    return False
 
 
 def _find_game(
@@ -365,7 +391,11 @@ def _resolve_single_bet(
     """
     Attempt to resolve one pending bet. Returns result string or None.
 
-    Searches logged_at date + _DATE_SEARCH_WINDOW forward days for completed game.
+    Searches logged_at - 1 day through logged_at + _DATE_SEARCH_WINDOW days for completed game.
+
+    The -1 offset handles US evening games logged after midnight UTC (e.g. a game
+    played Feb 24 US time may be logged at 03:00 UTC Feb 25 — without the offset
+    the actual game date would be missed).
     """
     sport = bet.get("sport", "")
     matchup = bet.get("matchup", "")
@@ -380,9 +410,13 @@ def _resolve_single_bet(
     except (ValueError, AttributeError):
         return None
 
+    # Search 1 day before logged_at through _DATE_SEARCH_WINDOW days after.
+    # Bets logged after midnight UTC for same-day US evening games will have
+    # logged_at on the next UTC day — without the -1 offset, the actual game
+    # date would be missed (e.g. game plays Feb 24 US, logged 03:17 UTC Feb 25).
     search_dates = [
         (logged_dt + timedelta(days=d)).strftime("%Y%m%d")
-        for d in range(_DATE_SEARCH_WINDOW)
+        for d in range(-1, _DATE_SEARCH_WINDOW + 1)
     ]
 
     for date_str in search_dates:

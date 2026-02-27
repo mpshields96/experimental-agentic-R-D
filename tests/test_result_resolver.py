@@ -555,3 +555,134 @@ class TestAutoResolvePending:
         assert rr.resolved == 1
         assert len(rr.details) == 1
         assert "WIN" in rr.details[0]
+
+
+# ---------------------------------------------------------------------------
+# Regression tests — bugs found in live run 2026-02-26
+# ---------------------------------------------------------------------------
+
+class TestNcaabGroupsParam:
+    """NCAAB ESPN URL must include groups=50&limit=200 (default returns ~10 featured games)."""
+
+    def test_ncaab_url_includes_groups_param(self):
+        """fetch_espn_scoreboard for NCAAB should request groups=50&limit=200."""
+        captured = []
+
+        def capture_fetcher(url: str) -> dict:
+            captured.append(url)
+            return {"events": []}
+
+        fetch_espn_scoreboard("NCAAB", "20260224", _fetcher=capture_fetcher)
+        assert len(captured) == 1
+        assert "groups=50" in captured[0]
+        assert "limit=200" in captured[0]
+
+    def test_nba_url_has_no_extra_params(self):
+        """NBA URL should NOT include groups param (pro sports don't need it)."""
+        captured = []
+
+        def capture_fetcher(url: str) -> dict:
+            captured.append(url)
+            return {"events": []}
+
+        fetch_espn_scoreboard("NBA", "20260224", _fetcher=capture_fetcher)
+        assert "groups=" not in captured[0]
+
+    def test_ncaaf_url_includes_groups_param(self):
+        """NCAAF URL should include groups=80&limit=200."""
+        captured = []
+
+        def capture_fetcher(url: str) -> dict:
+            captured.append(url)
+            return {"events": []}
+
+        fetch_espn_scoreboard("NCAAF", "20260224", _fetcher=capture_fetcher)
+        assert "groups=80" in captured[0]
+
+
+class TestAbbreviationExpansion:
+    """_team_matches must handle Odds API abbreviated names vs ESPN full names."""
+
+    def test_colorado_st_matches_colorado_state(self):
+        assert _team_matches("Colorado State Rams", "Colorado St Rams")
+
+    def test_fresno_st_matches_fresno_state(self):
+        assert _team_matches("Fresno State Bulldogs", "Fresno St Bulldogs")
+
+    def test_normal_match_still_works(self):
+        """Standard substring match must not regress."""
+        assert _team_matches("Los Angeles Lakers", "Lakers")
+
+    def test_st_louis_not_broken(self):
+        """St. Louis should still match St. Louis (no false State expansion on espn side)."""
+        assert _team_matches("St. Louis Blues", "St. Louis Blues")
+
+    def test_no_false_match_on_expansion(self):
+        """Expansion should not create false positives."""
+        assert not _team_matches("Colorado State Rams", "California Bears")
+
+
+class TestMidnightUtcDateOffset:
+    """Bets logged after midnight UTC for US evening games must search the prior day."""
+
+    def _make_fetcher(self, games_by_date: dict):
+        """fetcher returns games only for the specific date embedded in the URL."""
+        def f(url: str) -> dict:
+            # Extract date from URL: ?dates=YYYYMMDD or &dates=YYYYMMDD
+            import re
+            m = re.search(r"dates=(\d{8})", url)
+            date_str = m.group(1) if m else ""
+            games = games_by_date.get(date_str, [])
+            events = []
+            for g in games:
+                events.append({
+                    "competitions": [{
+                        "competitors": [
+                            {"homeAway": "home", "team": {"displayName": g["home_team"]},
+                             "score": str(g.get("home_score", 100))},
+                            {"homeAway": "away", "team": {"displayName": g["away_team"]},
+                             "score": str(g.get("away_score", 90))},
+                        ],
+                        "status": {"type": {"completed": g.get("completed", True)}},
+                        "id": "test123",
+                    }]
+                })
+            return {"events": events}
+        return f
+
+    def test_game_on_prior_day_utc_is_found(self, tmp_path):
+        """Bet logged 03:00 UTC must search logged_at-1 day (game played prev evening US)."""
+        import sqlite3
+        from core.line_logger import init_db
+
+        db_path = str(tmp_path / "test.db")
+        init_db(db_path)
+
+        # Insert a bet logged at 03:00 UTC on Feb 25 (game was Feb 24 US time)
+        conn = sqlite3.connect(db_path)
+        conn.execute("""
+            INSERT INTO bet_log
+            (logged_at, sport, matchup, market_type, target, price, edge_pct,
+             kelly_size, stake, result, sharp_score, rlm_fired, days_to_game, line, signal)
+            VALUES (
+                '2026-02-25T03:00:00+00:00', 'NBA',
+                'Oklahoma City Thunder @ Toronto Raptors',
+                'h2h', 'Oklahoma City Thunder ML', -115, 0.05, 0.5, 50.0, 'pending',
+                55, 0, 0.0, 0.0, ''
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+        # Game is only on 20260224 (the day BEFORE logged_at UTC date 20260225)
+        games_by_date = {
+            "20260224": [
+                {"home_team": "Toronto Raptors", "away_team": "Oklahoma City Thunder",
+                 "home_score": 98, "away_score": 115, "completed": True}
+            ]
+        }
+        fetcher = self._make_fetcher(games_by_date)
+
+        rr = auto_resolve_pending(db_path=db_path, _fetcher=fetcher)
+        assert rr.resolved == 1, f"Expected 1 resolved, got {rr.resolved}. Details: {rr.details}"
+        assert "WIN" in rr.details[0]
