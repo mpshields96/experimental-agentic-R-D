@@ -306,6 +306,66 @@ def _capture_close_prices(
 
 
 # ---------------------------------------------------------------------------
+# Schedule-aware sport filtering — skip sports known to be off-season
+# Zero API credits burned on sports with no games in season.
+# ---------------------------------------------------------------------------
+
+# Calendar month ranges (start, end) when each sport is typically active.
+# Ranges that wrap across the year boundary (e.g. Oct→Jun = start > end)
+# are handled by _is_sport_in_season(). MLB is listed as Apr–Nov but we
+# maintain a separate hold until Apr 1 per the V37 directive.
+_SPORT_ACTIVE_MONTHS: dict[str, tuple[int, int]] = {
+    "NBA":        (10, 6),   # Oct through Jun
+    "NFL":        (9, 2),    # Sep through Feb (Super Bowl ~early Feb)
+    "NCAAF":      (8, 1),    # Aug through Jan (CFP final ~mid-Jan)
+    "NCAAB":      (11, 4),   # Nov through Apr (March Madness)
+    "NHL":        (10, 6),   # Oct through Jun
+    "MLB":        (4, 10),   # Apr through Oct (hold enforced separately)
+    "EPL":        (8, 5),    # Aug through May
+    "LIGUE1":     (8, 5),    # Aug through May
+    "BUNDESLIGA": (8, 5),    # Aug through May
+    "SERIE_A":    (8, 5),    # Aug through May
+    "LA_LIGA":    (8, 5),    # Aug through May
+    "MLS":        (2, 11),   # Feb through Nov
+}
+
+
+def _is_sport_in_season(sport: str, month: Optional[int] = None) -> bool:
+    """
+    Return True if the sport is typically active in the given calendar month.
+    Handles year-wrapping ranges (e.g. Oct–Jun: start > end).
+
+    Args:
+        sport:  Friendly sport name (e.g. "NBA"). Unknown sports return True.
+        month:  1–12. Defaults to current UTC month if None.
+    """
+    if month is None:
+        month = datetime.now(timezone.utc).month
+    if sport not in _SPORT_ACTIVE_MONTHS:
+        return True  # Unknown sport — always include (safe default)
+    start, end = _SPORT_ACTIVE_MONTHS[sport]
+    if start <= end:
+        return start <= month <= end
+    # Wrapping range: e.g. Oct(10)→Jun(6): active when month >= 10 OR month <= 6
+    return month >= start or month <= end
+
+
+def get_in_season_sports(month: Optional[int] = None) -> list[str]:
+    """
+    Return the subset of ACTIVE_SPORTS that are in season this month.
+    Used by _poll_all_sports() to skip API credits on off-season sports.
+
+    Args:
+        month: 1–12. Defaults to current UTC month if None.
+
+    Returns:
+        Ordered list of sport names that are in season.
+    """
+    from core.odds_fetcher import ACTIVE_SPORTS  # lazy import avoids circular
+    return [s for s in ACTIVE_SPORTS if _is_sport_in_season(s, month)]
+
+
+# ---------------------------------------------------------------------------
 # Internal poll job
 # ---------------------------------------------------------------------------
 def _poll_all_sports(db_path: Optional[str] = None) -> None:
@@ -336,7 +396,9 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
     results_summary: dict = {}
 
     try:
-        raw = fetch_batch_odds()   # {sport_name: [game_dict, ...]}
+        active = get_in_season_sports()
+        logger.info("In-season sports this month: %s", active)
+        raw = fetch_batch_odds(active)   # {sport_name: [game_dict, ...]}
         for sport, games in raw.items():
             if games:
                 # RLM 2.0: persist first-ever-seen prices, then seed in-memory cache

@@ -849,3 +849,76 @@ class TestCaptureClosePrices:
         db, game = self._pending_bet_game(tmp_path, hours_offset=1.0, sport="NBA")
         count = _capture_close_prices([game], "NHL", db)
         assert count == 0
+
+
+class TestIsSportInSeason:
+    """Unit tests for _is_sport_in_season() and get_in_season_sports()."""
+
+    def test_nba_active_in_february(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NBA", month=2) is True
+
+    def test_nba_active_in_october(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NBA", month=10) is True
+
+    def test_nba_inactive_in_august(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NBA", month=8) is False
+
+    def test_nfl_inactive_in_march(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NFL", month=3) is False
+
+    def test_nfl_active_in_september(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NFL", month=9) is True
+
+    def test_mlb_inactive_in_february(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("MLB", month=2) is False
+
+    def test_mlb_active_in_june(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("MLB", month=6) is True
+
+    def test_ncaaf_inactive_in_march(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NCAAF", month=3) is False
+
+    def test_epl_active_in_february(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("EPL", month=2) is True
+
+    def test_unknown_sport_always_active(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("UNKNOWN_SPORT", month=7) is True
+
+    def test_get_in_season_sports_march_excludes_nfl_ncaaf(self):
+        from core.scheduler import get_in_season_sports
+        # March: NFL (ends Feb) and NCAAF (ends Jan) are off-season
+        active = get_in_season_sports(month=3)
+        assert "NFL" not in active
+        assert "NCAAF" not in active
+
+    def test_get_in_season_sports_february_includes_nba_ncaab_nhl(self):
+        from core.scheduler import get_in_season_sports
+        active = get_in_season_sports(month=2)
+        assert "NBA" in active
+        assert "NCAAB" in active
+        assert "NHL" in active
+
+    def test_get_in_season_sports_july_excludes_nba_nhl(self):
+        from core.scheduler import get_in_season_sports
+        active = get_in_season_sports(month=7)
+        assert "NBA" not in active
+        assert "NHL" not in active
+
+    def test_wrapping_range_nba_june(self):
+        """Jun is the last month of NBA season (range Oct–Jun, wraps)."""
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NBA", month=6) is True
+
+    def test_wrapping_range_nba_july_off(self):
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NBA", month=7) is False
