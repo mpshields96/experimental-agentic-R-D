@@ -715,15 +715,14 @@ class TestDailyHardStop:
         assert qt.is_daily_hard_stop(today)
 
     def test_daily_hard_stop_triggers_session_hard_stop(self):
-        # When daily budget is exhausted, is_session_hard_stop() must return True
+        # When daily budget is exhausted, is_session_hard_stop() must return True.
+        # Uses _today injection so the test is not date-sensitive.
         qt = self._qt(used_today=9999, billing_used=0)
-        today = date(2026, 2, 25)   # allowance = 2500; 9999 >> 2500
-        # is_session_hard_stop uses today's real date — force allowance to be small
-        # by setting used_today far above allowance
+        today = date(2026, 2, 25)   # allowance = 10000//4 = 2500; 9999 >> 2500
         qt.session_used = 0
         qt.remaining = 5_000   # above BILLING_RESERVE
-        # is_daily_hard_stop: used_today(9999) >= daily_allowance() which is small
-        assert qt.is_daily_hard_stop()
+        # Pass _today so daily_allowance() uses Feb-25 (2500), not real date.
+        assert qt.is_daily_hard_stop(_today=today)
 
     def test_session_hard_stop_false_when_daily_budget_safe(self):
         qt = QuotaTracker()
