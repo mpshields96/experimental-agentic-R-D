@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 42 — 2026-02-28
-# Session work S42: Fix date-sensitive test (TestDailyHardStop — billing-day eve daily_allowance=10000). CLV close-price capture: capture_close_price() in line_logger.py, _extract_best_price() + _capture_close_prices() in scheduler.py, wired into _poll_all_sports(). ZERO extra API credits (2h window, reuses fetch data). 18 new tests. Also: event_id migration triggered on local DB, live paper_bet_scan.py script, Reddit/GitHub research audit, RLM signal analysis (valid for US sports). 1282 tests (+18). All commits pushed.
-# Priority reset: #0 V37 audit Sessions 40+41+42 PENDING. #1 Log 6 more paper bets (auto-scan active, daily cap resets 3/1 UTC). #2 Activate ODDS_API_KEY_PROPS. #3 CLV verdict (needs close prices + resolved bets). #4 Schedule-aware scan (don't scan sports with no games). #5 MLB kill switch (HOLD — April 1)
+# Last updated: Session 42 cont. — 2026-02-28
+# Session work S42 cont.: Schedule-aware scanning — get_in_season_sports() + _is_sport_in_season() + _SPORT_ACTIVE_MONTHS in scheduler.py. Skips NFL/NCAAF off-season, saves 4-6 credits/poll. 15 new tests (TestIsSportInSeason). RLM signal validator — scripts/historical_backtest.py (0 credits, uses local line_history.db + nba_api ScoreboardV3). scripts/_rlm_check.py quick helper. 1297 tests (+15). Commits b2345bb + 5e8acb3 — PUSHED. ALSO: Odds API historical endpoint requires PREMIUM tier — NOT on free plan. MANDATORY: Use /gsd and superpowers skills every session per global rules.
+# Priority reset: #0 V37 audit Sessions 40+41+42 PENDING. #1 Log 6 more paper bets (auto-scan active, daily cap resets 3/1 UTC). #2 First CLV capture (watch bet_log.close_price). #3 Activate ODDS_API_KEY_PROPS. #4 MLB kill switch (HOLD — April 1)
 # Maintained by: sandbox builder chat
 
 ---
@@ -209,6 +209,15 @@ All sessions through S42 fully pushed ✅
   - Research: 10 findings from Reddit/GitHub audit. RLM signal audited (valid for US sports).
   - Tests: 1264 → 1282 (+18). Credits: ~3. Commits: 4d44a3d + 8c0f9a5 — PUSHED ✅
 
+✅ SESSION 42 CONT. COMPLETE (2026-02-28) — Schedule-aware scanning + RLM validator:
+  - get_in_season_sports(month) + _is_sport_in_season() + _SPORT_ACTIVE_MONTHS in scheduler.py.
+  - Skips NFL/NCAAF/MLB off-season before fetch — saves 4-6 credits per poll cycle.
+  - _poll_all_sports() now calls fetch_batch_odds(get_in_season_sports()) instead of fetch_batch_odds().
+  - scripts/historical_backtest.py: RLM signal validator using local line_history.db (0 API credits).
+  - scripts/_rlm_check.py: quick inline RLM movement checker.
+  - Odds API historical endpoint = PREMIUM TIER ONLY (not on free plan — do not attempt).
+  - Tests: 1282 → 1297 (+15) | Commits: b2345bb (wrap-docs) + 5e8acb3 — PUSHED ✅
+
 ✅ SESSION 41 COMPLETE (2026-02-27) — Bug fix + auto paper-bet scan:
   - **Bug fixed:** parse_game_markets() missing `injury_leverage` param — TypeError on live_lines render.
   - _auto_paper_bet_scan() in scheduler.py — Grade A/B auto-log with dedup by event_id.
@@ -256,13 +265,12 @@ All sessions through S42 fully pushed ✅
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
 📋 PRIORITY ORDER (Session 43 — next):
-  #0 — V37 audit: Sessions 40+41+42 PENDING. V37_INBOX.md has all 3 entries. Wait for V37 to clear.
-  #1 — Live run: log 6 more paper bets (4/10 → 10/10). Auto-scan active. Daily cap resets 3/1 00:00 UTC.
-  #2 — CLV first capture: once a tracked game starts within 2h, capture_close_price() will auto-fire.
-       Watch bet_log.close_price for first non-zero values after next scheduler scan with live games.
-  #3 — Activate ODDS_API_KEY_PROPS: user sets in .streamlit/secrets.toml. DailyCreditLog gate met (S36).
-  #4 — Schedule-aware scanning (future): check which sports have games before fetching (reduces credits).
-  #5 — Real Kelly for concurrent bets (future, post-gate): BettingIsCool/real_kelly-independent_concurrent.
+  #0 — MANDATORY SESSION START: /gsd:health → /gsd:progress (non-negotiable per global rules)
+  #1 — V37 audit: Sessions 40+41+42 PENDING. V37_INBOX.md has all 3 entries. Wait for V37 to clear.
+  #2 — Live run: log 6 more paper bets (4/10 → 10/10). Auto-scan active. Daily cap resets 3/1 00:00 UTC.
+  #3 — CLV first capture: watch bet_log.close_price after next scheduler scan with live games within 2h.
+  #4 — Activate ODDS_API_KEY_PROPS: user sets in .streamlit/secrets.toml.
+  #5 — Real Kelly for concurrent bets (post-gate): BettingIsCool/real_kelly-independent_concurrent.
   #6 — MLB kill switch (HOLD — Apr 1, 2026)
 
 Bets: 4 logged, 4 resolved. Paper profit: $97.88 (3W-1L). Need 6 more to unlock analytics (gate=10).
