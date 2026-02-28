@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 41 — 2026-02-27
-# Session work S41: Bug fix — parse_game_markets() missing injury_leverage param (TypeError on page render). Fixed. Auto paper-bet scan added to scheduler: _auto_paper_bet_scan() logs Grade A/B bets after each fetch, dedup by event_id. event_id column added to bet_log. 1264 tests (+13).
-# Priority reset: #0 PUSH (3 unpushed commits: f2ee1ee, 97021d2, 9e99854) — needs GitHub token. #1 V37 audit Sessions 40+41 PENDING. #2 Activate ODDS_API_KEY_PROPS. #3 Log 6 more paper bets (auto-scan will handle once daily cap resets 2/28 UTC)
+# Last updated: Session 42 — 2026-02-28
+# Session work S42: Fix date-sensitive test (TestDailyHardStop — billing-day eve daily_allowance=10000). CLV close-price capture: capture_close_price() in line_logger.py, _extract_best_price() + _capture_close_prices() in scheduler.py, wired into _poll_all_sports(). ZERO extra API credits (2h window, reuses fetch data). 18 new tests. Also: event_id migration triggered on local DB, live paper_bet_scan.py script, Reddit/GitHub research audit, RLM signal analysis (valid for US sports). 1282 tests (+18). All commits pushed.
+# Priority reset: #0 V37 audit Sessions 40+41+42 PENDING. #1 Log 6 more paper bets (auto-scan active, daily cap resets 3/1 UTC). #2 Activate ODDS_API_KEY_PROPS. #3 CLV verdict (needs close prices + resolved bets). #4 Schedule-aware scan (don't scan sports with no games). #5 MLB kill switch (HOLD — April 1)
 # Maintained by: sandbox builder chat
 
 ---
@@ -192,20 +192,28 @@ Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
 Tests:    1264 / 1264 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
-Latest commit (NOT YET PUSHED — push at next session start):
+Latest commits (all PUSHED ✅):
+  - 8c0f9a5 — Session 42: CLV close-price capture + paper_bet_scan script
+  - 4d44a3d — Session 42: fix date-sensitive test (TestDailyHardStop)
+  - 40d9d4f — Session 41: wrap docs
   - 9e99854 — Session 41: fix injury_leverage wiring + auto-paper-bet scan
-  - 97021d2 — Session 40: wrap docs — B2 gate done, 4 new CLAUDE.md lessons, daily cap note
-  - f2ee1ee — Session 40: wire injury_data.py into pipeline (V37 S38 directive) + B2 gate update
-  - 4271736 — Session 39: notify_iphone scripts tracked (already pushed)
-All sessions through S39 fully pushed. S40+S41 (3 commits) awaiting push.
+All sessions through S42 fully pushed ✅
+
+✅ SESSION 42 COMPLETE (2026-02-28) — CLV close-price capture:
+  - **Test fix:** TestDailyHardStop date-sensitive (billing-day eve daily_allowance=10000 > used_today=9999). Fixed with `_today` injection.
+  - **capture_close_price(event_id, market_type, target, close_price, db_path)** in line_logger.py — stores closing price on pending bets within 2h window. Idempotent.
+  - **_extract_best_price(game, market_type, target)** in scheduler.py — extracts best in-collar price from raw game dict for h2h/spreads/totals.
+  - **_capture_close_prices(games, sport, db_path)** in scheduler.py — fires every poll cycle, ZERO extra API credits (reuses fetch data). CLOSE_PRICE_WINDOW_HOURS=2.0.
+  - Wired into _poll_all_sports() after _auto_paper_bet_scan().
+  - scripts/paper_bet_scan.py: one-off standalone scan script.
+  - Research: 10 findings from Reddit/GitHub audit. RLM signal audited (valid for US sports).
+  - Tests: 1264 → 1282 (+18). Credits: ~3. Commits: 4d44a3d + 8c0f9a5 — PUSHED ✅
 
 ✅ SESSION 41 COMPLETE (2026-02-27) — Bug fix + auto paper-bet scan:
-  - **Bug fixed:** parse_game_markets() missing `injury_leverage` param — TypeError on every live_lines render since S40. Added to signature + wired into all 4 calculate_sharp_score() calls (spreads/soccer_h2h/h2h/totals).
-  - core/scheduler.py: _auto_paper_bet_scan(games, sport, db_path) — parses Grade A/B bets after each fetch, deduplicates by event_id+market_type+target, auto-logs as notes="auto-paper". Wired into _poll_all_sports() after log_snapshot().
-  - core/line_logger.py: event_id column added to bet_log (idempotent migration), is_bet_already_logged(), log_bet() accepts event_id
-  - Tests: 1251 → 1264 (+13: TestEventIdColumn, TestIsBetAlreadyLogged, TestParseGameMarketsInjuryLeverage, TestAutoPaperBetScan)
-  - Commit: 9e99854 — NOT YET PUSHED
-  - Credits: 0 used (daily cap still at 321/300 from earlier scheduler polls)
+  - **Bug fixed:** parse_game_markets() missing `injury_leverage` param — TypeError on live_lines render.
+  - _auto_paper_bet_scan() in scheduler.py — Grade A/B auto-log with dedup by event_id.
+  - event_id column added to bet_log (idempotent migration), is_bet_already_logged().
+  - Tests: 1251 → 1264 (+13) | Commits: 9e99854, 40d9d4f — PUSHED ✅
 
 ✅ SESSION 40 COMPLETE (2026-02-26) — B2 gate wiring (V37 S38 directive):
   - compute_injury_leverage_from_event() in scheduler.py
@@ -247,19 +255,22 @@ All sessions through S39 fully pushed. S40+S41 (3 commits) awaiting push.
   - V37 Session 32-A audit docstring additions: daily_allowance() ASSUMPTION + is_session_hard_stop() guard interaction note
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
-📋 PRIORITY ORDER (Session 42 — next):
-  #0 — PUSH: git push origin main (3 unpushed commits: f2ee1ee, 97021d2, 9e99854) — needs GitHub token
-  #1 — V37 audit: Sessions 40+41 PENDING. V37_INBOX.md has both entries. Wait for V37 to clear.
-  #2 — Live run: log 6 more paper bets (4/10 → 10/10). Auto-paper-bet scan now active — will auto-log Grade A/B bets after each scheduler poll. Daily cap resets 2/28 00:00 UTC.
-  #3 — Activate ODDS_API_KEY_PROPS: user sets env var in .streamlit/secrets.toml as `ODDS_API_KEY_PROPS = "key_here"`. DailyCreditLog gate already met (Session 36).
-  #4 — CLV close-price capture: auto_resolve_pending() gets result (ESPN, free) but NOT close_price (needs Odds API). CLV=N/A on all 4 existing bets.
-  #5 — SHARP_THRESHOLD raise gate: 45→50 (gate: 5 live sessions + 20 RLM fires)
+📋 PRIORITY ORDER (Session 43 — next):
+  #0 — V37 audit: Sessions 40+41+42 PENDING. V37_INBOX.md has all 3 entries. Wait for V37 to clear.
+  #1 — Live run: log 6 more paper bets (4/10 → 10/10). Auto-scan active. Daily cap resets 3/1 00:00 UTC.
+  #2 — CLV first capture: once a tracked game starts within 2h, capture_close_price() will auto-fire.
+       Watch bet_log.close_price for first non-zero values after next scheduler scan with live games.
+  #3 — Activate ODDS_API_KEY_PROPS: user sets in .streamlit/secrets.toml. DailyCreditLog gate met (S36).
+  #4 — Schedule-aware scanning (future): check which sports have games before fetching (reduces credits).
+  #5 — Real Kelly for concurrent bets (future, post-gate): BettingIsCool/real_kelly-independent_concurrent.
   #6 — MLB kill switch (HOLD — Apr 1, 2026)
 
 Bets: 4 logged, 4 resolved. Paper profit: $97.88 (3W-1L). Need 6 more to unlock analytics (gate=10).
-CLV: N/A on all 4 existing bets (auto_resolve gets result only, not close_price). Future improvement needed.
+CLV: N/A on existing 4 bets (already resolved before capture feature). Next bets will get CLV ✅.
+CLV capture: zero API credits — runs passively when games are within 2h of start during scheduler polls.
 Scheduler: 30 min interval. "Refresh Now" button in sidebar for on-demand scans.
-Odds API: Daily cap 300, billing resets 3/1/26. ~7 credits remaining today (floor=150). Fresh scan available 2/27 00:00 UTC.
+Odds API: Daily cap 300 (used 324 today from app polls — cap hit). Billing resets 3/1/26.
+  Test key remaining: ~163 credits. Session cap reset 3/1 UTC.
   User willing to upgrade to $50/month ONLY if objectively superior + fully meets requirements.
 ```
 
@@ -267,7 +278,7 @@ Odds API: Daily cap 300, billing resets 3/1/26. ~7 credits remaining today (floo
 - `.streamlit/secrets.toml` contains: `ODDS_API_KEY = "0fe5b22f01b7827cc96b553590d9968e"`
 - This is the **test key** (500 credits total, 100-credit personal limit — do NOT exceed)
 - Main key (01dc7be6): ~1 credit remaining — DO NOT USE
-- Credit status as of session end: test key remaining ≈ 485, daily=5/1000 ✅
+- Credit status as of session end (S42): test key remaining ≈ 163, daily=327/300 ⛔ (cap hit — resets 3/1 UTC)
 - App shows live API data ✅
 
 ### ✅ INACTIVITY AUTO-STOP (P0 — implemented this session)

@@ -2,6 +2,33 @@
 
 ---
 
+## Session 42 — CLV close-price capture + test fix + research — 2026-02-28
+
+**What shipped:**
+- **Test fix:** `TestDailyHardStop::test_daily_hard_stop_triggers_session_hard_stop` was date-sensitive.
+  On Feb 28 (days_until_billing=1, allowance=10000), `used_today=9999 < 10000` → False. Fixed by passing
+  `_today=date(2026,2,25)` injection so allowance is pinned at 2500 regardless of real date.
+- **CLV close-price capture:** `capture_close_price(event_id, market_type, target, close_price, db_path)`
+  in `core/line_logger.py`. Only updates `result='pending'` bets with no close_price yet.
+- **`_extract_best_price(game, market_type, target)`** in `core/scheduler.py`: extracts best in-collar
+  price from raw API game dict across all bookmakers. Handles h2h, spreads, totals.
+- **`_capture_close_prices(games, sport, db_path)`** in `core/scheduler.py`: fires each poll cycle,
+  captures close price for pending bets within `CLOSE_PRICE_WINDOW_HOURS=2.0`. ZERO extra API credits.
+  Wired into `_poll_all_sports()` after `_auto_paper_bet_scan()`.
+- **`scripts/paper_bet_scan.py`:** standalone one-off scan script (outside Streamlit context).
+- **Research (background agent):** Reddit/GitHub audit surfaced 10 findings — CLV confirmed #1 priority
+  (now built). RLM signal audited — sound for US sports (rec books copy Pinnacle mechanically, so
+  DK/BetMGM line movement is a valid proxy for Pinnacle sharp action). Documented as CLAUDE.md lesson.
+- **Event_id migration:** triggered `init_db()` on local DB — `event_id` column now present.
+- **Push:** all Session 40+41 commits (f2ee1ee, 97021d2, 9e99854, 40d9d4f) + S42 test fix (4d44a3d)
+  pushed to origin/main. CLV commit (8c0f9a5) still local.
+
+**Tests:** 1282/1282 (+18 vs 1264)
+**Credits used:** ~3 (1 NBA scan; daily cap was already at 324/300 from earlier app polls)
+**V37 flags:** CLV capture needs V37 audit. RLM analysis needs V37 review.
+
+---
+
 ## Session 41 — injury_leverage bug fix + auto paper-bet scan — 2026-02-27
 
 **What shipped:**

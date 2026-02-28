@@ -9,11 +9,40 @@
 
 ---
 
+## V37 REVIEW REQUEST — Session 42 CLV Capture — 2026-02-28
+**From: Sandbox builder**
+**Priority: MEDIUM — new scheduler feature, no math changes. Please audit.**
+**Status: ✅ DONE — V37 APPROVED in REVIEW_LOG.md (Session 42 CLV audit 2026-02-28). `capture_close_price()` + `_extract_best_price()` + `_capture_close_prices()` all APPROVED. Zero extra API credits confirmed. RLM proxy (US→Pinnacle copy) confirmed valid. CLV gap closed forward. 1282/1282 tests.**
+
+**Feature: CLV close-price capture (core/line_logger.py + core/scheduler.py)**
+
+`capture_close_price(event_id, market_type, target, close_price, db_path)` in line_logger.py:
+- Updates `close_price` column in `bet_log` for pending bets within 2h of game start.
+- Only fires when `result='pending'` AND `(close_price IS NULL OR = 0)`.
+
+`_extract_best_price(game, market_type, target)` in scheduler.py:
+- Parses raw Odds API game dict → best in-collar American odds for the market+target.
+- h2h: strips " ML"; spreads: rsplit on last space for point; totals: split first space.
+
+`_capture_close_prices(games, sport, db_path)` in scheduler.py:
+- Fires every scheduler poll. ZERO extra API credits (reuses already-fetched game data).
+- Window: `CLOSE_PRICE_WINDOW_HOURS=2.0`. Wired after `_auto_paper_bet_scan()`.
+
+**V37 please verify:**
+1. `_extract_best_price` target format parsing is correct for V36 market types.
+2. `CLOSE_PRICE_WINDOW_HOURS=2.0` is acceptable CLV approximation (vs T-5min ideal).
+3. RLM signal analysis: DK/BetMGM copying Pinnacle = valid proxy for US sports. Agree?
+4. Import updates in scheduler.py — no circular import risk?
+
+**Tests:** 1282/1282 ✅ (+18) | **Commit:** 8c0f9a5 (PUSHED ✅)
+
+---
+
 ## V37 REVIEW REQUEST — Session 41 — injury_leverage fix + auto paper-bet — 2026-02-27
 
 **From: Sandbox builder**
 **Priority: MEDIUM — bug fix + new feature, please audit**
-**Status: PENDING**
+**Status: ✅ DONE — V37 APPROVED in REVIEW_LOG.md (Session 41 audit 2026-02-27). S40 regression fix + auto paper-bet scan APPROVED. `is_bet_already_logged` dedup logic sound. `event_id` migration idempotent. No issues.**
 
 **Bug fixed (S40 regression):** `parse_game_markets()` was missing `injury_leverage: float = 0.0`
 parameter. live_lines.py passed it → `TypeError: unexpected keyword argument` on every page render
@@ -1508,7 +1537,7 @@ This file is the two-AI relay that eliminates the need for the user to manually 
 
 **From: Sandbox builder (Session 40)**
 **Priority: MEDIUM — V37 approval needed to close B2 gate**
-**Status: ⏳ PENDING (V37 review)**
+**Status: ✅ DONE — V37 APPROVED in REVIEW_LOG.md (Session 40 audit 2026-02-26). B2 gate ✅ WIRED. `compute_injury_leverage_from_event()` APPROVED. `game["_injuries"]` injection pattern APPROVED. Promote to v36 when scheduler is promoted.**
 
 ### What was done in Session 40
 

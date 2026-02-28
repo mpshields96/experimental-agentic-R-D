@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 35 | Last updated: 2026-02-26
+## Version: Session 42 | Last updated: 2026-02-28
 ## For: New agentic R&D chat initialization
 
 ---
@@ -537,37 +537,36 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 36 — 2026-02-26)
+## 🚦 CURRENT PROJECT STATE (as of Session 42 — 2026-02-28)
 
 ```
-Test suite:   1162/1162 passing ✅
-Last commit:  5e188b3 (Session 36 cont: V37 directive) — NOT YET PUSHED (6 commits ahead)
+Test suite:   1282/1282 passing ✅
+Last commit:  8c0f9a5 (Session 42: CLV capture + paper scan script) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App:          LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
 App port:     8504 | launch: ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
 
-✅ SESSIONS 29-36 COMPLETE:
-  Session 29: totals canonical line fix, RLM direction fix, dead code audit (1103→1079)
+✅ SESSIONS 29-42 COMPLETE:
+  Session 29: totals canonical line fix, RLM direction fix, dead code audit (→1079)
   Session 30: visionOS UI pass (pages 01, 04, 07), PRECONDITION docstrings, SQLite MCP
   Session 31: Streamlit Cloud deploy (titaniumv37agentic.streamlit.app), DB init fix
   Session 32: Dynamic daily credit budget (CreditLedger, daily_allowance, daily guards) (+27 tests)
-  Session 33: CST game times on bet cards, Pinnacle→Book Coverage, collar map legend, guide rewrite
-  Session 34: Stale 30-bet refs fixed → 10, KPI label polish, V37 docstrings, REVIEW_LOG updated
-  Session 35: Player props E2E — PropsQuotaTracker, fetch_props_for_event, PropCandidate,
-              parse_props_candidates, page 08 with edge+grade cards (+48 tests → 1154)
-  Session 36: titanium-session-wrap + titanium-context-monitor skills; props DailyCreditLog
-              gate met (+8 tests → 1162). ODDS_API_KEY_PROPS can now be activated.
+  Session 33-34: CST times, Pinnacle→Book Coverage, collar map, guide rewrite, stale refs fixed
+  Session 35-36: Player props page 08 E2E, PropsQuotaTracker, DailyCreditLog (+56 tests → 1162)
+  Session 37-39: (see SESSION_LOG.md)
+  Session 40: B2 gate wiring — compute_injury_leverage_from_event(), dynamic injury_leverage= in page 01
+  Session 41: TypeError fix (injury_leverage param), _auto_paper_bet_scan(), event_id dedup (+13 → 1264)
+  Session 42: CLV capture — capture_close_price(), _capture_close_prices(), _extract_best_price();
+              date-sensitive test fix; result='pending' SQL fix; paper_bet_scan.py (+18 → 1282)
 
-📋 SESSION 37 PRIORITY ORDER:
-  #1 Live run: grade/log 6 more resolved bets for analytics gate (need 10 resolved, 4 logged)
-  #2 Activate ODDS_API_KEY_PROPS (DailyCreditLog gate met — user sets env var, test page 08 E2E)
-  #3 SHARP_THRESHOLD gate: 5 live sessions + 20 RLM fires (currently 0/5, 0/20)
-  #4 MLB kill switch: HOLD until Apr 1, 2026
-  #5 Push all 6 local commits to origin
+📋 SESSION 43 PRIORITY ORDER:
+  #1 V37 audit — Sessions 40+41+42 PENDING review in V37_INBOX.md
+  #2 Log more paper bets — need 10/10 resolved for analytics gate (auto-scan active, resets Mar 1 UTC)
+  #3 First CLV capture — watch bet_log.close_price after scheduler polls games within 2h window
+  #4 Schedule-aware scanning — skip sports with no games (credit optimization)
+  #5 Activate ODDS_API_KEY_PROPS — user adds to .streamlit/secrets.toml
 
-LIVE BET STATUS (4 logged, 0 resolved — analytics locked until 10 resolved):
-  id=1: OKC -7.5 @ -115 | id=2: CLE -17.5 @ +120
-  id=3: UIC Flames ML @ -134 | id=4: Colorado St ML @ +143
+LIVE BET STATUS (auto-paper bets logged, 0 resolved — analytics locked until 10 resolved):
   Grade with: python3 scripts/grade_bet.py --id N --result win/loss --close PRICE
 
 GRADE TIER:
@@ -600,9 +599,12 @@ SYSTEM GATES:
 63. Streamlit page function isolation for tests: importlib.util.module_from_spec() fails on pages with module-level st.columns() unpacking (MagicMock not iterable). Correct pattern: ast.get_source_segment(src, node) + textwrap.dedent() in isolated namespace with only the deps the function needs. Used in tests/test_paper_bet_logging.py — see that file for the canonical pattern.
 64. days_to_game vs rest_days (permanent): BetCandidate.rest_days = NBA rest days since last game (integer, 0-5). days_to_game param in log_bet() = days until game start (float). NEVER use rest_days as a proxy for days_to_game. Always derive from commence_time: _days_until_game(bet.commence_time) -> (commence_dt - now(utc)).total_seconds() / 86400. Fixed in _log_paper_bet() (V37 38A directive).
 65. REVIEW_LOG.md concurrent writes: V37 autonomously appends to REVIEW_LOG.md between sandbox commits. Always re-read the file immediately before any Edit. File-modified-since-read errors are expected and normal here — just re-read and retry.
+66. bet_log result='pending' (permanent): Pending bets are inserted with result='pending' (not ''). All UPDATE queries targeting pending bets must use AND result='pending'. SQL using AND result='' will silently match nothing and return rowcount=0 with no error.
+67. Date-sensitive quota tests (permanent): Tests calling is_daily_hard_stop(), daily_allowance(), or any billing-cycle method must pass _today=date(YYYY,MM,DD) to pin the calculation. Billing-day eve (days_until_billing=1) produces allowance=10000 — tests using used_today≈2500 flip to False on that day. Pattern: `_today = date(2026, 2, 25)` then pass to method.
+68. RLM signal validity — US sports (permanent, audited S42): Rec books (DK/BetMGM) copy Pinnacle lines mechanically for US sports where Pinnacle doesn't serve customers. Their line movement IS the Pinnacle sharp-action signal. RLM_THRESHOLD=3% is correct. Do not re-audit.
 
 ---
 
 *This document is the contract. Deviate from it only to prevent harm or data loss.*
 *Math > Narrative. Numbers only. Every metric shows its calculation.*
-*Last updated: Session 40, 2026-02-26*
+*Last updated: Session 42, 2026-02-28*
