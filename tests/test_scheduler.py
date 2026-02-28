@@ -690,3 +690,162 @@ class TestAutoPaperBetScan:
         db_path = str(tmp_path / "auto_empty.db")
         init_db(db_path)
         assert _auto_paper_bet_scan([], "NBA", db_path) == 0
+
+
+# ---------------------------------------------------------------------------
+# TestExtractBestPrice
+# ---------------------------------------------------------------------------
+
+class TestExtractBestPrice:
+    """Tests for _extract_best_price() — extracts best collar-passing price from game dict."""
+
+    def _game(self, market_key, outcomes, event_id="evt1"):
+        return {
+            "id": event_id,
+            "commence_time": "2026-03-01T02:00:00Z",
+            "home_team": "Team A",
+            "away_team": "Team B",
+            "bookmakers": [
+                {"key": "book1", "markets": [{"key": market_key, "outcomes": outcomes}]},
+            ],
+        }
+
+    def test_extracts_h2h_price(self):
+        """Returns best h2h price for the named team."""
+        from core.scheduler import _extract_best_price
+        game = self._game("h2h", [
+            {"name": "Team A", "price": -130},
+            {"name": "Team B", "price": 110},
+        ])
+        assert _extract_best_price(game, "h2h", "Team A ML") == -130
+
+    def test_extracts_best_h2h_across_books(self):
+        """Returns highest (best for bettor) price across multiple bookmakers."""
+        from core.scheduler import _extract_best_price
+        game = {
+            "id": "e1", "commence_time": "2026-03-01T02:00:00Z",
+            "bookmakers": [
+                {"key": "b1", "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Team A", "price": -130},
+                ]}]},
+                {"key": "b2", "markets": [{"key": "h2h", "outcomes": [
+                    {"name": "Team A", "price": -120},  # better for bettor
+                ]}]},
+            ],
+        }
+        assert _extract_best_price(game, "h2h", "Team A ML") == -120
+
+    def test_extracts_spreads_price(self):
+        """Returns best spread price for matching team and point."""
+        from core.scheduler import _extract_best_price
+        game = self._game("spreads", [
+            {"name": "Team A", "price": -110, "point": -4.5},
+            {"name": "Team B", "price": -110, "point": 4.5},
+        ])
+        assert _extract_best_price(game, "spreads", "Team A -4.5") == -110
+
+    def test_spreads_ignores_wrong_point(self):
+        """Spread price not returned if point does not match."""
+        from core.scheduler import _extract_best_price
+        game = self._game("spreads", [
+            {"name": "Team A", "price": -110, "point": -3.5},  # different line
+        ])
+        assert _extract_best_price(game, "spreads", "Team A -4.5") is None
+
+    def test_extracts_totals_price(self):
+        """Returns best totals price for the side and point."""
+        from core.scheduler import _extract_best_price
+        game = self._game("totals", [
+            {"name": "Over", "price": -110, "point": 221.0},
+            {"name": "Under", "price": -110, "point": 221.0},
+        ])
+        assert _extract_best_price(game, "totals", "Over 221.0") == -110
+
+    def test_returns_none_when_no_match(self):
+        """Returns None when target team not found in any bookmaker."""
+        from core.scheduler import _extract_best_price
+        game = self._game("h2h", [{"name": "Team B", "price": 110}])
+        assert _extract_best_price(game, "h2h", "Team A ML") is None
+
+    def test_out_of_collar_price_ignored(self):
+        """Prices outside collar (-180..+150) are rejected."""
+        from core.scheduler import _extract_best_price
+        game = self._game("h2h", [{"name": "Team A", "price": -350}])  # out of collar
+        assert _extract_best_price(game, "h2h", "Team A ML") is None
+
+
+# ---------------------------------------------------------------------------
+# TestCaptureClosePrices
+# ---------------------------------------------------------------------------
+
+class TestCaptureClosePrices:
+    """Tests for _capture_close_prices() — zero-credit CLV capture from existing fetch data."""
+
+    def _pending_bet_game(self, tmp_path, event_id="evt1",
+                          hours_offset=1.0, sport="NBA"):
+        """Helper: DB with one pending bet + raw game within capture window."""
+        from core.line_logger import init_db, log_bet
+        from datetime import datetime, timezone, timedelta
+        db_path = str(tmp_path / "clv.db")
+        init_db(db_path)
+        log_bet(sport, "Team A @ Team B", "h2h", "Team A ML", -120, 0.05, 0.03,
+                event_id=event_id, db_path=db_path)
+        commence = (datetime.now(timezone.utc) + timedelta(hours=hours_offset)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        game = {
+            "id": event_id,
+            "commence_time": commence,
+            "bookmakers": [{"key": "b1", "markets": [{"key": "h2h", "outcomes": [
+                {"name": "Team A", "price": -118},
+                {"name": "Team B", "price": 100},
+            ]}]}],
+        }
+        return db_path, game
+
+    def test_captures_within_window(self, tmp_path):
+        """Records close_price when game starts within CLOSE_PRICE_WINDOW_HOURS."""
+        from core.scheduler import _capture_close_prices
+        from core.line_logger import get_bets
+        db, game = self._pending_bet_game(tmp_path, hours_offset=1.0)
+        count = _capture_close_prices([game], "NBA", db)
+        assert count == 1
+        bets = get_bets(db_path=db)
+        assert bets[0]["close_price"] == -118
+
+    def test_skips_outside_window(self, tmp_path):
+        """Does NOT capture when game is more than 2 hours away."""
+        from core.scheduler import _capture_close_prices
+        from core.line_logger import get_bets
+        db, game = self._pending_bet_game(tmp_path, hours_offset=5.0)
+        count = _capture_close_prices([game], "NBA", db)
+        assert count == 0
+        bets = get_bets(db_path=db)
+        assert not bets[0]["close_price"]
+
+    def test_no_double_capture(self, tmp_path):
+        """Second pass for same bet does not overwrite already-captured price."""
+        from core.scheduler import _capture_close_prices
+        from core.line_logger import get_bets
+        db, game = self._pending_bet_game(tmp_path, hours_offset=1.0)
+        _capture_close_prices([game], "NBA", db)  # first capture
+        count2 = _capture_close_prices([game], "NBA", db)  # second — no-op
+        assert count2 == 0
+        bets = get_bets(db_path=db)
+        assert bets[0]["close_price"] == -118  # unchanged
+
+    def test_empty_games_returns_zero(self, tmp_path):
+        """Empty game list captures nothing."""
+        from core.scheduler import _capture_close_prices
+        from core.line_logger import init_db
+        db_path = str(tmp_path / "empty.db")
+        init_db(db_path)
+        assert _capture_close_prices([], "NBA", db_path) == 0
+
+    def test_wrong_sport_skips(self, tmp_path):
+        """Pending bet for NBA is not captured when scanning NHL."""
+        from core.scheduler import _capture_close_prices
+        from core.line_logger import get_bets
+        db, game = self._pending_bet_game(tmp_path, hours_offset=1.0, sport="NBA")
+        count = _capture_close_prices([game], "NHL", db)
+        assert count == 0

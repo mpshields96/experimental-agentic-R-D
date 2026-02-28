@@ -616,6 +616,55 @@ def count_snapshots(db_path: Optional[str] = None) -> dict[str, int]:
 # Bet log — write
 # ---------------------------------------------------------------------------
 
+def capture_close_price(
+    event_id: str,
+    market_type: str,
+    target: str,
+    close_price: int,
+    db_path: Optional[str] = None,
+) -> bool:
+    """
+    Store the closing market price for a pending bet.
+
+    Only updates bets that are still pending (result='pending') and have not yet had a
+    close price recorded (close_price IS NULL or = 0).
+
+    Used by the scheduler's close-price capture pass, which runs each poll cycle
+    and checks for pending bets whose games start within CLOSE_PRICE_WINDOW_HOURS.
+
+    Args:
+        event_id:    Odds API event identifier matching the original log_bet() call.
+        market_type: Market key — "h2h", "spreads", or "totals".
+        target:      Bet string (e.g. "Lakers -4.5", "Over 221.0", "UIC Flames ML").
+        close_price: American odds at close (best available price at capture time).
+        db_path:     Optional DB path override.
+
+    Returns:
+        True if a row was updated; False if no matching pending bet found.
+    """
+    if not event_id:
+        return False
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            """
+            UPDATE bet_log
+               SET close_price = ?
+             WHERE event_id = ? AND market_type = ? AND target = ?
+               AND result = 'pending'
+               AND (close_price IS NULL OR close_price = 0)
+            """,
+            (close_price, event_id, market_type, target),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as exc:
+        logger.error("capture_close_price failed: %s", exc)
+        return False
+    finally:
+        conn.close()
+
+
 def is_bet_already_logged(
     event_id: str,
     market_type: str,

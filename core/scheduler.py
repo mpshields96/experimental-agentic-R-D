@@ -22,8 +22,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 from core.odds_fetcher import fetch_batch_odds, quota, probe_bookmakers
-from core.line_logger import init_db, log_snapshot, is_bet_already_logged, log_bet
-from core.math_engine import rlm_gate_status, parse_game_markets, GRADE_B_MIN_EDGE
+from core.line_logger import (
+    init_db, log_snapshot, is_bet_already_logged, log_bet,
+    get_bets, capture_close_price,
+)
+from core.math_engine import (
+    rlm_gate_status, parse_game_markets, GRADE_B_MIN_EDGE, passes_collar,
+)
 from core.price_history_store import (
     init_price_history_db,
     integrate_with_session_cache,
@@ -151,6 +156,156 @@ def _auto_paper_bet_scan(
 
 
 # ---------------------------------------------------------------------------
+# CLV close-price capture — zero additional API credits
+# ---------------------------------------------------------------------------
+
+# How close to game start (in hours) we consider odds to be "closing line".
+# Within this window, best available price is stored as close_price.
+CLOSE_PRICE_WINDOW_HOURS: float = 2.0
+
+
+def _extract_best_price(game: dict, market_type: str, target: str) -> Optional[int]:
+    """
+    Extract best (highest) in-collar American odds for (market_type, target) from
+    a raw Odds API game dict, searching across all available bookmakers.
+
+    Target formats (matching math_engine.py output):
+        h2h:     "{team_name} ML"          e.g. "UIC Flames ML"
+        spreads: "{team_name} {+/-pt}"     e.g. "Oklahoma City Thunder -7.5"
+        totals:  "{Over|Under} {pt}"       e.g. "Over 221.0"
+
+    Returns best American odds int, or None if no in-collar price found.
+    """
+    prices: list[int] = []
+
+    if market_type == "h2h":
+        team_name = target.removesuffix(" ML")
+        for bk in game.get("bookmakers", []):
+            for mkt in bk.get("markets", []):
+                if mkt.get("key") == "h2h":
+                    for outcome in mkt.get("outcomes", []):
+                        if outcome.get("name") == team_name:
+                            p = outcome.get("price")
+                            if p is not None and passes_collar(int(p)):
+                                prices.append(int(p))
+
+    elif market_type == "spreads":
+        parts = target.rsplit(" ", 1)
+        if len(parts) != 2:
+            return None
+        team_name, pt_str = parts
+        try:
+            point = float(pt_str)
+        except ValueError:
+            return None
+        for bk in game.get("bookmakers", []):
+            for mkt in bk.get("markets", []):
+                if mkt.get("key") == "spreads":
+                    for outcome in mkt.get("outcomes", []):
+                        if (outcome.get("name") == team_name
+                                and outcome.get("point") == point):
+                            p = outcome.get("price")
+                            if p is not None and passes_collar(int(p)):
+                                prices.append(int(p))
+
+    elif market_type == "totals":
+        parts = target.split(" ", 1)
+        if len(parts) != 2:
+            return None
+        side, pt_str = parts
+        try:
+            point = float(pt_str)
+        except ValueError:
+            return None
+        for bk in game.get("bookmakers", []):
+            for mkt in bk.get("markets", []):
+                if mkt.get("key") == "totals":
+                    for outcome in mkt.get("outcomes", []):
+                        if (outcome.get("name") == side
+                                and outcome.get("point") == point):
+                            p = outcome.get("price")
+                            if p is not None and passes_collar(int(p)):
+                                prices.append(int(p))
+
+    return max(prices) if prices else None
+
+
+def _capture_close_prices(
+    games: list,
+    sport: str,
+    db_path: Optional[str] = None,
+) -> int:
+    """
+    For each game in games, if any pending paper bet maps to this event_id AND
+    the game starts within CLOSE_PRICE_WINDOW_HOURS, capture the current best
+    available price as close_price in bet_log.
+
+    Called every poll cycle — uses already-fetched game data, zero extra API credits.
+
+    Args:
+        games:   Raw game list from fetch_batch_odds() for this sport.
+        sport:   Sport name string (e.g. "NBA") — used for pending-bet filter.
+        db_path: Optional DB path override.
+
+    Returns:
+        Number of close prices newly captured this cycle.
+    """
+    now_utc = datetime.now(timezone.utc)
+    captured = 0
+
+    # Fetch all pending bets for this sport, indexed by event_id.
+    pending_bets = get_bets(result_filter="pending", db_path=db_path)
+    sport_pending = [
+        b for b in pending_bets
+        if b.get("sport", "").upper() == sport.upper()
+    ]
+    if not sport_pending:
+        return 0
+
+    by_event: dict[str, list[dict]] = {}
+    for b in sport_pending:
+        eid = b.get("event_id", "")
+        if eid:
+            by_event.setdefault(eid, []).append(b)
+
+    for game in games:
+        event_id = game.get("id", "")
+        if not event_id or event_id not in by_event:
+            continue
+
+        # Only capture within the closing window.
+        commence_str = game.get("commence_time", "")
+        try:
+            commence = datetime.fromisoformat(commence_str.replace("Z", "+00:00"))
+            hours_to_start = (commence - now_utc).total_seconds() / 3600.0
+        except (ValueError, AttributeError):
+            continue
+
+        # Accept 0..WINDOW (game imminent) or slightly negative (just started)
+        if not (-0.5 <= hours_to_start <= CLOSE_PRICE_WINDOW_HOURS):
+            continue
+
+        for bet in by_event[event_id]:
+            if bet.get("close_price"):  # Already captured — skip
+                continue
+            market_type = bet.get("market_type", "")
+            target = bet.get("target", "")
+            close_price = _extract_best_price(game, market_type, target)
+            if close_price is None:
+                continue
+            updated = capture_close_price(
+                event_id, market_type, target, close_price, db_path
+            )
+            if updated:
+                captured += 1
+                logger.info(
+                    "Close price captured: %s %s @ %+d (%.2fh to start)",
+                    bet.get("matchup", ""), target, close_price, hours_to_start,
+                )
+    return captured
+
+
+# ---------------------------------------------------------------------------
 # Internal poll job
 # ---------------------------------------------------------------------------
 def _poll_all_sports(db_path: Optional[str] = None) -> None:
@@ -193,6 +348,10 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
                 new_bets = _auto_paper_bet_scan(games, sport, effective_db)
                 if new_bets:
                     logger.info("Auto paper bets logged: %d for %s", new_bets, sport)
+                # CLV close-price capture: store closing prices for bets near game time
+                captured = _capture_close_prices(games, sport, effective_db)
+                if captured:
+                    logger.info("Close prices captured: %d for %s", captured, sport)
                 # Probe: log bookmaker coverage for this sport's fetch
                 probe_result = probe_bookmakers(games)
                 log_probe_result(probe_result, sport=sport)

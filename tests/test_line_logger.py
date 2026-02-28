@@ -574,6 +574,81 @@ class TestIsBetAlreadyLogged:
         assert is_bet_already_logged("", "spread", "A -3.5", db_path) is False
 
 
+# ---------------------------------------------------------------------------
+# TestCaptureClosePrice
+# ---------------------------------------------------------------------------
+
+class TestCaptureClosePrice:
+    """Tests for capture_close_price() — stores closing price on pending bets."""
+
+    def _make_db(self, tmp_path, suffix="cp.db"):
+        from core.line_logger import init_db, log_bet
+        db_path = str(tmp_path / suffix)
+        init_db(db_path)
+        return db_path
+
+    def test_captures_pending_bet_no_close_price(self, tmp_path):
+        """Updates close_price for a pending bet that has none yet."""
+        from core.line_logger import log_bet, capture_close_price, get_bets
+        db = self._make_db(tmp_path)
+        log_bet("NBA", "A @ B", "h2h", "A ML", -110, 0.05, 0.03,
+                event_id="evt1", db_path=db)
+        result = capture_close_price("evt1", "h2h", "A ML", -115, db)
+        assert result is True
+        bets = get_bets(db_path=db)
+        assert bets[0]["close_price"] == -115
+
+    def test_skips_resolved_bet(self, tmp_path):
+        """Does NOT update close_price if bet is already resolved."""
+        from core.line_logger import log_bet, update_bet_result, capture_close_price, get_bets
+        db = self._make_db(tmp_path)
+        bid = log_bet("NBA", "A @ B", "h2h", "A ML", -110, 0.05, 0.03,
+                      event_id="evt2", db_path=db)
+        update_bet_result(bid, "win", 50.0, db_path=db)
+        result = capture_close_price("evt2", "h2h", "A ML", -115, db)
+        assert result is False
+        bets = get_bets(db_path=db)
+        # close_price should remain 0/None — not overwritten by capture
+        assert not bets[0]["close_price"]
+
+    def test_skips_if_already_captured(self, tmp_path):
+        """Does NOT overwrite an existing close_price."""
+        from core.line_logger import log_bet, capture_close_price, get_bets
+        db = self._make_db(tmp_path)
+        log_bet("NBA", "A @ B", "h2h", "A ML", -110, 0.05, 0.03,
+                event_id="evt3", db_path=db)
+        capture_close_price("evt3", "h2h", "A ML", -115, db)  # first capture
+        result = capture_close_price("evt3", "h2h", "A ML", -120, db)  # second — should skip
+        assert result is False
+        bets = get_bets(db_path=db)
+        assert bets[0]["close_price"] == -115  # original, not overwritten
+
+    def test_no_match_returns_false(self, tmp_path):
+        """Returns False gracefully when no matching bet exists."""
+        from core.line_logger import capture_close_price
+        db = self._make_db(tmp_path)
+        result = capture_close_price("nonexistent", "h2h", "X ML", -110, db)
+        assert result is False
+
+    def test_empty_event_id_returns_false(self, tmp_path):
+        """Empty event_id is safe — always returns False."""
+        from core.line_logger import capture_close_price
+        db = self._make_db(tmp_path)
+        result = capture_close_price("", "h2h", "A ML", -110, db)
+        assert result is False
+
+    def test_spread_close_price_captured(self, tmp_path):
+        """Spread bets also get close_price correctly."""
+        from core.line_logger import log_bet, capture_close_price, get_bets
+        db = self._make_db(tmp_path)
+        log_bet("NBA", "A @ B", "spreads", "A -4.5", -108, 0.04, 0.02,
+                event_id="evt4", db_path=db)
+        result = capture_close_price("evt4", "spreads", "A -4.5", -112, db)
+        assert result is True
+        bets = get_bets(db_path=db)
+        assert bets[0]["close_price"] == -112
+
+
 if __name__ == "__main__":
     import subprocess
     result = subprocess.run(
