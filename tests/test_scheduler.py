@@ -988,6 +988,43 @@ class TestIsSportInSeason:
         assert "NBA" not in active
         assert "NHL" not in active
 
+    def test_nhl_active_in_march(self):
+        """NHL season runs Oct–Jun; March is squarely in-season (playoffs approach)."""
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NHL", month=3) is True
+
+    def test_ncaab_active_in_march(self):
+        """NCAAB season runs Nov–Apr; March Madness is the peak of the season."""
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NCAAB", month=3) is True
+
+    def test_nba_active_in_march(self):
+        """NBA season runs Oct–Jun; March includes regular season and play-in prep."""
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("NBA", month=3) is True
+
+    def test_mlb_inactive_in_march(self):
+        """MLB season runs Apr–Oct; March is spring training (not in-season)."""
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("MLB", month=3) is False
+
+    def test_mls_active_in_march(self):
+        """MLS season runs Feb–Nov; March is early regular season."""
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("MLS", month=3) is True
+
+    def test_get_in_season_sports_march_includes_nhl_ncaab_nba_mls(self):
+        """March active set must include all currently live competitions."""
+        from core.scheduler import get_in_season_sports
+        active = get_in_season_sports(month=3)
+        assert "NHL" in active, "NHL should be in season in March (playoffs approach)"
+        assert "NCAAB" in active, "NCAAB should be in season in March (March Madness)"
+        assert "NBA" in active, "NBA should be in season in March"
+        assert "MLS" in active, "MLS should be in season in March"
+        assert "MLB" not in active, "MLB should NOT be in season in March (starts April)"
+        assert "NFL" not in active, "NFL should NOT be in season in March"
+        assert "NCAAF" not in active, "NCAAF should NOT be in season in March"
+
     def test_wrapping_range_nba_june(self):
         """Jun is the last month of NBA season (range Oct–Jun, wraps)."""
         from core.scheduler import _is_sport_in_season
