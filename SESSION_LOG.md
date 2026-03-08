@@ -2,6 +2,21 @@
 
 ---
 
+## Session 45 — Season gate validation + multi-sport audit — 2026-03-08
+
+**What shipped:**
+- Pushed all 6 unpushed S43+S44 commits to origin/main (token rotated)
+- March season coverage: 9 new tests in TestIsSportInSeason — NHL/NCAAB/NBA/MLS confirmed IN March, MLB/NFL/NCAAF OUT, MLB April gate verified
+- NHL full validation: 58 tests pass, goalie poll, kill switch, season gate all correct
+- NCAAB tournament: is_ncaab_tournament_period() wired in scheduler + live_lines, 34 tests, 8% floor in all 3 loops
+- Soccer/MLS: 3-way h2h, passes_collar_soccer, Poisson cross-val — 5 integration tests
+- MLB: April gate correct, 8.5/9.0 canonical line manual test PASS, comment clarified
+- Scheduler comment fix: "MLB hold enforced separately" → clarified reference
+
+**Tests:** 1338 → 1346 (+8) | Credits used: ~0 (no API calls) | Commits: d21e134, ebca0cc, 9daf237 — PUSHED ✅
+
+---
+
 ## Session 42 — CLV close-price capture + test fix + research — 2026-02-28
 
 **What shipped:**

@@ -78,6 +78,22 @@
 
 ---
 
+### SANDBOX SESSION 45 SUMMARY — 2026-03-08
+**Built:**
+- All S43+S44 commits pushed to origin/main (6 commits including paper parity + NCAAB audit)
+- March season gap tests (+9): TestIsSportInSeason now fully covers March — NHL/NCAAB/NBA/MLS IN, MLB/NFL/NCAAF OUT
+- NHL validated: 58 tests, goalie kill switch, goalie poll 90-min window, season gate (Oct–Jun) all correct
+- NCAAB tournament fully wired: is_ncaab_tournament_period() in scheduler._auto_paper_bet_scan() AND pages/01_live_lines.py — both set conference_tournament=True for March 4 – April 7
+- Soccer/MLS validated: 3-way h2h, passes_collar_soccer expanded collar, Poisson cross-validation on totals — 5 integration tests pass
+- MLB April gate: month gate (4,10) correct; canonical 8.5/9.0 line manual test PASS; scheduler comment clarified
+
+**Tests:** 1338 → 1346/1346 ✅ (+8 new season gate tests)
+**Architectural decisions:** No new files. Season gate is month-based only (no day-level gate for MLB). Comment "separately enforced" clarified to reference V37 directive, not missing code.
+**Gates changed:** None. Paper bet gate still 4/10.
+**Flags for reviewer:** None from this session. S42 cont. + S43 + S44 still PENDING in V37_INBOX.
+
+---
+
 ### SANDBOX SESSION 42 (CLV Capture) SUMMARY — 2026-02-28
 **Commit:** 8c0f9a5
 **Tests:** 1264 → 1282 ✅ (+18)
