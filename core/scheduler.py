@@ -357,7 +357,7 @@ _SPORT_ACTIVE_MONTHS: dict[str, tuple[int, int]] = {
     "NCAAF":      (8, 1),    # Aug through Jan (CFP final ~mid-Jan)
     "NCAAB":      (11, 4),   # Nov through Apr (March Madness)
     "NHL":        (10, 6),   # Oct through Jun
-    "MLB":        (4, 10),   # Apr through Oct (hold enforced separately)
+    "MLB":        (4, 10),   # Apr through Oct — Opening Day ~Mar 27 but we hold until April per V37 directive
     "EPL":        (8, 5),    # Aug through May
     "LIGUE1":     (8, 5),    # Aug through May
     "BUNDESLIGA": (8, 5),    # Aug through May

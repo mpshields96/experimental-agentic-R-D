@@ -1008,6 +1008,16 @@ class TestIsSportInSeason:
         from core.scheduler import _is_sport_in_season
         assert _is_sport_in_season("MLB", month=3) is False
 
+    def test_mlb_active_in_april(self):
+        """MLB month gate starts at April — Opening Day activates the poll."""
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("MLB", month=4) is True
+
+    def test_mlb_inactive_in_november(self):
+        """MLB season ends in October; November is off-season."""
+        from core.scheduler import _is_sport_in_season
+        assert _is_sport_in_season("MLB", month=11) is False
+
     def test_mls_active_in_march(self):
         """MLS season runs Feb–Nov; March is early regular season."""
         from core.scheduler import _is_sport_in_season
