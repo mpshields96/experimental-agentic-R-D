@@ -55,6 +55,8 @@ Schema: bet_log table (Tab 4 — Bet Tracker)
   line        REAL DEFAULT 0.0       -- spread/total line value (e.g. -4.5, 221.0)
   signal      TEXT DEFAULT ''        -- model signal label (e.g. "B2B_EDGE")
   grade       TEXT DEFAULT ''        -- confidence tier: "A", "B", "C", "NEAR_MISS"
+  is_paper    INTEGER DEFAULT 1      -- 1 = paper, 0 = live (S44: paper/live parity)
+  stake_usd   REAL DEFAULT 0.0       -- dollar stake = kelly_size * PAPER_BANKROLL_USD
 
 DO NOT add API calls or Streamlit calls to this file.
 """
@@ -153,6 +155,9 @@ _BET_LOG_MIGRATIONS = [
     "ALTER TABLE bet_log ADD COLUMN signal TEXT DEFAULT ''",
     "ALTER TABLE bet_log ADD COLUMN grade TEXT DEFAULT ''",
     "ALTER TABLE bet_log ADD COLUMN event_id TEXT DEFAULT ''",
+    # S44: paper/live parity — distinguish source and enable dollar P&L tracking
+    "ALTER TABLE bet_log ADD COLUMN is_paper INTEGER DEFAULT 1",
+    "ALTER TABLE bet_log ADD COLUMN stake_usd REAL DEFAULT 0.0",
 ]
 
 
@@ -718,6 +723,8 @@ def log_bet(
     signal: str = "",
     grade: str = "",
     event_id: str = "",
+    is_paper: bool = True,
+    stake_usd: float = 0.0,
     db_path: Optional[str] = None,
 ) -> int:
     """
@@ -738,6 +745,8 @@ def log_bet(
         line:         Spread/total line value (e.g. -4.5, 221.0).
         signal:       Model signal label (e.g. "B2B_EDGE", "RLM_CONFIRMED").
         grade:        Confidence tier from assign_grade(): "A", "B", "C", or "NEAR_MISS".
+        is_paper:     True = paper bet, False = live bet. Default True.
+        stake_usd:    Dollar amount = kelly_size * PAPER_BANKROLL_USD. Default 0.0.
         db_path:      Optional DB path override.
 
     Returns:
@@ -752,13 +761,13 @@ def log_bet(
                 (logged_at, sport, matchup, market_type, target,
                  price, edge_pct, kelly_size, stake, notes,
                  sharp_score, rlm_fired, tags, book, days_to_game, line, signal, grade,
-                 event_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 event_id, is_paper, stake_usd)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (now, sport, matchup, market_type, target,
              price, edge_pct, kelly_size, stake, notes,
              sharp_score, int(rlm_fired), tags, book, days_to_game, line, signal, grade,
-             event_id),
+             event_id, int(is_paper), stake_usd),
         )
         conn.commit()
         return cursor.lastrowid

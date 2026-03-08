@@ -510,9 +510,16 @@ with pending_col:
                         key=f"result_{bet_id}",
                     )
                 with gc2:
+                    # Default: use stake_usd (dollar amount from Kelly sizing) if set,
+                    # else fall back to stake column, else $25 placeholder.
+                    _default_stake = (
+                        float(bet.get("stake_usd") or 0)
+                        or float(bet.get("stake") or 0)
+                        or 25.0
+                    )
                     stake_actual = st.number_input(
                         "Actual stake ($)",
-                        value=float(bet.get("stake") or 50),
+                        value=_default_stake,
                         min_value=0.01,
                         key=f"stake_{bet_id}",
                     )

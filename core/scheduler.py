@@ -61,6 +61,11 @@ logger = logging.getLogger(__name__)
 INACTIVITY_TIMEOUT_HOURS: int = 2  # was 24 — tightened S43 to prevent idle burns
 _ACTIVITY_FILE = Path(__file__).resolve().parent.parent / "data" / "last_activity.json"
 
+# S44: paper/live parity — simulated bankroll for paper bet dollar sizing.
+# stake_usd = kelly_size * PAPER_BANKROLL_USD stored in bet_log for real P&L tracking.
+# Change this to match your intended live bankroll when you go live.
+PAPER_BANKROLL_USD: float = 1000.0
+
 
 def _is_scheduler_enabled() -> bool:
     """
@@ -143,8 +148,10 @@ def _auto_paper_bet_scan(
                     continue
                 if is_bet_already_logged(bet.event_id, bet.market_type, bet.target, db_path):
                     continue
-                stake = bet.kelly_size if bet.grade == "A" else bet.kelly_size
                 rlm_fired = bool(bet.sharp_breakdown.get("rlm_component", 0) > 0)
+                # Dollar sizing: kelly_size already includes fractional Kelly multiplier.
+                # stake_usd mirrors what a live bet would risk from PAPER_BANKROLL_USD.
+                stake_usd = round(bet.kelly_size * PAPER_BANKROLL_USD, 2)
                 try:
                     start_str = bet.commence_time
                     days = 0.0
@@ -161,7 +168,7 @@ def _auto_paper_bet_scan(
                     price=bet.price,
                     edge_pct=bet.edge_pct,
                     kelly_size=bet.kelly_size,
-                    stake=stake,
+                    stake=stake_usd,
                     notes="auto-paper",
                     sharp_score=int(bet.sharp_score),
                     rlm_fired=rlm_fired,
@@ -171,6 +178,8 @@ def _auto_paper_bet_scan(
                     signal=bet.signal,
                     grade=bet.grade,
                     event_id=bet.event_id,
+                    is_paper=True,
+                    stake_usd=stake_usd,
                     db_path=db_path,
                 )
                 logged += 1

@@ -649,6 +649,70 @@ class TestCaptureClosePrice:
         assert bets[0]["close_price"] == -112
 
 
+class TestIsPaperAndStakeUsd:
+    """S44: paper/live parity — is_paper flag and dollar stake tracking."""
+
+    def test_log_bet_defaults_is_paper_true(self, tmp_path):
+        db_path = str(tmp_path / "bet.db")
+        init_db(db_path)
+        bet_id = log_bet(
+            "NBA", "Heat @ Celtics", "spread", "Celtics -5.5",
+            -110, 0.05, 0.25, db_path=db_path,
+        )
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["is_paper"] == 1  # default = paper
+
+    def test_log_bet_is_paper_false_stored(self, tmp_path):
+        db_path = str(tmp_path / "bet.db")
+        init_db(db_path)
+        log_bet(
+            "NBA", "Heat @ Celtics", "spread", "Celtics -5.5",
+            -110, 0.05, 0.25, is_paper=False, db_path=db_path,
+        )
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["is_paper"] == 0
+
+    def test_log_bet_stake_usd_stored(self, tmp_path):
+        db_path = str(tmp_path / "bet.db")
+        init_db(db_path)
+        log_bet(
+            "NBA", "Heat @ Celtics", "spread", "Celtics -5.5",
+            -110, 0.05, 0.025, stake_usd=25.0, db_path=db_path,
+        )
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["stake_usd"] == 25.0
+
+    def test_log_bet_stake_usd_default_zero(self, tmp_path):
+        db_path = str(tmp_path / "bet.db")
+        init_db(db_path)
+        log_bet(
+            "NBA", "Heat @ Celtics", "spread", "Celtics -5.5",
+            -110, 0.05, 0.025, db_path=db_path,
+        )
+        bets = get_bets(db_path=db_path)
+        assert bets[0]["stake_usd"] == 0.0
+
+    def test_paper_bankroll_sizing_formula(self):
+        """kelly_size * PAPER_BANKROLL_USD gives correct dollar stake."""
+        from core.scheduler import PAPER_BANKROLL_USD
+        kelly_size = 0.025  # 2.5% fractional Kelly
+        stake_usd = round(kelly_size * PAPER_BANKROLL_USD, 2)
+        assert stake_usd == 25.0  # $1000 bankroll → $25 stake
+
+    def test_multiple_bets_mixed_paper_live(self, tmp_path):
+        db_path = str(tmp_path / "bet.db")
+        init_db(db_path)
+        log_bet("NBA", "A @ B", "spread", "A -3.5", -110, 0.05, 0.025,
+                is_paper=True, stake_usd=25.0, db_path=db_path)
+        log_bet("NBA", "C @ D", "spread", "D +5.5", 110, 0.06, 0.03,
+                is_paper=False, stake_usd=0.0, db_path=db_path)
+        bets = get_bets(db_path=db_path)
+        paper_bets = [b for b in bets if b["is_paper"] == 1]
+        live_bets = [b for b in bets if b["is_paper"] == 0]
+        assert len(paper_bets) == 1
+        assert len(live_bets) == 1
+
+
 if __name__ == "__main__":
     import subprocess
     result = subprocess.run(
