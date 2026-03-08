@@ -7,9 +7,10 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 43 cont. — 2026-03-08
-# Session work S43: MARKET_TOKEN rename (security — GitHub-proof). SCHEDULER_ENABLED kill switch (Layer 1) + INACTIVITY 24h→2h (Layer 2). bet_summary.py CLI tool. Page 01 gate widget. S43 cont.: fixed UnboundLocalError in _auto_paper_bet_scan (redundant inner import). V37_INBOX: S42 cont. entry added. V37 sessions 40+41+42 APPROVED. Tests: 1326/1326 ✅ (corrected from 1314).
-# Priority reset S44: #1 NCAAB March Madness model (conf tournaments Mar 11, NCAA Mar 19). #2 NHL live validation. #3 MLB kill switch (April 1). #4 Paper bets 4→10/10. #5 Soccer/Tennis validation. BETTING LOGIC IS #1 PRIORITY — Streamlit at checkpoint.
+# Last updated: Session 45 — 2026-03-08
+# Session work S45: (1) All S43/S44 commits PUSHED (6 commits, token rotated). (2) March season gap tests (+6): NHL/NCAAB/NBA/MLS in March, MLB/NFL out. (3) NHL model fully validated: 58 tests, kill switches, goalie poll, season gate all ✅. (4) NCAAB tournament fully validated: is_ncaab_tournament_period() wired in scheduler+live_lines, 34 tests ✅. (5) Soccer/MLS validated: 3-way h2h, passes_collar_soccer, Poisson cross-validation ✅. (6) MLB April gate: month gate correct, canonical line manual validation PASS. Tests: 1338→1346 ✅. Commits d21e134 (March tests), ebca0cc (MLB prep) — PUSHED ✅.
+# Priority S46: #1 Paper bets 4→10/10 (analytics gate) — auto-scan active. #2 Tennis parse validation. #3 Multi-sport RLM audit via historical_backtest.py. #4 Activate MARKET_TOKEN_PROPS (user sets token). #5 V37 audit S42cont+S43+S44 PENDING.
+# Previous: S44: paper parity, NCAAB tournament audit. S43: MARKET_TOKEN rename, kill switches. Tests: 1297→1346 cumulative.
 # Maintained by: sandbox builder chat
 
 ---
@@ -213,14 +214,15 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1326 / 1326 passing ✅
+Tests:    1346 / 1346 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commits (all PUSHED ✅):
-  - [S43] MARKET_TOKEN rename + SCHEDULER_ENABLED kill switch + INACTIVITY_TIMEOUT 2h + scheduler tests
-  - [S43] bet_summary.py CLI tool + Page 01 sidebar gate widget (fbc2931 + 1cfd423)
-  - 5e8acb3 — Session 42: schedule-aware scanning + RLM validator scripts
-  - 8c0f9a5 — Session 42: CLV close-price capture + paper_bet_scan script
-All sessions through S43 fully pushed ✅
+  - ebca0cc — Session 45: season gate + MLB prep — 9 new tests, comment fix
+  - d21e134 — Session 45: add March season coverage tests (+6)
+  - caad7cf — Session 44 wrap: V37_INBOX S44 entry
+  - 441b400 — Session 44: NCAAB tournament model audit — 8% floor + neutral venue fixes
+  - f175b8f — Session 43 cont. 2: paper/live parity — is_paper + stake_usd + dollar sizing
+All sessions through S45 fully pushed ✅
 
 ✅ SESSION 42 COMPLETE (2026-02-28) — CLV close-price capture:
   - **Test fix:** TestDailyHardStop date-sensitive (billing-day eve daily_allowance=10000 > used_today=9999). Fixed with `_today` injection.
@@ -299,15 +301,13 @@ All sessions through S43 fully pushed ✅
   - V37 Session 32-A audit docstring additions: daily_allowance() ASSUMPTION + is_session_hard_stop() guard interaction note
   - REVIEW_LOG.md updated with Sessions 33 + 34 summaries for V37
 
-📋 PRIORITY ORDER (Session 44 — next):
+📋 PRIORITY ORDER (Session 46 — next):
   #0 — MANDATORY SESSION START: titanium-session-wrap START (GSD commands not applicable — no .planning/)
-  #1 — BETTING LOGIC: NCAAB March Madness model audit (conf tournaments ~Mar 11, NCAA Tournament Mar 19)
-  #2 — BETTING LOGIC: NHL model validation — confirm kill switch, test live NHL odds parse
-  #3 — PAPER BETS: log 6 more (4/10 → 10/10) to unlock analytics gate. Auto-scan active.
-  #4 — BETTING LOGIC: MLB kill switch prep — activate April 1; validate totals modal line logic
-  #5 — Multi-sport RLM audit via historical_backtest.py (extend NBA→NHL+NCAAB)
-  #6 — Activate MARKET_TOKEN_PROPS: user sets second account token in secrets.toml
-  #7 — V37 audit: Sessions 40+41+42+43 PENDING in V37_INBOX
+  #1 — PAPER BETS: run bet_summary.py — check gate (4/10). Conference tournament bets prime targets.
+  #2 — TENNIS: validate parse_game_markets tennis path, surface_from_sport_key, ATP/WTA keys
+  #3 — RLM AUDIT: extend historical_backtest.py to NHL+NCAAB (zero API credits)
+  #4 — MARKET_TOKEN_PROPS: user sets second account token to activate props (page 08)
+  #5 — V37 audit: S42 cont. + S43 + S44 PENDING in V37_INBOX
 
 Active sports (March 2026): NBA ✅ | NCAAB (March Madness imminent) ✅ | NHL ✅ | Soccer ✅ | College Baseball ✅ | MLB starts April 1
 
@@ -527,11 +527,11 @@ CURRENT KEY STATUS:
 
 ---
 
-## 🎯 NEXT SESSION TARGETS (Session 44 — priority order)
+## 🎯 NEXT SESSION TARGETS (Session 46 — priority order)
 
-**BETTING LOGIC is now primary focus. Streamlit is at a good checkpoint.**
+**BETTING LOGIC is primary focus. Streamlit and season gates are at a good checkpoint.**
 
-**DONE (Sessions 33-43 — do NOT re-implement):**
+**DONE (Sessions 33-45 — do NOT re-implement):**
 - ✅ CST times, Book Coverage, collar legend, guide rewrite (S33)
 - ✅ Analytics gate 30→10, KPI labels, V37 docstrings (S34)
 - ✅ Player props: PropsQuotaTracker, page 08 (S35)
@@ -541,32 +541,34 @@ CURRENT KEY STATUS:
 - ✅ CLV capture: capture_close_price(), _capture_close_prices(), paper_bet_scan.py (S42)
 - ✅ Schedule-aware scanning: get_in_season_sports(), historical_backtest.py (S42 cont.)
 - ✅ MARKET_TOKEN rename (security), SCHEDULER_ENABLED kill switch, 2h inactivity, bet_summary.py, Page 01 gate widget (S43)
+- ✅ Paper/live parity: is_paper + stake_usd in bet_log, PAPER_BANKROLL_USD=1000 (S44)
+- ✅ NCAAB tournament audit: 8% edge floor, neutral venue fix, totals kill added (S44)
+- ✅ NHL model validated: 58 tests, goalie kill, season gate, parse_game_markets ✅ (S45)
+- ✅ NCAAB tournament fully wired: is_ncaab_tournament_period() in scheduler+live_lines, 34 tests ✅ (S45)
+- ✅ Soccer/MLS validated: 3-way h2h, passes_collar_soccer, Poisson cross-val ✅ (S45)
+- ✅ MLB April gate confirmed: month gate correct, canonical 8.5/9.0 line test PASS (S45)
+- ✅ March season coverage tests (+9): NHL/NCAAB/NBA/MLS in March, MLB/NFL out (S45)
 
-**P1 — NCAAB March Madness (HIGH PRIORITY — imminent)**
-- Conference tournaments ~Mar 11. NCAA Tournament Mar 19.
-- Audit NCAAB kill switch: 3PT reliance (40% threshold), tempo, road game filter
-- Validate parse_game_markets() on live NCAAB odds (americanfootball_ncaaf vs basketball_ncaab key)
-- Check _is_sport_in_season() includes NCAAB for March
-- Pace/totals variance: tournament games trend to lower totals (neutral sites, matchup randomness)
-
-**P2 — NHL model validation**
-- Confirm NHL kill switch active and goalie starter data flowing
-- Test live NHL odds parsing through parse_game_markets() — validate no key/format issues
-- Verify _is_sport_in_season() includes NHL for March
-
-**P3 — Paper bets to 10/10 (analytics gate)**
+**P1 — Paper bets to 10/10 (analytics gate)**
 - Need 6 more resolved bets. Auto-scan active for Grade A/B during scheduler polls.
-- Until gate: analytics dashboard locked behind sample guard
+- Run bet_summary.py to check current gate progress. Need 10 resolved to unlock analytics.
+- Conference tournament bets starting Mar 11 are excellent candidates (auto-scan active).
 
-**P4 — MLB kill switch prep (HOLD until April 1)**
-- Validate totals modal line logic for 8.5/9.0 lines
-- MLB scheduler active month: April 1 in _SPORT_ACTIVE_MONTHS
+**P2 — Tennis parse validation**
+- Confirm tennis kill switch wired in parse_game_markets for ATP/WTA
+- Verify surface_from_sport_key() returns correct surface for active March tournaments
+- Check fetch_active_tennis_keys() dynamically picks up current tournaments
 
-**P5 — Multi-sport RLM audit via historical_backtest.py**
-- Extend NBA RLM validation → NHL + NCAAB using local line_history.db
+**P3 — Multi-sport RLM audit via historical_backtest.py**
+- Extend NBA RLM validation → NHL + NCAAB using local line_history.db (zero API credits)
 
-**P6 — Activate MARKET_TOKEN_PROPS**
+**P4 — Activate MARKET_TOKEN_PROPS**
 - User adds second Odds API account token to secrets.toml as MARKET_TOKEN_PROPS
+- Props page (08) becomes live on-demand
+
+**P5 — V37 audit (S42 cont. + S43 + S44 PENDING in V37_INBOX)**
+- V37 to review schedule-aware scanning (LOW) and paper parity + NCAAB bugs (HIGH)
+- Check V37_INBOX.md at session start for any FLAGS before P1-P4
 
 **P7 — V37 audit (S40+41+42+43 PENDING)**
 - Check V37_INBOX.md at session start for any flags before starting P1-P6
