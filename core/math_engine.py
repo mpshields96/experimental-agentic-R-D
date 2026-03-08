@@ -541,6 +541,34 @@ def ncaab_kill_switch(
     return False, ""
 
 
+def is_ncaab_tournament_period(month: int, day: int) -> bool:
+    """
+    Return True when the calendar falls in the NCAAB conference-tournament or
+    NCAA Tournament window (early March through early April).
+
+    Windows (approximate — valid for any year):
+      - Conference tournaments:  Mar 4 – Mar 17
+      - NCAA Tournament (March Madness): Mar 18 – Apr 7
+
+    Used by scheduler and parse_game_markets callers to auto-set
+    conference_tournament=True without hardcoding dates.
+
+    >>> is_ncaab_tournament_period(3, 10)
+    True
+    >>> is_ncaab_tournament_period(3, 25)
+    True
+    >>> is_ncaab_tournament_period(4, 10)
+    False
+    >>> is_ncaab_tournament_period(2, 28)
+    False
+    """
+    if month == 3 and 4 <= day <= 31:
+        return True
+    if month == 4 and day <= 7:
+        return True
+    return False
+
+
 def soccer_kill_switch(
     market_drift_pct: float,
     dead_rubber: bool = False,
@@ -1182,6 +1210,8 @@ def parse_game_markets(
     nba_pdo: Optional[dict] = None,
     min_edge: float = MIN_EDGE,
     injury_leverage: float = 0.0,
+    conference_tournament: bool = False,
+    ncaab_three_point_data: Optional[dict] = None,
 ) -> list[BetCandidate]:
     """
     Parse a raw game dict from odds_fetcher into BetCandidate objects.
@@ -1217,6 +1247,14 @@ def parse_game_markets(
             Pre-fetched by scheduler/live_lines (once per hour). NOT fetched here.
             If provided and sport=="NBA", pdo_kill_switch() is evaluated per candidate.
             Totals candidates are skipped (PDO is directional, not total-relevant).
+        conference_tournament: When True and sport=="NCAAB", ncaab_kill_switch() fires
+            with conference_tournament=True — requires 8%+ edge (FLAG, not KILL).
+            Use is_ncaab_tournament_period(month, day) to auto-detect March window.
+            Defaults False (regular season behaviour).
+        ncaab_three_point_data: Optional dict mapping team_name → 3PT reliance rate (float).
+            If provided and sport=="NCAAB", road-3PT kill fires when rate > 40%.
+            Example: {"Gonzaga Bulldogs": 0.42, "Duke Blue Devils": 0.35}
+            Defaults None (3PT kill dormant — safe for missing static data).
 
     Returns:
         List of BetCandidates passing collar AND minimum edge.
@@ -1299,6 +1337,10 @@ def parse_game_markets(
     is_nba = sport.upper() == "NBA"
     _rd = rest_days or {}
 
+    # NCAAB
+    is_ncaab = sport.upper() == "NCAAB"
+    _ncaab_3pt = ncaab_three_point_data or {}
+
     def _nba_b2b_flags(team_name: str, is_road: bool) -> tuple[bool, bool]:
         """Return (b2b, is_road_b2b) for a team. False,False if rest data absent."""
         days = _rd.get(team_name)
@@ -1329,6 +1371,19 @@ def parse_game_markets(
             score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap, injury_leverage=injury_leverage)
             # NBA B2B — home/road differentiated flag
             _kill_reason = ""
+            if is_ncaab:
+                _is_road_ncaab = team_name == away
+                _3pt_rate = _ncaab_3pt.get(team_name, 0.0)
+                _ncaab_killed, _ncaab_reason = ncaab_kill_switch(
+                    three_point_reliance=_3pt_rate,
+                    is_away=_is_road_ncaab,
+                    market_type="spread",
+                    conference_tournament=conference_tournament,
+                )
+                if _ncaab_killed:
+                    _kill_reason = _ncaab_reason
+                elif _ncaab_reason:
+                    _kill_reason = _ncaab_reason
             if is_nba:
                 _is_road = team_name == away
                 _opp = home if _is_road else away
@@ -1426,8 +1481,22 @@ def parse_game_markets(
                 public_on_side = best_price < -105
                 rlm_confirmed, _rlm_drift = compute_rlm(event_id, team_name, best_price, public_on_side)
                 score, breakdown = calculate_sharp_score(edge, rlm_confirmed, efficiency_gap, injury_leverage=injury_leverage)
-                # NBA B2B — h2h (spread=0 proxy)
+                # NCAAB — conference tournament flag on h2h
                 _h2h_kill_reason = ""
+                if is_ncaab:
+                    _is_road_ncaab_h2h = team_name == away
+                    _3pt_rate_h2h = _ncaab_3pt.get(team_name, 0.0)
+                    _ncaab_h2h_killed, _ncaab_h2h_reason = ncaab_kill_switch(
+                        three_point_reliance=_3pt_rate_h2h,
+                        is_away=_is_road_ncaab_h2h,
+                        market_type="h2h",
+                        conference_tournament=conference_tournament,
+                    )
+                    if _ncaab_h2h_killed:
+                        _h2h_kill_reason = _ncaab_h2h_reason
+                    elif _ncaab_h2h_reason:
+                        _h2h_kill_reason = _ncaab_h2h_reason
+                # NBA B2B — h2h (spread=0 proxy)
                 if is_nba:
                     _is_road = team_name == away
                     _opp = home if _is_road else away

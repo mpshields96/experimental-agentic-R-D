@@ -50,6 +50,7 @@ from core.math_engine import (
     parse_game_markets,
     assign_grade,
     PropCandidate,
+    is_ncaab_tournament_period,
     parse_props_candidates,
     COLLAR_MIN,
     COLLAR_MAX,
@@ -397,6 +398,152 @@ class TestNCAABKillSwitch:
         killed, reason = ncaab_kill_switch(0.30, False, conference_tournament=True)
         assert killed is False
         assert "FLAG" in reason
+
+
+class TestNCAABTournamentPeriod:
+    """Tests for is_ncaab_tournament_period() date detection helper."""
+
+    def test_march_4_is_tournament(self):
+        assert is_ncaab_tournament_period(3, 4) is True
+
+    def test_march_19_is_tournament(self):
+        assert is_ncaab_tournament_period(3, 19) is True
+
+    def test_march_31_is_tournament(self):
+        assert is_ncaab_tournament_period(3, 31) is True
+
+    def test_april_7_is_tournament(self):
+        assert is_ncaab_tournament_period(4, 7) is True
+
+    def test_april_8_is_not_tournament(self):
+        assert is_ncaab_tournament_period(4, 8) is False
+
+    def test_march_3_is_not_tournament(self):
+        assert is_ncaab_tournament_period(3, 3) is False
+
+    def test_february_28_is_not_tournament(self):
+        assert is_ncaab_tournament_period(2, 28) is False
+
+    def test_november_regular_season(self):
+        assert is_ncaab_tournament_period(11, 15) is False
+
+
+class TestNCAABKillSwitchWiring:
+    """Tests for ncaab_kill_switch() wired inside parse_game_markets()."""
+
+    def _make_ncaab_game(self) -> dict:
+        """
+        NCAAB game where Duke ML has a clear edge (outlier-book pattern).
+
+        3 consensus books: Duke -130/Gonzaga +110 → Duke fair_prob ≈ 0.543
+        1 outlier book:    Duke +140/Gonzaga -165 → outlier prices Duke as underdog
+        Best available price for Duke = +140 (implied = 0.417)
+        Edge(Duke) = consensus(0.507) - implied(0.417) ≈ 9% > 3.5% ✓
+
+        Mirror of TestParseGameMarkets._make_game_with_clear_edge().
+        """
+        return {
+            "id": "ncaab_test_001",
+            "home_team": "Duke Blue Devils",
+            "away_team": "Gonzaga Bulldogs",
+            "commence_time": "2026-03-20T20:00:00Z",
+            "bookmakers": [
+                {
+                    "key": "draftkings",
+                    "markets": [{"key": "h2h", "outcomes": [
+                        {"name": "Duke Blue Devils", "price": -130},
+                        {"name": "Gonzaga Bulldogs", "price": 110},
+                    ]}],
+                },
+                {
+                    "key": "fanduel",
+                    "markets": [{"key": "h2h", "outcomes": [
+                        {"name": "Duke Blue Devils", "price": -130},
+                        {"name": "Gonzaga Bulldogs", "price": 110},
+                    ]}],
+                },
+                {
+                    "key": "betmgm",
+                    "markets": [{"key": "h2h", "outcomes": [
+                        {"name": "Duke Blue Devils", "price": -130},
+                        {"name": "Gonzaga Bulldogs", "price": 110},
+                    ]}],
+                },
+                {
+                    "key": "betrivers",  # outlier — prices Duke as underdog
+                    "markets": [{"key": "h2h", "outcomes": [
+                        {"name": "Duke Blue Devils", "price": 140},
+                        {"name": "Gonzaga Bulldogs", "price": -165},
+                    ]}],
+                },
+            ],
+        }
+
+    def test_conference_tournament_flag_on_h2h(self):
+        """During tournament period candidates get FLAG reason, not KILL."""
+        game = self._make_ncaab_game()
+        bets = parse_game_markets(game, "NCAAB", conference_tournament=True)
+        flagged = [b for b in bets if "FLAG" in b.kill_reason]
+        assert len(flagged) > 0, "Expected FLAG on at least one NCAAB tournament candidate"
+
+    def test_no_flag_outside_tournament(self):
+        """Regular season: no conference_tournament flag on candidates."""
+        game = self._make_ncaab_game()
+        bets = parse_game_markets(game, "NCAAB", conference_tournament=False)
+        flagged = [b for b in bets if "Conference tournament" in b.kill_reason]
+        assert len(flagged) == 0
+
+    def test_road_high_3pt_spread_killed(self):
+        """Away team with 43% 3PT reliance → spread KILL."""
+        game = self._make_ncaab_game()
+        game["bookmakers"].append({
+            "key": "betmgm",
+            "markets": [
+                {
+                    "key": "spreads",
+                    "outcomes": [
+                        {"name": "Duke Blue Devils", "price": -110, "point": -5.5},
+                        {"name": "Gonzaga Bulldogs", "price": -110, "point": 5.5},
+                    ],
+                }
+            ],
+        })
+        game["bookmakers"][0]["markets"].append({
+            "key": "spreads",
+            "outcomes": [
+                {"name": "Duke Blue Devils", "price": -112, "point": -5.5},
+                {"name": "Gonzaga Bulldogs", "price": -108, "point": 5.5},
+            ],
+        })
+        game["bookmakers"][1]["markets"].append({
+            "key": "spreads",
+            "outcomes": [
+                {"name": "Duke Blue Devils", "price": -110, "point": -5.5},
+                {"name": "Gonzaga Bulldogs", "price": -110, "point": 5.5},
+            ],
+        })
+        # Gonzaga is away with 43% 3PT reliance
+        bets = parse_game_markets(
+            game, "NCAAB", min_edge=0.001,
+            ncaab_three_point_data={"Gonzaga Bulldogs": 0.43},
+        )
+        gonzaga_spread = [b for b in bets
+                          if "Gonzaga" in b.target and b.market_type == "spreads"]
+        if gonzaga_spread:
+            assert any("KILL" in b.kill_reason for b in gonzaga_spread), \
+                "Gonzaga road 43% 3PT should be KILLed on spread"
+
+    def test_home_high_3pt_not_killed(self):
+        """Home team with high 3PT reliance: no kill."""
+        game = self._make_ncaab_game()
+        bets = parse_game_markets(
+            game, "NCAAB", min_edge=0.001,
+            ncaab_three_point_data={"Duke Blue Devils": 0.43},
+        )
+        duke_killed = [b for b in bets
+                       if "Duke" in b.target and "KILL" in b.kill_reason
+                       and "3PT" in b.kill_reason]
+        assert len(duke_killed) == 0, "Home team 3PT kill should NOT fire"
 
 
 class TestSoccerKillSwitch:

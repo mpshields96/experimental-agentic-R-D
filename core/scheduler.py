@@ -29,6 +29,7 @@ from core.line_logger import (
 )
 from core.math_engine import (
     rlm_gate_status, parse_game_markets, GRADE_B_MIN_EDGE, passes_collar,
+    is_ncaab_tournament_period,
 )
 from core.price_history_store import (
     init_price_history_db,
@@ -126,12 +127,15 @@ def _auto_paper_bet_scan(
     Returns:
         Number of new paper bets logged this cycle.
     """
+    _now = datetime.now(timezone.utc)
+    _conf_tourney = (sport == "NCAAB") and is_ncaab_tournament_period(_now.month, _now.day)
     logged = 0
     for game in games:
         try:
             injury_lev = compute_injury_leverage_from_event(game, sport)
             bets = parse_game_markets(game, sport, injury_leverage=injury_lev,
-                                      min_edge=GRADE_B_MIN_EDGE)
+                                      min_edge=GRADE_B_MIN_EDGE,
+                                      conference_tournament=_conf_tourney)
             for bet in bets:
                 if bet.kill_reason.startswith("KILL"):
                     continue
@@ -142,7 +146,6 @@ def _auto_paper_bet_scan(
                 stake = bet.kelly_size if bet.grade == "A" else bet.kelly_size
                 rlm_fired = bool(bet.sharp_breakdown.get("rlm_component", 0) > 0)
                 try:
-                    from datetime import datetime, timezone
                     start_str = bet.commence_time
                     days = 0.0
                     if start_str:

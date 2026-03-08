@@ -7,9 +7,9 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 43 — 2026-03-08
-# Session work S43: MARKET_TOKEN rename (security — all ODDS_API_KEY refs replaced, GitHub-proof). New key 59074579. SCHEDULER_ENABLED kill switch (Layer 1) + INACTIVITY 24h→2h (Layer 2). bet_summary.py CLI tool. Page 01 gate widget. 9 new tests for kill switch + scheduler. Daily cap confirmed 300/day.
-# Priority reset S44: #1 NCAAB March Madness model. #2 NHL live validation. #3 10/10 paper bets. #4 MLB kill switch (April 1). Betting logic is the primary focus — Streamlit is at checkpoint.
+# Last updated: Session 43 cont. — 2026-03-08
+# Session work S43: MARKET_TOKEN rename (security — GitHub-proof). SCHEDULER_ENABLED kill switch (Layer 1) + INACTIVITY 24h→2h (Layer 2). bet_summary.py CLI tool. Page 01 gate widget. S43 cont.: fixed UnboundLocalError in _auto_paper_bet_scan (redundant inner import). V37_INBOX: S42 cont. entry added. V37 sessions 40+41+42 APPROVED. Tests: 1326/1326 ✅ (corrected from 1314).
+# Priority reset S44: #1 NCAAB March Madness model (conf tournaments Mar 11, NCAA Mar 19). #2 NHL live validation. #3 MLB kill switch (April 1). #4 Paper bets 4→10/10. #5 Soccer/Tennis validation. BETTING LOGIC IS #1 PRIORITY — Streamlit at checkpoint.
 # Maintained by: sandbox builder chat
 
 ---
@@ -159,9 +159,10 @@ A second Claude Code chat — V37 reviewer — operates in `~/Projects/titanium-
 - Session END: Append your session summary to REVIEW_LOG.md using the template in that file. Write tasks to V37_INBOX.md.
 - If V37 flags something: acknowledge in your next session intro AND either fix it or explain.
 
-Current V37 status (Session 37): Sessions 37 complete. V37 38A flag CLEARED. result_resolver.py APPROVED. ESPN scoreboard precedent established (no gate for historical scores). V37 inbox: 38A DONE, ESPN FYI added.
-V37 RULINGS: Props in odds_fetcher.py APPROVED (V37 ruled no migration needed). ESPN scoreboard APPROVED. No open V37 flags.
-V37 pending (low priority): originator_engine caller fix + nhl_data promotion in v36.
+Current V37 status (Session 43 — 2026-03-08): Sessions 40+41+42 ✅ ALL APPROVED per V37_INBOX.md. No open V37 flags.
+V37 PENDING (S42 cont. + S43): V37_INBOX.md has both entries awaiting V37 review — schedule-aware scanning + MARKET_TOKEN/kill-switch changes.
+V37 RULINGS on record: Props in odds_fetcher.py APPROVED. ESPN scoreboard APPROVED. B2 gate (injury_leverage wiring) APPROVED. Auto paper-bet scan APPROVED. CLV capture APPROVED.
+V37 low-priority backlog: originator_engine caller fix + nhl_data promotion in v36 (no deadline).
 
 ---
 
@@ -212,7 +213,7 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1314 / 1314 passing ✅
+Tests:    1326 / 1326 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commits (all PUSHED ✅):
   - [S43] MARKET_TOKEN rename + SCHEDULER_ENABLED kill switch + INACTIVITY_TIMEOUT 2h + scheduler tests
@@ -240,7 +241,8 @@ All sessions through S43 fully pushed ✅
   - **scripts/bet_summary.py**: CLI snapshot — gate progress (X/10), W-L, ROI, avg edge, grade breakdown. 9 tests.
   - **Page 01 sidebar gate widget**: Apple-style HTML card with amber progress bar + 3 stat boxes.
   - **Grade backfill**: 4 existing bets set to Grade A (inline threshold logic).
-  - Tests: 1297 → 1314/1314 (+17) | All commits PUSHED ✅
+  - Tests: 1297 → 1326/1326 | All commits PUSHED ✅
+  - ⚠️ BUG FIXED S43 cont.: redundant `from datetime import` INSIDE `_auto_paper_bet_scan()` try block → UnboundLocalError. Removed inner import. 1326/1326 ✅
 
 ✅ SESSION 42 CONT. COMPLETE (2026-02-28) — Schedule-aware scanning + RLM validator:
   - get_in_season_sports(month) + _is_sport_in_season() + _SPORT_ACTIVE_MONTHS in scheduler.py.

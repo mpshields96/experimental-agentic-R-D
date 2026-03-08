@@ -64,6 +64,7 @@ from core.math_engine import (
     assign_grade,
     parse_game_markets,
     sharp_to_size,
+    is_ncaab_tournament_period,
 )
 from core.odds_fetcher import fetch_batch_odds, quota, compute_rest_days_from_schedule
 from core.weather_feed import get_stadium_wind
@@ -187,6 +188,11 @@ def _run_pipeline(raw: dict, min_edge: float = NEAR_MISS_MIN_EDGE) -> list[BetCa
                     except Exception:
                         wind = 0.0
                 injury_lev = compute_injury_leverage_from_event(game, sport_label)
+                _now_ui = datetime.now(timezone.utc)
+                _conf_tourney_ui = (
+                    sport_label.upper() == "NCAAB"
+                    and is_ncaab_tournament_period(_now_ui.month, _now_ui.day)
+                )
                 bets = parse_game_markets(
                     game,
                     sport_label,
@@ -197,6 +203,7 @@ def _run_pipeline(raw: dict, min_edge: float = NEAR_MISS_MIN_EDGE) -> list[BetCa
                     nba_pdo=game_pdo,
                     min_edge=min_edge,
                     injury_leverage=injury_lev,
+                    conference_tournament=_conf_tourney_ui,
                 )
                 sport_upper = sport_label.upper().replace("TENNIS_ATP", "NBA").replace("TENNIS_WTA", "NBA")
                 proj_margin = efficiency_gap_to_margin(eff_gap)
