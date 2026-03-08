@@ -689,6 +689,96 @@ with col_f4:
 
 st.html('<div style="height:1px; background:rgba(255,255,255,0.05); margin:8px 0 10px;"></div>')
 
+# --- Paper Bet Gate Progress (sidebar widget) ---
+def _gate_stats(db_path: str) -> dict:
+    """Return paper bet summary stats for the sidebar widget."""
+    import sqlite3 as _sq
+    import os as _os
+    _default = {"resolved": 0, "wins": 0, "losses": 0, "roi": 0.0, "avg_edge": 0.0, "clv": 0}
+    if not _os.path.exists(db_path):
+        return _default
+    try:
+        _conn = _sq.connect(db_path, check_same_thread=False)
+        resolved = _conn.execute(
+            "SELECT COUNT(*) FROM bet_log WHERE result IN ('win','loss')"
+        ).fetchone()[0]
+        wins = _conn.execute(
+            "SELECT COUNT(*) FROM bet_log WHERE result='win'"
+        ).fetchone()[0]
+        losses = _conn.execute(
+            "SELECT COUNT(*) FROM bet_log WHERE result='loss'"
+        ).fetchone()[0]
+        pnl = _conn.execute(
+            "SELECT SUM(profit), SUM(stake) FROM bet_log WHERE result IN ('win','loss')"
+        ).fetchone()
+        total_profit = pnl[0] or 0.0
+        total_staked = pnl[1] or 0.0
+        roi = (total_profit / total_staked * 100) if total_staked else 0.0
+        avg_edge = _conn.execute(
+            "SELECT AVG(edge_pct) FROM bet_log WHERE result IN ('win','loss')"
+        ).fetchone()[0] or 0.0
+        clv_count = _conn.execute(
+            "SELECT COUNT(*) FROM bet_log WHERE close_price != 0 AND close_price IS NOT NULL"
+        ).fetchone()[0]
+        _conn.close()
+        return {
+            "resolved": resolved, "wins": wins, "losses": losses,
+            "roi": roi, "avg_edge": avg_edge * 100, "clv": clv_count,
+        }
+    except Exception:
+        return _default
+
+
+with st.sidebar:
+    _gs = _gate_stats(DB_PATH)
+    _gate_target = 10
+    _resolved = _gs["resolved"]
+    _gate_pct = min(_resolved / _gate_target * 100, 100)
+    _gate_locked = _resolved < _gate_target
+    _lock_icon = "🔒" if _gate_locked else "🔓"
+    _lock_label = "LOCKED" if _gate_locked else "UNLOCKED"
+    _lock_color = "#6b7280" if _gate_locked else "#22c55e"
+    _roi_color = "#22c55e" if _gs["roi"] >= 0 else "#ef4444"
+    _roi_sign = "+" if _gs["roi"] >= 0 else ""
+    _win_rate = (
+        int(_gs["wins"] / _resolved * 100) if _resolved else 0
+    )
+    st.html(f"""
+    <div style="
+        background:#1a1d23;
+        border:1px solid #2d3139;
+        border-radius:12px;
+        padding:14px 16px 12px;
+        margin-bottom:12px;
+    ">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="color:#d1d5db;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;">Analytics Gate</span>
+        <span style="color:{_lock_color};font-size:11px;font-weight:700;letter-spacing:0.05em;">{_lock_icon} {_lock_label}</span>
+      </div>
+      <div style="background:#0e1117;border-radius:6px;height:7px;margin-bottom:8px;overflow:hidden;">
+        <div style="background:#f59e0b;width:{_gate_pct:.0f}%;height:100%;border-radius:6px;transition:width 0.4s ease;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+        <span style="color:#9ca3af;font-size:11px;">{_resolved}/{_gate_target} resolved</span>
+        <span style="color:#9ca3af;font-size:11px;">{_gate_pct:.0f}%</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div style="background:#0e1117;border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#d1d5db;font-size:14px;font-weight:700;">{_gs["wins"]}W–{_gs["losses"]}L</div>
+          <div style="color:#6b7280;font-size:10px;margin-top:2px;">{_win_rate}% win</div>
+        </div>
+        <div style="background:#0e1117;border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:{_roi_color};font-size:14px;font-weight:700;">{_roi_sign}{_gs["roi"]:.1f}%</div>
+          <div style="color:#6b7280;font-size:10px;margin-top:2px;">ROI</div>
+        </div>
+        <div style="background:#0e1117;border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#d1d5db;font-size:14px;font-weight:700;">{_gs["avg_edge"]:.1f}%</div>
+          <div style="color:#6b7280;font-size:10px;margin-top:2px;">avg edge</div>
+        </div>
+      </div>
+    </div>
+    """)
+
 # --- Injury Alert (sidebar input — static model, user is data source) ---
 with st.sidebar:
     st.markdown("### ⚠️ Injury Alert")
