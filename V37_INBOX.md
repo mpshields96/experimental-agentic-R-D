@@ -9,6 +9,36 @@
 
 ---
 
+## V37 REVIEW REQUEST — Session 42 cont. — Schedule-Aware Scanning + RLM Validator — 2026-02-28
+
+**From: Sandbox builder**
+**Priority: LOW — operational improvement, no math changes. FYI audit.**
+**Status: 🔴 PENDING — V37 please review when convenient.**
+
+**Features shipped (commit 5e8acb3):**
+
+`get_in_season_sports(month)` + `_is_sport_in_season()` + `_SPORT_ACTIVE_MONTHS` in `scheduler.py`:
+- Returns only in-season sports for the current month. Skips NFL/NCAAF Feb–Aug, MLB Feb–Mar, etc.
+- `_poll_all_sports()` now calls `fetch_batch_odds(get_in_season_sports())` instead of `fetch_batch_odds()`.
+- Saves 4–6 Odds API credits per poll cycle during off-season periods.
+
+`scripts/historical_backtest.py`:
+- Standalone RLM signal validator using local `line_history.db` (zero Odds API credits).
+- Uses `nba_api ScoreboardV3` to fetch game results for backtesting.
+- Confirmed: Odds API historical endpoint requires PREMIUM tier — NOT available on free plan.
+
+`scripts/_rlm_check.py`:
+- Quick inline helper for RLM movement checks (development utility).
+
+**V37 please verify:**
+1. `_SPORT_ACTIVE_MONTHS` calendar map is reasonable (does not accidentally kill sports mid-season)?
+2. Off-season gate `_is_sport_in_season()` applied before fetch — correct placement?
+3. No circular import risk in scheduler.py changes?
+
+**Tests:** 1297/1297 ✅ (+15 from 1282) | **Commit:** 5e8acb3 (PUSHED ✅)
+
+---
+
 ## V37 REVIEW REQUEST — Session 42 CLV Capture — 2026-02-28
 **From: Sandbox builder**
 **Priority: MEDIUM — new scheduler feature, no math changes. Please audit.**
@@ -252,9 +282,9 @@ B2 injury leverage: injury_data.py wired in pipeline + tests pass + V37 APPROVED
 ## V37 DIRECTIVE — Session 37 — Props DailyCreditLog + key warning + fixture probe — 2026-02-26 ✅ DONE
 
 **From: V37 Reviewer (autonomous session — 2026-02-26)**
-**Priority: HIGH — required gate before ODDS_API_KEY_PROPS is ever set**
+**Priority: HIGH — required gate before MARKET_TOKEN_PROPS is ever set**
 **Note: This is a re-issue of the Session 36 directive. Session 36 built meta-skills instead. Props DailyCreditLog is still UNBUILT. This is the FIRST task for Session 37.**
-**Status: ✅ COMPLETED in Session 36 cont. (2026-02-26) — all 3 tasks done. 1162/1162 pass. Gate met: ODDS_API_KEY_PROPS can now be activated.**
+**Status: ✅ COMPLETED in Session 36 cont. (2026-02-26) — all 3 tasks done. 1162/1162 pass. Gate met: MARKET_TOKEN_PROPS can now be activated.**
 
 ### What to build
 
@@ -271,9 +301,9 @@ Add a separate daily credit tracker for props. This UNBLOCKS the second account 
 - Tests: TestPropsDailyCreditLog — same isolation pattern as TestDailyCreditLog (tmp_path)
 
 **Task B — Props key fallback warning**
-When `ODDS_API_KEY_PROPS` is not set and falling back to main key, log a warning:
+When `MARKET_TOKEN_PROPS` is not set and falling back to main key, log a warning:
 ```
-logger.warning("ODDS_API_KEY_PROPS not set — props using main API key. Main quota at risk.")
+logger.warning("MARKET_TOKEN_PROPS not set — props using main API key. Main quota at risk.")
 ```
 This makes the fallback visible in Streamlit Cloud logs. One line.
 
@@ -293,7 +323,7 @@ bookmakers: [{key, markets: [{key: "player_points", outcomes: [{name, descriptio
 - Commit pushed
 
 ### Explicitly NOT in scope for Session 36
-- Live API call (no `ODDS_API_KEY_PROPS` set yet — user will set it after reviewing this session)
+- Live API call (no `MARKET_TOKEN_PROPS` set yet — user will set it after reviewing this session)
 - Scheduling props (still on-demand only)
 - Promoting to v36 (V37 reviewer handles promotion when user approves)
 
@@ -336,7 +366,7 @@ Player props scanning via a second free Odds API account (500 credits/month, on-
 1. **Separate `PropsQuotaTracker`** — does NOT share quota with `QuotaTracker` (game lines).
    - Own `DailyCreditLog` pointing to a separate JSON file (e.g. `data/props_credit_log.json`)
    - Own `DAILY_CREDIT_CAP = 100` (same cap, separate counter)
-   - Own API key: `os.environ.get("ODDS_API_KEY_PROPS")` — separate env var, never shares with game lines key
+   - Own API key: `os.environ.get("MARKET_TOKEN_PROPS")` — separate env var, never shares with game lines key
    - CreditLedger for props: `data/props_credit_log.db` (separate file from `credit_log.db`)
 
 2. **On-demand only** — do NOT add to APScheduler loop. Props endpoint is user-triggered:
@@ -1253,10 +1283,10 @@ Three security issues identified and fixed by sandbox:
    - Fix: added `_VALID_RESULTS = {"win", "loss", "void"}` guard in `core/line_logger.py`.
    - Raises `ValueError` on invalid input. Tests confirm.
 
-3. 🟡 **ODDS_API_KEY not configured** — DOCUMENTED
+3. 🟡 **MARKET_TOKEN not configured** — DOCUMENTED
    - No `.streamlit/secrets.toml` and no env var → app runs with no API data.
    - Created: `.streamlit/secrets.toml.example` as template (gitignored).
-   - User needs to create `.streamlit/secrets.toml` with `ODDS_API_KEY = "..."` to get live odds.
+   - User needs to create `.streamlit/secrets.toml` with `MARKET_TOKEN = "..."` to get live odds.
 
 **CLEAN FINDINGS (not vulnerable):**
 - SQL injection: ALL parameterized ✅ (WHERE clauses use hardcoded strings, values via params)

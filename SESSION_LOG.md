@@ -166,7 +166,7 @@ V37 Session 36 directive: props DailyCreditLog gate + key warning + fixture prob
 1154 → 1162 (+8) — all 1162 pass ✅
 
 ### V37 coordination
-V37 Session 36 directive completed. Gate met: DailyCreditLog for props is live — second API account (`ODDS_API_KEY_PROPS`) can now be activated.
+V37 Session 36 directive completed. Gate met: DailyCreditLog for props is live — second API account (`MARKET_TOKEN_PROPS`) can now be activated.
 
 ### Commits
 - 50a0362 — Session 36 titanium-session-wrap skill
@@ -181,7 +181,7 @@ V37 Session 36 directive completed. Gate met: DailyCreditLog for props is live �
 Player props feature — end-to-end: API fetch, math layer, UI with edge + grade display.
 
 ### What shipped
-- `core/odds_fetcher.py` — `PropsQuotaTracker`, `props_quota`, `PROP_MARKETS`, `PROPS_SESSION_CREDIT_CAP=50`, `get_props_api_key()` (tries ODDS_API_KEY_PROPS first), `fetch_props_for_event()`
+- `core/odds_fetcher.py` — `PropsQuotaTracker`, `props_quota`, `PROP_MARKETS`, `PROPS_SESSION_CREDIT_CAP=50`, `get_props_api_key()` (tries MARKET_TOKEN_PROPS first), `fetch_props_for_event()`
 - `core/math_engine.py` — `PropCandidate` dataclass, `parse_props_candidates()` (canonical line pinning, no-vig consensus, edge/grade assignment)
 - `pages/08_player_props.py` — on-demand props UI: event_id input, sport/market selector, per-player cards with Over/Under best odds, edge % + grade pill per direction
 - `tests/test_odds_fetcher.py` — +27 tests (PropsQuotaTracker, fetch_props_for_event)

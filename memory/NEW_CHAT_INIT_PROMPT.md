@@ -59,7 +59,7 @@ FORBIDDEN — NEVER DO THESE:
    - ~/.claude/                         (system config — do NOT touch)
 
 2. BURN Odds API quota unnecessarily — one full fetch per session max.
-   Token: pulled from env var ODDS_API_KEY. Never hardcode.
+   Token: pulled from env var MARKET_TOKEN. Never hardcode.
 
 3. USE, SUGGEST, OR REFERENCE api-tennis.com — PERMANENTLY BANNED, no exceptions, ever.
 

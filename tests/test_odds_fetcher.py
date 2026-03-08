@@ -136,7 +136,7 @@ class TestQuotaTracker:
 
 class TestGetApiKey:
     def test_returns_env_var(self):
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key_123"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key_123"}):
             key = get_api_key()
         assert key == "test_key_123"
 
@@ -170,7 +170,7 @@ class TestFetchGameLines:
             {"id": "game_1", "home_team": "Duke", "away_team": "Virginia",
              "commence_time": "2026-02-20T01:00:00Z", "bookmakers": []}
         ]
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("core.odds_fetcher._fetch_with_backoff",
                        return_value=self._make_response(fake_games)):
                 result = fetch_game_lines("basketball_ncaab")
@@ -178,19 +178,19 @@ class TestFetchGameLines:
         assert result[0]["id"] == "game_1"
 
     def test_returns_empty_on_no_api_key(self):
-        env = {k: v for k, v in os.environ.items() if k != "ODDS_API_KEY"}
+        env = {k: v for k, v in os.environ.items() if k != "MARKET_TOKEN"}
         with patch.dict(os.environ, env, clear=True):
             with patch("core.odds_fetcher.get_api_key", return_value=None):
                 result = fetch_game_lines("basketball_ncaab")
         assert result == []
 
     def test_returns_empty_on_unknown_sport_key(self):
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_game_lines("unknown_sport_xyz")
         assert result == []
 
     def test_returns_empty_on_fetch_failure(self):
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("core.odds_fetcher._fetch_with_backoff", return_value=None):
                 result = fetch_game_lines("basketball_nba")
         assert result == []
@@ -201,13 +201,13 @@ class TestFetchGameLines:
         fake_games = []
         mock_resp = self._make_response(fake_games)
         mock_resp.headers["x-requests-remaining"] = "300"
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("core.odds_fetcher._fetch_with_backoff", return_value=mock_resp):
                 fetch_game_lines("basketball_nba")
         assert of.quota.remaining == 300
 
     def test_handles_422_gracefully(self):
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("core.odds_fetcher._fetch_with_backoff", return_value=None):
                 # 422 returns None from _fetch_with_backoff (no retry)
                 result = fetch_game_lines("soccer_epl")
@@ -397,7 +397,7 @@ class TestTennisMarkets:
         mock_resp.json.return_value = fake_games
         mock_resp.headers = {"x-requests-remaining": "490", "x-requests-used": "10", "x-requests-last": "1"}
 
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("core.odds_fetcher._fetch_with_backoff", return_value=mock_resp):
                 result = fetch_game_lines("tennis_atp_qatar_open")
         assert result == fake_games
@@ -410,14 +410,14 @@ class TestTennisMarkets:
         mock_resp.json.return_value = fake_games
         mock_resp.headers = {"x-requests-remaining": "490", "x-requests-used": "10", "x-requests-last": "1"}
 
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("core.odds_fetcher._fetch_with_backoff", return_value=mock_resp):
                 result = fetch_game_lines("tennis_wta_dubai")
         assert result == fake_games
 
     def test_unknown_non_tennis_key_still_returns_empty(self):
         """Non-tennis unknown keys still return empty (not in MARKETS, not tennis prefix)."""
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_game_lines("unknown_sport_xyz")
         assert result == []
 
@@ -440,7 +440,7 @@ class TestFetchActiveTennisKeys:
             "tennis_atp_dubai",
             "basketball_nba",          # should be excluded
         ])
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("requests.get", return_value=mock_resp):
                 result = fetch_active_tennis_keys()
         assert "tennis_atp_qatar_open" in result
@@ -449,7 +449,7 @@ class TestFetchActiveTennisKeys:
 
     def test_returns_active_wta_keys(self):
         mock_resp = self._make_sports_response(["tennis_wta_dubai", "tennis_wta_abu_dhabi"])
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("requests.get", return_value=mock_resp):
                 result = fetch_active_tennis_keys()
         assert "tennis_wta_dubai" in result
@@ -462,7 +462,7 @@ class TestFetchActiveTennisKeys:
             {"key": "tennis_atp_qatar_open", "active": True},
         ]
         mock_resp.headers = {"x-requests-remaining": "490", "x-requests-used": "10", "x-requests-last": "1"}
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("requests.get", return_value=mock_resp):
                 result = fetch_active_tennis_keys()
         assert "tennis_atp_wimbledon" not in result
@@ -470,7 +470,7 @@ class TestFetchActiveTennisKeys:
 
     def test_exclude_wta_when_flag_false(self):
         mock_resp = self._make_sports_response(["tennis_atp_qatar_open", "tennis_wta_dubai"])
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("requests.get", return_value=mock_resp):
                 result = fetch_active_tennis_keys(include_wta=False)
         assert "tennis_atp_qatar_open" in result
@@ -478,7 +478,7 @@ class TestFetchActiveTennisKeys:
 
     def test_exclude_atp_when_flag_false(self):
         mock_resp = self._make_sports_response(["tennis_atp_qatar_open", "tennis_wta_dubai"])
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("requests.get", return_value=mock_resp):
                 result = fetch_active_tennis_keys(include_atp=False)
         assert "tennis_wta_dubai" in result
@@ -490,14 +490,14 @@ class TestFetchActiveTennisKeys:
         assert result == []
 
     def test_returns_empty_on_api_error(self):
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("requests.get", side_effect=Exception("network error")):
                 result = fetch_active_tennis_keys()
         assert result == []
 
     def test_returns_empty_list_when_no_active_tennis(self):
         mock_resp = self._make_sports_response(["basketball_nba", "americanfootball_nfl"])
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             with patch("requests.get", return_value=mock_resp):
                 result = fetch_active_tennis_keys()
         assert result == []
@@ -934,7 +934,7 @@ class TestFetchPropsForEvent:
         mock_resp = _make_props_mock_response(self._fake_props_data())
         mock_session = MagicMock()
         mock_session.get.return_value = mock_resp
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -950,7 +950,7 @@ class TestFetchPropsForEvent:
         mock_session = MagicMock()
         mock_session.get.return_value = mock_resp
         qt = self._quota()
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -969,7 +969,7 @@ class TestFetchPropsForEvent:
         mock_session = MagicMock()
         mock_session.get.return_value = mock_resp
         qt = self._quota()
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -983,7 +983,7 @@ class TestFetchPropsForEvent:
         qt = self._quota()
         qt.session_used = PROPS_SESSION_CREDIT_CAP  # already at cap
         mock_session = MagicMock()
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -1010,7 +1010,7 @@ class TestFetchPropsForEvent:
         mock_resp = _make_props_mock_response({}, status=422)
         mock_session = MagicMock()
         mock_session.get.return_value = mock_resp
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -1024,7 +1024,7 @@ class TestFetchPropsForEvent:
         mock_resp = _make_props_mock_response({}, status=401)
         mock_session = MagicMock()
         mock_session.get.return_value = mock_resp
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -1038,7 +1038,7 @@ class TestFetchPropsForEvent:
         mock_resp = _make_props_mock_response({}, status=500)
         mock_session = MagicMock()
         mock_session.get.return_value = mock_resp
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -1052,7 +1052,7 @@ class TestFetchPropsForEvent:
         import requests as _requests
         mock_session = MagicMock()
         mock_session.get.side_effect = _requests.exceptions.ConnectionError("network down")
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -1064,7 +1064,7 @@ class TestFetchPropsForEvent:
 
     def test_returns_empty_dict_on_empty_event_id(self):
         mock_session = MagicMock()
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_props_for_event(
                 event_id="",
                 sport_key="basketball_nba",
@@ -1077,7 +1077,7 @@ class TestFetchPropsForEvent:
 
     def test_returns_empty_dict_on_empty_markets_list(self):
         mock_session = MagicMock()
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             result = fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -1096,7 +1096,7 @@ class TestFetchPropsForEvent:
         mock_session = MagicMock()
         mock_session.get.return_value = mock_resp
         qt = self._quota()
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             fetch_props_for_event(
                 event_id="evt_001",
                 sport_key="basketball_nba",
@@ -1112,7 +1112,7 @@ class TestFetchPropsForEvent:
         mock_resp = _make_props_mock_response(self._fake_props_data())
         mock_session = MagicMock()
         mock_session.get.return_value = mock_resp
-        with patch.dict(os.environ, {"ODDS_API_KEY": "test_key"}):
+        with patch.dict(os.environ, {"MARKET_TOKEN": "test_key"}):
             fetch_props_for_event(
                 event_id="evt_abc123",
                 sport_key="basketball_nba",
@@ -1126,14 +1126,14 @@ class TestFetchPropsForEvent:
         assert "basketball_nba" in url
 
     def test_get_props_api_key_prefers_props_env_var(self):
-        """ODDS_API_KEY_PROPS takes priority over ODDS_API_KEY."""
-        with patch.dict(os.environ, {"ODDS_API_KEY_PROPS": "props_key", "ODDS_API_KEY": "main_key"}):
+        """MARKET_TOKEN_PROPS takes priority over MARKET_TOKEN."""
+        with patch.dict(os.environ, {"MARKET_TOKEN_PROPS": "props_key", "MARKET_TOKEN": "main_key"}):
             key = get_props_api_key()
         assert key == "props_key"
 
     def test_get_props_api_key_falls_back_to_main_key(self):
-        """Falls back to ODDS_API_KEY when ODDS_API_KEY_PROPS is absent."""
-        with patch.dict(os.environ, {"ODDS_API_KEY": "main_key"}, clear=True):
+        """Falls back to MARKET_TOKEN when MARKET_TOKEN_PROPS is absent."""
+        with patch.dict(os.environ, {"MARKET_TOKEN": "main_key"}, clear=True):
             with patch("core.odds_fetcher.get_api_key", return_value="main_key"):
                 key = get_props_api_key()
         assert key == "main_key"

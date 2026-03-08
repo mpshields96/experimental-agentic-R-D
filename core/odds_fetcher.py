@@ -16,7 +16,7 @@ Regions: us | Format: american
 Book preference: DraftKings → FanDuel → BetMGM → BetRivers → Caesars
 
 DO NOT add betting math or Streamlit calls to this file.
-NEVER hardcode API keys. Use os.environ.get("ODDS_API_KEY").
+NEVER hardcode API keys. Use os.environ.get("MARKET_TOKEN").
 """
 
 import json
@@ -445,20 +445,20 @@ def get_api_key() -> Optional[str]:
     Load Odds API key from environment. Never hardcode.
 
     Checks:
-    1. ODDS_API_KEY env var (primary)
+    1. MARKET_TOKEN env var (primary)
     2. Streamlit secrets (for Streamlit Cloud deployments)
 
     Returns None if no key found — callers must handle gracefully.
     """
-    key = os.environ.get("ODDS_API_KEY")
+    key = os.environ.get("MARKET_TOKEN")
     if key:
         return key
 
     # Streamlit secrets fallback (only import if streamlit is available)
     try:
         import streamlit as st
-        if hasattr(st, "secrets") and "ODDS_API_KEY" in st.secrets:
-            return st.secrets["ODDS_API_KEY"]
+        if hasattr(st, "secrets") and "MARKET_TOKEN" in st.secrets:
+            return st.secrets["MARKET_TOKEN"]
     except (ImportError, Exception):
         pass
 
@@ -503,7 +503,7 @@ def _fetch_with_backoff(
                 )
                 return None  # Don't retry — this is a permanent error
             elif response.status_code == 401:
-                logger.error("401 Unauthorized — check ODDS_API_KEY")
+                logger.error("401 Unauthorized — check MARKET_TOKEN")
                 return None  # Don't retry — wrong key
             elif response.status_code == 429:
                 logger.warning("429 Rate limited. Waiting %.1fs before retry.", delay * 2)
@@ -562,7 +562,7 @@ def fetch_active_tennis_keys(
     """
     api_key = get_api_key()
     if not api_key:
-        logger.error("No ODDS_API_KEY found. Cannot fetch tennis sport keys.")
+        logger.error("No MARKET_TOKEN found. Cannot fetch tennis sport keys.")
         return []
 
     url = f"{BASE_URL}/"
@@ -617,7 +617,7 @@ def fetch_game_lines(sport_key: str) -> list[dict]:
     """
     api_key = get_api_key()
     if not api_key:
-        logger.error("No ODDS_API_KEY found. Cannot fetch lines.")
+        logger.error("No MARKET_TOKEN found. Cannot fetch lines.")
         return []
 
     # Tennis keys are dynamic — not in MARKETS dict, use TENNIS_MARKETS fallback
@@ -915,26 +915,26 @@ def get_props_api_key() -> Optional[str]:
     """Load props-specific API key. Falls back to main key if not configured.
 
     Priority:
-    1. ODDS_API_KEY_PROPS env var — intended for a dedicated second free account
+    1. MARKET_TOKEN_PROPS env var — intended for a dedicated second free account
        (500 credits/month) so props never consume the main game-lines quota
-    2. ODDS_API_KEY — main key fallback (same account, separate session counter)
+    2. MARKET_TOKEN — main key fallback (same account, separate session counter)
 
     V37 spec (Session 35): props key MUST use a separate account when one is available.
     Until a second account is created, the main key fallback ensures props fetch
     is still functional while maintaining budget separation via PropsQuotaTracker.
     """
-    key = os.environ.get("ODDS_API_KEY_PROPS")
+    key = os.environ.get("MARKET_TOKEN_PROPS")
     if key:
         return key
     # Streamlit secrets fallback
     try:
         import streamlit as st
-        if hasattr(st, "secrets") and "ODDS_API_KEY_PROPS" in st.secrets:
-            return st.secrets["ODDS_API_KEY_PROPS"]
+        if hasattr(st, "secrets") and "MARKET_TOKEN_PROPS" in st.secrets:
+            return st.secrets["MARKET_TOKEN_PROPS"]
     except (ImportError, Exception):
         pass
     # Fall back to main key (second free account not yet configured)
-    logger.warning("ODDS_API_KEY_PROPS not set — props using main API key. Main quota at risk.")
+    logger.warning("MARKET_TOKEN_PROPS not set — props using main API key. Main quota at risk.")
     return get_api_key()
 
 
@@ -1075,9 +1075,9 @@ def fetch_props_for_event(
         logger.warning("fetch_props_for_event: empty prop_markets list")
         return {}
 
-    api_key = get_props_api_key()  # ODDS_API_KEY_PROPS first, then ODDS_API_KEY fallback
+    api_key = get_props_api_key()  # MARKET_TOKEN_PROPS first, then MARKET_TOKEN fallback
     if not api_key:
-        logger.error("No API key found (tried ODDS_API_KEY_PROPS and ODDS_API_KEY). Cannot fetch props.")
+        logger.error("No API key found (tried MARKET_TOKEN_PROPS and MARKET_TOKEN). Cannot fetch props.")
         return {}
 
     markets_str = ",".join(prop_markets)
@@ -1103,7 +1103,7 @@ def fetch_props_for_event(
         )
         return {}
     elif resp.status_code == 401:
-        logger.error("401 Unauthorized on props fetch — check ODDS_API_KEY")
+        logger.error("401 Unauthorized on props fetch — check MARKET_TOKEN")
         return {}
     elif resp.status_code != 200:
         logger.warning(

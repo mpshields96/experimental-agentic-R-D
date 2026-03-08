@@ -443,16 +443,17 @@ class TestInactivityAutoStop:
     """
 
     def test_inactive_skips_fetch(self):
-        """When idle_hours > 24, fetch_batch_odds must NOT be called."""
-        with patch("core.scheduler._get_hours_since_activity", return_value=25.0), \
+        """When idle_hours > 2, fetch_batch_odds must NOT be called."""
+        with patch("core.scheduler._get_hours_since_activity", return_value=3.0), \
              patch("core.scheduler.fetch_batch_odds") as mock_fetch:
             trigger_poll_now()
             mock_fetch.assert_not_called()
 
     def test_active_proceeds_with_fetch(self):
-        """When recently active (idle_hours < 24), fetch must be called."""
+        """When recently active (idle_hours < 2), fetch must be called."""
         fake_data = {"NBA": []}
         with patch("core.scheduler._get_hours_since_activity", return_value=0.5), \
+             patch("core.scheduler._is_scheduler_enabled", return_value=True), \
              patch("core.scheduler.fetch_batch_odds", return_value=fake_data) as mock_fetch:
             trigger_poll_now()
             mock_fetch.assert_called_once()
@@ -487,12 +488,85 @@ class TestInactivityAutoStop:
 
     def test_get_status_includes_idle_hours(self):
         """get_status() must expose idle_hours and inactive keys for the UI."""
-        with patch("core.scheduler._get_hours_since_activity", return_value=2.5):
+        with patch("core.scheduler._get_hours_since_activity", return_value=1.0):
             status = get_status()
         assert "idle_hours" in status
         assert "inactive" in status
-        assert abs(status["idle_hours"] - 2.5) < 0.01
-        assert status["inactive"] is False  # 2.5h < 24h threshold
+        assert abs(status["idle_hours"] - 1.0) < 0.01
+        assert status["inactive"] is False  # 1h < 2h threshold
+
+    def test_inactive_threshold_is_2h(self):
+        """INACTIVITY_TIMEOUT_HOURS must be 2 (tightened S43 to prevent idle credit burns)."""
+        import core.scheduler as sched_mod
+        assert sched_mod.INACTIVITY_TIMEOUT_HOURS == 2
+
+    def test_inactive_at_3h(self):
+        """3h idle must skip fetch (above 2h threshold)."""
+        with patch("core.scheduler._get_hours_since_activity", return_value=3.0), \
+             patch("core.scheduler.fetch_batch_odds") as mock_fetch:
+            trigger_poll_now()
+            mock_fetch.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Scheduler kill switch — SCHEDULER_ENABLED flag
+# ---------------------------------------------------------------------------
+class TestSchedulerEnabledKillSwitch:
+    """
+    Tests for the SCHEDULER_ENABLED hard gate in _poll_all_sports() (Layer 1).
+
+    Setting SCHEDULER_ENABLED=false/0/off in env or secrets.toml must
+    prevent ALL API calls regardless of inactivity state.
+    """
+
+    def test_disabled_env_var_skips_fetch(self):
+        """SCHEDULER_ENABLED=false in env must prevent any fetch."""
+        fake_data = {"NBA": []}
+        with patch.dict("os.environ", {"SCHEDULER_ENABLED": "false"}), \
+             patch("core.scheduler._get_hours_since_activity", return_value=0.1), \
+             patch("core.scheduler.fetch_batch_odds") as mock_fetch:
+            trigger_poll_now()
+            mock_fetch.assert_not_called()
+
+    def test_disabled_zero_skips_fetch(self):
+        """SCHEDULER_ENABLED=0 must also disable."""
+        with patch.dict("os.environ", {"SCHEDULER_ENABLED": "0"}), \
+             patch("core.scheduler._get_hours_since_activity", return_value=0.1), \
+             patch("core.scheduler.fetch_batch_odds") as mock_fetch:
+            trigger_poll_now()
+            mock_fetch.assert_not_called()
+
+    def test_disabled_off_skips_fetch(self):
+        """SCHEDULER_ENABLED=off must also disable."""
+        with patch.dict("os.environ", {"SCHEDULER_ENABLED": "off"}), \
+             patch("core.scheduler._get_hours_since_activity", return_value=0.1), \
+             patch("core.scheduler.fetch_batch_odds") as mock_fetch:
+            trigger_poll_now()
+            mock_fetch.assert_not_called()
+
+    def test_enabled_true_allows_fetch(self):
+        """SCHEDULER_ENABLED=true must allow fetch to proceed."""
+        fake_data = {"NBA": []}
+        with patch.dict("os.environ", {"SCHEDULER_ENABLED": "true"}), \
+             patch("core.scheduler._get_hours_since_activity", return_value=0.1), \
+             patch("core.scheduler.fetch_batch_odds", return_value=fake_data) as mock_fetch:
+            trigger_poll_now()
+            mock_fetch.assert_called_once()
+
+    def test_enabled_default_when_unset(self):
+        """Unset SCHEDULER_ENABLED must default to enabled (non-breaking default)."""
+        import core.scheduler as sched_mod
+        env = {k: v for k, v in __import__("os").environ.items()
+               if k != "SCHEDULER_ENABLED"}
+        with patch.dict("os.environ", env, clear=True):
+            assert sched_mod._is_scheduler_enabled() is True
+
+    def test_is_scheduler_enabled_case_insensitive(self):
+        """FALSE / False / FALSE must all disable."""
+        import core.scheduler as sched_mod
+        for val in ("FALSE", "False", "OFF", "Off"):
+            with patch.dict("os.environ", {"SCHEDULER_ENABLED": val}):
+                assert sched_mod._is_scheduler_enabled() is False
 
 
 # ---------------------------------------------------------------------------

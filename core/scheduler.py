@@ -13,6 +13,7 @@ Usage in app.py:
 
 import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,16 +43,40 @@ from core.injury_data import evaluate_injury_impact
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Inactivity auto-stop — permanent user directive (2026-02-24)
+# Inactivity auto-stop — permanent user directive (2026-02-24, tightened S43)
 #
-# If no user has loaded any page in > INACTIVITY_TIMEOUT_HOURS, the scheduler
-# silently skips all polls (zero API credits burned).
-# Resumes automatically the moment the user refreshes or navigates any page.
+# Two-layer credit protection (both must pass for any API call):
 #
-# Activity timestamp written by app.py → data/last_activity.json on every load.
+# Layer 1 — SCHEDULER_ENABLED flag (hard gate):
+#   Set SCHEDULER_ENABLED=false in secrets.toml or env to kill ALL polls.
+#   Use this when stepping away for hours/days. Default=true for local dev.
+#   secrets.toml: SCHEDULER_ENABLED = "false"   ← set when going away
+#
+# Layer 2 — Inactivity timeout (auto-stop):
+#   If no user page load in > INACTIVITY_TIMEOUT_HOURS, skip all polls.
+#   Activity timestamp written by app.py → data/last_activity.json on every load.
+#   Reduced from 24h → 2h (S43) so unused app stops burning credits quickly.
 # ---------------------------------------------------------------------------
-INACTIVITY_TIMEOUT_HOURS: int = 24
+INACTIVITY_TIMEOUT_HOURS: int = 2  # was 24 — tightened S43 to prevent idle burns
 _ACTIVITY_FILE = Path(__file__).resolve().parent.parent / "data" / "last_activity.json"
+
+
+def _is_scheduler_enabled() -> bool:
+    """
+    Hard gate: returns False if SCHEDULER_ENABLED is explicitly set to
+    'false', '0', or 'off' (case-insensitive) in env or Streamlit secrets.
+    Default is True — scheduler runs unless explicitly disabled.
+    Set to false in secrets.toml when stepping away to protect API credits.
+    """
+    raw = os.environ.get("SCHEDULER_ENABLED", "")
+    if not raw:
+        try:
+            import streamlit as _st
+            if hasattr(_st, "secrets") and "SCHEDULER_ENABLED" in _st.secrets:
+                raw = str(_st.secrets["SCHEDULER_ENABLED"])
+        except Exception:
+            pass
+    return raw.strip().lower() not in ("false", "0", "off")
 
 
 def _get_hours_since_activity() -> float:
@@ -380,7 +405,15 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
     """
     global _last_poll_time, _last_poll_result, _poll_error_count, _last_idle_hours
 
-    # --- INACTIVITY GUARD — check BEFORE any API call ---
+    # --- HARD GATE: SCHEDULER_ENABLED flag (Layer 1) ---
+    if not _is_scheduler_enabled():
+        logger.info(
+            "Scheduler disabled via SCHEDULER_ENABLED=false. Zero API credits burned. "
+            "Set SCHEDULER_ENABLED=true in secrets.toml or env to re-enable."
+        )
+        return
+
+    # --- INACTIVITY GUARD — check BEFORE any API call (Layer 2) ---
     hours_idle = _get_hours_since_activity()
     _last_idle_hours = hours_idle
     if hours_idle > INACTIVITY_TIMEOUT_HOURS:

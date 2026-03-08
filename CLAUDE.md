@@ -1,5 +1,5 @@
 # CLAUDE.md — TITANIUM-AGENTIC: MASTER INITIALIZATION PROMPT
-## Version: Session 42 | Last updated: 2026-02-28
+## Version: Session 43 | Last updated: 2026-03-03
 ## For: New agentic R&D chat initialization
 
 ---
@@ -375,10 +375,47 @@ Git push = cloud backup for all committed code.
 
 ---
 
-## 💡 LOADING SCREEN TIPS — REQUIRED (Session 24 directive)
+## 💡 LOADING SCREEN TIP — REQUIRED (upgraded Session 43)
 
-Every response must end with a loading-screen tip. Format:
-> 💡 Tip: [one-line insight about the system, math, or workflow — genuinely useful, no filler]
+**MANDATORY: End EVERY response with a Loading Screen Tip block. No exceptions. Ever.**
+The tip recommends the next applicable GSD/superpowers/plugin command + token cost estimate.
+User says YES → execute autonomously, no further questions. NO → skip it.
+
+**Format (copy exactly every time):**
+```
+---
+💡 LOADING SCREEN TIP
+[One-line insight about current state, work, or math — no filler, no empty tips]
+
+→ Recommended: /command:name — [what it does and why it's relevant right now]
+→ Token cost: ~X% of 5-hr window
+→ Type YES to run autonomously · NO to skip
+---
+```
+
+**If multiple skills apply: pick the most time-critical one.**
+**If no skill is objectively applicable: give a pure technical/math insight about the system. Token cost: 0%.**
+
+**Decision tree — what to recommend:**
+| Situation | Command | Token% |
+|-----------|---------|--------|
+| Before ANY implementation code | `superpowers:test-driven-development` | ~0.1% |
+| Before claiming work is done | `superpowers:verification-before-completion` | ~0.1% |
+| Debugging any bug or failure | `superpowers:systematic-debugging` | ~0.1% |
+| Idea / arch concern / future task surfaced | `gsd:add-todo` | ~0.1% |
+| Session just started (recommend once) | `gsd:health` then `gsd:progress` | ~0.3% |
+| Quick task / bug fix / focused change | `gsd:quick` | ~0.4% |
+| Session end / wrap | `titanium-session-wrap` | ~0.5% |
+| Any new UI or Streamlit page work | `frontend-design:frontend-design` | ~0.1% |
+| Major phase (5+ tasks, 4+ subsystems, multi-session) | `gsd:plan-phase` | ~5–7% |
+| Bug genuinely stuck after inline diagnosis | `gsd:debug` | ~5% |
+| 3+ truly independent tasks each >45 min | `superpowers:dispatching-parallel-agents` | ~7% |
+
+**Token% reference (5-hr window ≈ 2M tokens total output+input):**
+- Inline markdown load (no sub-agent): ~0.1–0.2%
+- CLI tool / no sub-agent: ~0.3–0.5%
+- Single agent spawn: ~5–8%
+- Multi-agent dispatch (3+ agents): ~15–20%
 
 ---
 
@@ -397,28 +434,48 @@ AVOID: rainbow palettes, excessive expanders, st.metric for everything,
 
 ---
 
-## 💳 ODDS API CREDIT BUDGET (Session 24 — permanent rule)
+## 💳 MARKET DATA CREDIT BUDGET (updated Session 43 — permanent rule)
 
 ```
-Subscription:    20,000 credits/month ($30/month)
-⚠️ PERMANENT USER DIRECTIVE (2026-02-24 incident — ~10,000 credits burned in one day by V37):
-DAILY_CREDIT_CAP = 1,000 credits/day. HARD LIMIT. No exceptions. No overrides. Ever.
-Applies to ALL usage: live fetches, testing, experiments, any script or tool.
+⚠️ HARD DAILY LIMIT: 300 credits/day. No exceptions. No overrides. Ever.
+   (Previous limit was 1,000 — reduced S43 due to plan change + idle burn incident)
 
-Monthly target:  ≤ 10,000 credits used (50% floor — always safe)
-Daily hard cap:  1,000 credits/day (UTC) — PERMANENT, persisted to data/daily_quota.json
-Session soft:    300 credits/session — logs warning, continues
-Session hard:    500 credits/session — halts all fetches for session
-Billing reserve: 1,000 remaining — global floor, halts everything
+Daily hard cap:  300 credits/day (UTC) — DAILY_CREDIT_CAP=300
+Session soft:    120 credits/session — warn and continue
+Session hard:    200 credits/session — halt all fetches for session
+Billing reserve: 50 remaining — global floor, halt everything
+
+Kill switches (TWO layers — both must pass for any API call):
+  Layer 1 — SCHEDULER_ENABLED flag: set "false" in secrets.toml when stepping away.
+            Default=true. Checked first in _poll_all_sports(). Zero cost when false.
+  Layer 2 — Inactivity timeout: 2h idle (down from 24h, tightened S43).
+            App writes data/last_activity.json on every page load.
+            If file missing or > 2h old: all polls skip, zero credits burned.
 
 Implementation:  DAILY_CREDIT_CAP, SESSION_CREDIT_SOFT_LIMIT, SESSION_CREDIT_HARD_STOP,
-                 BILLING_RESERVE all in core/odds_fetcher.py.
+                 BILLING_RESERVE in core/odds_fetcher.py.
+                 _is_scheduler_enabled(), INACTIVITY_TIMEOUT_HOURS in core/scheduler.py.
                  DailyCreditLog persists daily usage across restarts (data/daily_quota.json).
-                 QuotaTracker.is_session_hard_stop() checks all three guards.
 
-Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds the session.
-                 Scheduler polls must check is_session_hard_stop() before each cycle.
-                 V37 must implement the same daily cap — see V37_INBOX.md URGENT task.
+Never:           Run fetch_batch_odds() in a tight loop. One full-sport scan ≈ 15-20 credits.
+                 Set SCHEDULER_ENABLED=false in secrets.toml before stepping away overnight.
+```
+
+## 🔐 API KEY SECURITY (Session 43 — permanent rule)
+
+```
+The market data feed token is stored ONLY in .streamlit/secrets.toml (gitignored).
+Variable name is intentionally generic (MARKET_TOKEN) — NOT labeled by vendor name.
+This prevents GitHub word-search discovery of which API provider is in use.
+
+Rules:
+  - NEVER use "ODDS_API_KEY" or vendor-specific names in any committed file
+  - NEVER hardcode the key value in any source file or MD
+  - NEVER log the key in any output, error message, or traceback
+  - Rotate the key on the vendor website if ever suspected exposed
+  - After rotation: update secrets.toml only (gitignored — safe)
+  - The URL "api.the-odds-api.com" in odds_fetcher.py is acceptable (functional requirement)
+  - MARKET_TOKEN_PROPS = second account token for player props (set when available)
 ```
 
 ---
@@ -454,7 +511,7 @@ Never:           Run fetch_batch_odds() in a tight loop. One full fetch seeds th
 13. **Timing gates in scheduler vs nhl_data**: `_poll_nhl_goalies()` skips games >90min away BEFORE calling `get_starters_for_odds_game`. Tests for "skip distant games" must assert `mock.assert_not_called()`, not `assert_called_once()`.
 14. **Soccer 3-way h2h is silently broken by 2-way path**: `consensus_fair_prob()` has `if len(outcomes) != 2: continue` — silently skips all soccer h2h. Use `consensus_fair_prob_3way()` for SOCCER_SPORTS. Never route soccer h2h through the 2-way path.
 15. **Edge diagnostic pattern**: When few candidates surface, check: (1) collar failures via `passes_collar()` on raw prices, (2) book count failures (< MIN_BOOKS), (3) edge distribution vs MIN_EDGE. Collar is usually the dominant filter (75%+ of games).
-16. **ODDS_API_KEY in scripts**: Must set env var explicitly: `ODDS_API_KEY=xxx python3 script.py`. Key is NOT auto-loaded from any config file.
+16. **MARKET_TOKEN in scripts**: Must set env var explicitly: `MARKET_TOKEN=xxx python3 script.py`. Key is NOT auto-loaded from any config file.
 17. **Tennis sport keys are dynamic**: Tennis keys like `tennis_atp_qatar_open` change weekly. Do NOT add to SPORT_KEYS. Use `fetch_active_tennis_keys()` at runtime. Tennis h2h is 2-way (no draw) — uses standard collar and consensus_fair_prob().
 18. **nba_api mock pattern**: nba_api's `LeagueDashTeamStats` doesn't accept a `requests.Session`. Use `_endpoint_factory: Optional[Callable] = None` injection instead — tests pass a lambda, production defaults to `LeagueDashTeamStats`. Do NOT use `unittest.mock.patch` for nba_api tests; the factory injection is cleaner and fully deterministic.
 19. **nba_api "LA Clippers" edge case**: nba_api returns `"LA Clippers"` not `"Los Angeles Clippers"`. Always run through `normalize_nba_team_name()` before matching to `efficiency_feed._TEAM_DATA`. The normalization table in `nba_pdo.py` is the source of truth for all 30 NBA teams.
@@ -537,34 +594,47 @@ Priority 5: CONTEXT_SUMMARY.md  (architecture ground truth — read if doing arc
 
 ---
 
-## 🚦 CURRENT PROJECT STATE (as of Session 42 — 2026-02-28)
+## 🚦 CURRENT PROJECT STATE (as of Session 43 — 2026-03-08)
 
 ```
-Test suite:   1282/1282 passing ✅
-Last commit:  8c0f9a5 (Session 42: CLV capture + paper scan script) — PUSHED ✅
+Test suite:   1314/1314 passing ✅
+Last commit:  (see git log) — PUSHED ✅
 GitHub:       mpshields96/experimental-agentic-R-D (main branch)
 App:          LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-App port:     8504 | launch: ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
+App port:     8504 | launch: MARKET_TOKEN=<key> streamlit run app.py --server.port 8504
 
-✅ SESSIONS 29-42 COMPLETE:
-  Session 29: totals canonical line fix, RLM direction fix, dead code audit (→1079)
-  Session 30: visionOS UI pass (pages 01, 04, 07), PRECONDITION docstrings, SQLite MCP
-  Session 31: Streamlit Cloud deploy (titaniumv37agentic.streamlit.app), DB init fix
-  Session 32: Dynamic daily credit budget (CreditLedger, daily_allowance, daily guards) (+27 tests)
-  Session 33-34: CST times, Pinnacle→Book Coverage, collar map, guide rewrite, stale refs fixed
-  Session 35-36: Player props page 08 E2E, PropsQuotaTracker, DailyCreditLog (+56 tests → 1162)
-  Session 37-39: (see SESSION_LOG.md)
-  Session 40: B2 gate wiring — compute_injury_leverage_from_event(), dynamic injury_leverage= in page 01
-  Session 41: TypeError fix (injury_leverage param), _auto_paper_bet_scan(), event_id dedup (+13 → 1264)
-  Session 42: CLV capture — capture_close_price(), _capture_close_prices(), _extract_best_price();
-              date-sensitive test fix; result='pending' SQL fix; paper_bet_scan.py (+18 → 1282)
+✅ SESSION 43 COMPLETE (2026-03-08):
+  Session 43: bet_summary.py CLI, Page 01 gate widget, MARKET_TOKEN rename (security),
+              SCHEDULER_ENABLED kill switch, inactivity timeout 24h→2h, +17 tests (→1314)
 
-📋 SESSION 43 PRIORITY ORDER:
-  #1 V37 audit — Sessions 40+41+42 PENDING review in V37_INBOX.md
-  #2 Log more paper bets — need 10/10 resolved for analytics gate (auto-scan active, resets Mar 1 UTC)
-  #3 First CLV capture — watch bet_log.close_price after scheduler polls games within 2h window
-  #4 Schedule-aware scanning — skip sports with no games (credit optimization)
-  #5 Activate ODDS_API_KEY_PROPS — user adds to .streamlit/secrets.toml
+📋 SESSION 44 PRIORITY ORDER — BETTING LOGIC FIRST:
+  #0  gsd:health + gsd:progress at session start (mandatory)
+  #1  BETTING LOGIC: March Madness prep — NCAAB model audit (conference tournaments
+      start ~Mar 11, NCAA Tournament Mar 19). Verify NCAAB kill switch, consensus
+      logic, and sharp signal for tournament pace/total variance.
+  #2  BETTING LOGIC: NHL kill switch — verify active (Oct-Jun range set), test live
+      NHL odds parsing. NHL is back — model needs validation on NHL spreads/totals.
+  #3  BETTING LOGIC: Paper betting live parameters — verify auto-scan stakes precisely
+      mirror live Kelly sizing. Need 6 more resolved bets for analytics gate (4/10 now).
+  #4  BETTING LOGIC: MLB kill switch prep — activate April 1. Verify MLB consensus
+      logic handles totals (8.5/9.0 modal lines) and ML pricing correctly.
+  #5  BETTING LOGIC: Multi-sport RLM audit — RLM validated for NBA (Session 42).
+      Extend validation pattern to NHL and NCAAB via historical_backtest.py.
+  #6  Streamlit checkpoint: Page 01 gate widget live ✅. No new UI work until gates met.
+  #7  Activate MARKET_TOKEN_PROPS — user adds to secrets.toml (player props key)
+  #8  V37 audit — Sessions 40+41+42+43 PENDING review in V37_INBOX.md
+
+🏈 ACTIVE SPORTS (March 2026):
+  NBA      ✅ Active — playoffs push, March is high-value
+  NCAAB    ✅ Active — CONFERENCE TOURNAMENTS NOW, NCAA Tournament Mar 19
+  NHL      ✅ Active — back in full swing, model needs validation
+  Soccer   ✅ Active — EPL, Ligue1, Bundesliga, Serie A, La Liga all in-season
+  MLS      ✅ Active — season underway
+  MLB      🟡 HOLD until April 1 — Spring Training only, kill switch activates Apr 1
+  NFL      ❌ Off-season (Feb-Aug)
+  NCAAF    ❌ Off-season
+  Olympics ❌ Concluded
+```
 
 LIVE BET STATUS (auto-paper bets logged, 0 resolved — analytics locked until 10 resolved):
   Grade with: python3 scripts/grade_bet.py --id N --result win/loss --close PRICE
@@ -577,7 +647,7 @@ CREDIT LIMITS:
   daily_allowance() = 10,000 // days_until_billing (recalculated per update() call)
   is_daily_soft_limit() ≥80% | is_daily_hard_stop() ≥100% (4th guard in is_session_hard_stop)
   CreditLedger: data/credit_log.db | :memory: uses persistent _mem_conn (see lesson 48)
-  Full 12-sport scan ≈ 15-20 credits. Key: env var ODDS_API_KEY (rotate after use).
+  Full 12-sport scan ≈ 15-20 credits. Key: env var MARKET_TOKEN (rotate after use).
 
 SYSTEM GATES:
   Analytics: 0/10 resolved bets (gate lowered from 30 in Session 27)

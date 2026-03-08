@@ -356,7 +356,7 @@
 - `test_fixture_file_produces_a_grade_over`: End-to-end validation of `parse_props_candidates()` against real response shape. ✅
 - `TestPropsDailyCreditLog` (8 tests, tmp_path isolation): same isolation pattern as `TestDailyCreditLog`. ✅
 
-**Gate cleared:** Props DailyCreditLog NOW LIVE. `ODDS_API_KEY_PROPS` second account can be activated.
+**Gate cleared:** Props DailyCreditLog NOW LIVE. `MARKET_TOKEN_PROPS` second account can be activated.
 **No flags. APPROVED.**
 
 ---
@@ -432,8 +432,8 @@ Tests staying in `test_odds_fetcher.py` is consistent with this decision. ✅
 Session cap of 50 credits is acceptable for MVP. On-demand nature (manual event_id entry)
 significantly reduces runaway risk. 50 credits ≈ 16 full 3-market scans per session.
 Gate added: full props `DailyCreditLog` MUST be implemented before the second API account is
-activated. Right now props fall back to `ODDS_API_KEY` (main account). Do NOT activate
-`ODDS_API_KEY_PROPS` env var until `DailyCreditLog` for props is live.
+activated. Right now props fall back to `MARKET_TOKEN` (main account). Do NOT activate
+`MARKET_TOKEN_PROPS` env var until `DailyCreditLog` for props is live.
 This is the safest order: build DailyCreditLog first → THEN set up second account → THEN go live.
 
 **Ruling 3 — 422 no-retry: APPROVE direct requester.get() ✅**
@@ -444,9 +444,9 @@ Suggestion: log the 422 reason explicitly ("props market not available for {spor
 so the user sees a clear message rather than a silent empty result.
 
 **Ruling 4 — Props key fallback: ACCEPTABLE temporarily, but document the gap ✅**
-`get_props_api_key()` falling back to `ODDS_API_KEY` is pragmatic for local dev.
-On Streamlit Cloud: if `ODDS_API_KEY_PROPS` is not set, props WILL burn from the main quota.
-Add a warning log: "ODDS_API_KEY_PROPS not set — props using main API key. Main quota at risk."
+`get_props_api_key()` falling back to `MARKET_TOKEN` is pragmatic for local dev.
+On Streamlit Cloud: if `MARKET_TOKEN_PROPS` is not set, props WILL burn from the main quota.
+Add a warning log: "MARKET_TOKEN_PROPS not set — props using main API key. Main quota at risk."
 This makes the fallback visible rather than silent.
 
 **No blocking flags. Session 35 APPROVED. Push when test count is confirmed.**
@@ -471,7 +471,7 @@ This makes the fallback visible rather than silent.
 
 **Flags for reviewer:**
 - **ARCHITECTURAL DEVIATION — needs V37 ruling**: V37 spec said `core/props_fetcher.py` (separate file). I added to `core/odds_fetcher.py` instead. Justification: CLAUDE.md says "odds_fetcher.py — ALL Odds API calls." Props ARE Odds API calls. Awaiting V37 veto or approval on file placement.
-- **PROPS KEY**: Added `get_props_api_key()` — tries `ODDS_API_KEY_PROPS` first, falls back to `ODDS_API_KEY`. User has not yet set up second free account. V37 spec requires dedicated key when available. Current fallback is pragmatic, not final.
+- **PROPS KEY**: Added `get_props_api_key()` — tries `MARKET_TOKEN_PROPS` first, falls back to `MARKET_TOKEN`. User has not yet set up second free account. V37 spec requires dedicated key when available. Current fallback is pragmatic, not final.
 - **DAILY CREDIT LOG**: V37 spec wanted separate `DailyCreditLog` + `CreditLedger` for props. I implemented session cap only (PROPS_SESSION_CREDIT_CAP=50). Added `PROPS_DAILY_CREDIT_CAP=100` constant but no daily tracking yet. V37 to decide: is session cap sufficient for MVP, or is a full props DailyCreditLog required before merge?
 - **TESTS LOCATION**: Tests are in `test_odds_fetcher.py` (new classes appended) rather than a separate `test_props_fetcher.py`. Same observation as file structure question — awaiting V37 ruling.
 - `fetch_props_for_event` uses `requester.get()` directly (no `_fetch_with_backoff`) — intentional: 422 on props should NOT retry (not transient). V37 to confirm no-retry is correct for event endpoint.

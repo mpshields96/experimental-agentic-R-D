@@ -402,7 +402,7 @@ major endpoints. Key corrections to prior assumptions documented below.
 - MLB: gate Apr 1, 2026
 
 ### Session 19 Build Priorities
-1. **Live data accumulation** — start app with ODDS_API_KEY set, let scheduler run 30+ polls to seed line_history.db. Unblocks RLM, B2B, and graded bet gates.
+1. **Live data accumulation** — start app with MARKET_TOKEN set, let scheduler run 30+ polls to seed line_history.db. Unblocks RLM, B2B, and graded bet gates.
 2. **Grade logged bets** — use Bet Tracker once bets complete, log close prices for CLV pipeline.
 3. **Push all pending commits** — need GitHub token with Contents: Read+Write scope.
 4. **MLB pitcher kill switch** — HOLD until Apr 1, 2026.

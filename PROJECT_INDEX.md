@@ -88,8 +88,8 @@ agentic-rd-sandbox/
 ## 🚀 Entry Points
 
 ```bash
-# App (requires ODDS_API_KEY env var) — also live at titaniumv37agentic.streamlit.app
-ODDS_API_KEY=<key> streamlit run app.py --server.port 8504
+# App (requires MARKET_TOKEN env var) — also live at titaniumv37agentic.streamlit.app
+MARKET_TOKEN=<key> streamlit run app.py --server.port 8504
 
 # Tests
 python3 -m pytest tests/ -q   # 1079/1079 expected
