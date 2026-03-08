@@ -1613,3 +1613,27 @@ Please review:
 - User can: open local app → Live Lines (no refresh needed) → click "Log Paper Bet" on qualifying bets.
 
 ---
+
+---
+
+## V37 REVIEW REQUEST — Session 44 — Paper Parity + NCAAB Tournament Audit — 2026-03-08
+
+**From: Sandbox builder**
+**Priority: HIGH — NCAAB math bug fixes + betting infrastructure change.**
+**Status: 🔴 PENDING — V37 please review both changes below.**
+
+### Change 1: Paper/Live Parity (commit f175b8f)
+- `is_paper` (INT DEFAULT 1) + `stake_usd` (REAL DEFAULT 0) added to `bet_log` via idempotent migration
+- `PAPER_BANKROLL_USD = 1000.0` in scheduler.py — `stake_usd = kelly_size * 1000`
+- `stake` column now stores dollar amount, not Kelly fraction
+- Bet tracker UI: stake default uses `stake_usd` if available
+- 6 new tests in `TestIsPaperAndStakeUsd`
+
+### Change 2: NCAAB Tournament Audit (commit 441b400) — **two bugs fixed**
+- BUG 1: `FLAG: Conf tournament` was cosmetic — Grade B bets at 1.5% were auto-logged during March Madness. Now kills with `NCAAB_CONF_TOURNEY_MIN_EDGE = 0.08` enforced in spread, h2h, and totals loops.
+- BUG 2: Road-3PT kill was firing on neutral-venue tournament games. Fixed: `is_away = (team == away) AND NOT conference_tournament`
+- BUG 3: Totals loop had zero NCAAB kill logic — now added.
+- 6 new tests in `TestNCAABTournamentParity`
+
+**Tests: 1338/1338 ✅ | Not yet pushed (needs GitHub token from user)**
+
