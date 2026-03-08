@@ -74,6 +74,12 @@ NEAR_MISS_MIN_EDGE: float = -0.01  # -1.0% — near-miss transparency display
 KELLY_FRACTION_B: float = 0.12    # Grade B fractional Kelly
 KELLY_FRACTION_C: float = 0.05    # Grade C fractional Kelly (tracking)
 
+# NCAAB tournament edge floor (S44).
+# Conference and NCAA tournament games are neutralsite, high-juice, sharp-heavy markets.
+# Below this threshold the consensus is too uncertain to bet with high confidence.
+# Applied in parse_game_markets() when conference_tournament=True.
+NCAAB_CONF_TOURNEY_MIN_EDGE: float = 0.08  # 8% floor during tournament window
+
 # Soccer sports use 3-way h2h (home/away/draw) — need separate consensus logic
 SOCCER_SPORTS: frozenset = frozenset({
     "EPL", "LIGUE1", "BUNDESLIGA", "SERIE_A", "LA_LIGA", "MLS",
@@ -1372,7 +1378,9 @@ def parse_game_markets(
             # NBA B2B — home/road differentiated flag
             _kill_reason = ""
             if is_ncaab:
-                _is_road_ncaab = team_name == away
+                # Neutral venue: tournament games are neither home nor away.
+                # road-3PT kill only applies to true road games, not neutral site.
+                _is_road_ncaab = (team_name == away) and not conference_tournament
                 _3pt_rate = _ncaab_3pt.get(team_name, 0.0)
                 _ncaab_killed, _ncaab_reason = ncaab_kill_switch(
                     three_point_reliance=_3pt_rate,
@@ -1382,6 +1390,13 @@ def parse_game_markets(
                 )
                 if _ncaab_killed:
                     _kill_reason = _ncaab_reason
+                elif conference_tournament and edge < NCAAB_CONF_TOURNEY_MIN_EDGE:
+                    # Enforce 8% floor: tournament markets are sharp + neutral site.
+                    # The FLAG from ncaab_kill_switch alone is not enough — we must KILL.
+                    _kill_reason = (
+                        f"KILL: Conf tournament edge {edge:.1%} < "
+                        f"{NCAAB_CONF_TOURNEY_MIN_EDGE:.0%} floor"
+                    )
                 elif _ncaab_reason:
                     _kill_reason = _ncaab_reason
             if is_nba:
@@ -1484,7 +1499,8 @@ def parse_game_markets(
                 # NCAAB — conference tournament flag on h2h
                 _h2h_kill_reason = ""
                 if is_ncaab:
-                    _is_road_ncaab_h2h = team_name == away
+                    # Neutral venue: tournament games are neither home nor away.
+                    _is_road_ncaab_h2h = (team_name == away) and not conference_tournament
                     _3pt_rate_h2h = _ncaab_3pt.get(team_name, 0.0)
                     _ncaab_h2h_killed, _ncaab_h2h_reason = ncaab_kill_switch(
                         three_point_reliance=_3pt_rate_h2h,
@@ -1494,6 +1510,11 @@ def parse_game_markets(
                     )
                     if _ncaab_h2h_killed:
                         _h2h_kill_reason = _ncaab_h2h_reason
+                    elif conference_tournament and edge < NCAAB_CONF_TOURNEY_MIN_EDGE:
+                        _h2h_kill_reason = (
+                            f"KILL: Conf tournament edge {edge:.1%} < "
+                            f"{NCAAB_CONF_TOURNEY_MIN_EDGE:.0%} floor"
+                        )
                     elif _ncaab_h2h_reason:
                         _h2h_kill_reason = _ncaab_h2h_reason
                 # NBA B2B — h2h (spread=0 proxy)
@@ -1616,6 +1637,24 @@ def parse_game_markets(
                 _, _totals_kill_reason = nfl_kill_switch(
                     wind_mph=wind_mph, total=best_line or 0.0, market_type="total"
                 )
+            # NCAAB totals: enforce 8% floor during tournament; apply tempo kill if available
+            if is_ncaab:
+                _ncaab_total_killed, _ncaab_total_reason = ncaab_kill_switch(
+                    three_point_reliance=0.0,  # 3PT not relevant for totals
+                    is_away=False,             # neutral venue always
+                    tempo_diff=0.0,            # tempo_diff not yet wired — safe default
+                    market_type="total",
+                    conference_tournament=conference_tournament,
+                )
+                if _ncaab_total_killed:
+                    _totals_kill_reason = _ncaab_total_reason
+                elif conference_tournament and edge < NCAAB_CONF_TOURNEY_MIN_EDGE:
+                    _totals_kill_reason = (
+                        f"KILL: Conf tournament edge {edge:.1%} < "
+                        f"{NCAAB_CONF_TOURNEY_MIN_EDGE:.0%} floor"
+                    )
+                elif _ncaab_total_reason:
+                    _totals_kill_reason = _ncaab_total_reason
             # Soccer: attach Poisson cross-validation signal
             _totals_signal = ""
             if is_soccer and best_line:
