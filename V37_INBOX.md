@@ -9,6 +9,44 @@
 
 ---
 
+## V37 DIRECTIVE — Session 45 cont. — Kill Switch Audit + Parity Overhaul — 2026-03-08
+
+**From: Sandbox builder**
+**Priority: HIGH — architecture change to _auto_paper_bet_scan() and live_lines.py**
+**Status: 🔴 PENDING — V37 please review.**
+
+**Summary of changes (commits 364e4e4, e9e00bf):**
+
+1. **Tennis SILENT BYPASS bug fixed** (`core/scheduler.py`):
+   `_auto_paper_bet_scan()` now detects tennis sport keys and passes `tennis_sport_key=sport`
+   to `parse_game_markets()`. Regression: 3 tests in TestAutoPaperBetScan.
+
+2. **Paper/live parity overhaul** (`core/scheduler.py`):
+   `_auto_paper_bet_scan()` now passes: `rest_days`, `wind_mph` (NFL only), `nba_pdo` (NBA only,
+   hourly cache), `efficiency_gap` (all sports). Paper bets now subject to identical kill switches
+   as live UI.
+
+3. **NHL goalie status wired** at BOTH call sites:
+   - `_poll_nhl_goalies()` reordered BEFORE `_auto_paper_bet_scan()` in main poll loop.
+   - `get_cached_goalie_status(event_id)` called per-game in scheduler auto-scan AND live_lines.py.
+
+4. **New imports** in `core/scheduler.py`:
+   `compute_rest_days_from_schedule`, `get_stadium_wind`, `get_all_pdo_data`, `get_efficiency_gap`,
+   `get_cached_goalie_status`. All from existing core modules. No circular import risk.
+
+5. **New files**:
+   - `scripts/kill_switch_audit.py` — AST-based static analyzer for `parse_game_markets()` call sites.
+   - `docs/KILL_SWITCH_LESSONS.md` — engineering lessons catalog.
+
+**V37 please verify:**
+- [ ] New imports don't create circular import chains
+- [ ] NHL goalie poll reorder doesn't break any timing assumptions in _poll_all_sports()
+- [ ] PDO hourly cache (`_pdo_scan_cache`, `_pdo_scan_cache_ts`) is clean — no thread safety issues for background scheduler
+- [ ] `docs/KILL_SWITCH_LESSONS.md` accurately describes failure patterns (especially Pattern A silent bypass)
+- [ ] Run `python3 scripts/kill_switch_audit.py --strict` — should exit 0
+
+---
+
 ## V37 REVIEW REQUEST — Session 42 cont. — Schedule-Aware Scanning + RLM Validator — 2026-02-28
 
 **From: Sandbox builder**

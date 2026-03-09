@@ -78,6 +78,21 @@
 
 ---
 
+### SANDBOX SESSION 45 (cont.) SUMMARY — 2026-03-08
+**Built:**
+- Tennis surface kill switch SILENT BYPASS fixed: tennis_sport_key="" caused kill switch to silently bypass in _auto_paper_bet_scan(). Pattern A failure (compound guard `A and B` where B was empty).
+- Paper/live parity overhaul: 4 missing params added to auto-scan (rest_days, wind_mph, nba_pdo, efficiency_gap). PDO has 1-hr module-level cache guard. Scheduler auto-scan now subjects paper bets to identical kill switches as live UI.
+- NHL goalie kill switch wired at BOTH call sites: _poll_nhl_goalies() reordered before auto-scan; get_cached_goalie_status() called per-game in both scheduler and live_lines.py.
+- scripts/kill_switch_audit.py: AST-based static analyzer detecting Pattern A (silent bypass), Pattern B (not wired), and parity gaps. Run with --strict for CI enforcement.
+- docs/KILL_SWITCH_LESSONS.md: permanent lessons catalog for kill switch wiring failures.
+
+**Tests:** 1346 → 1349/1349 ✅ (+3 tennis regression tests)
+**Architectural decisions:** _PDO_CACHE_TTL_SECONDS=3600 — PDO fetch at most once/hour in scheduler. docs/ directory created for engineering docs.
+**Gates changed:** None. Paper bet gate still 4/10.
+**Flags for reviewer:** S42 cont. + S43 + S44 all still PENDING in V37_INBOX. Audit tool now CI-ready — suggest V37 runs `python3 scripts/kill_switch_audit.py --strict` as part of review protocol.
+
+---
+
 ### SANDBOX SESSION 45 SUMMARY — 2026-03-08
 **Built:**
 - All S43+S44 commits pushed to origin/main (6 commits including paper parity + NCAAB audit)

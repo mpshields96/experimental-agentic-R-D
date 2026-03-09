@@ -7,10 +7,10 @@
 # Rule (permanent): ALWAYS expand with current session knowledge before transitioning.
 # Never use a stale version. The prompt must always reflect current project state.
 #
-# Last updated: Session 45 — 2026-03-08
-# Session work S45: (1) All S43/S44 commits PUSHED (6 commits, token rotated). (2) March season gap tests (+6): NHL/NCAAB/NBA/MLS in March, MLB/NFL out. (3) NHL model fully validated: 58 tests, kill switches, goalie poll, season gate all ✅. (4) NCAAB tournament fully validated: is_ncaab_tournament_period() wired in scheduler+live_lines, 34 tests ✅. (5) Soccer/MLS validated: 3-way h2h, passes_collar_soccer, Poisson cross-validation ✅. (6) MLB April gate: month gate correct, canonical line manual validation PASS. Tests: 1338→1346 ✅. Commits d21e134 (March tests), ebca0cc (MLB prep) — PUSHED ✅.
-# Priority S46: #1 Paper bets 4→10/10 (analytics gate) — auto-scan active. #2 Tennis parse validation. #3 Multi-sport RLM audit via historical_backtest.py. #4 Activate MARKET_TOKEN_PROPS (user sets token). #5 V37 audit S42cont+S43+S44 PENDING.
-# Previous: S44: paper parity, NCAAB tournament audit. S43: MARKET_TOKEN rename, kill switches. Tests: 1297→1346 cumulative.
+# Last updated: Session 45 cont. — 2026-03-08
+# Session work S45 cont.: (1) Tennis kill switch SILENT BYPASS fixed — _auto_paper_bet_scan() was calling parse_game_markets() without tennis_sport_key, causing kill switch to evaluate `TENNIS AND ""` = False. (2) Paper/live parity overhaul: added rest_days, wind_mph (NFL), nba_pdo (NBA, 1hr cache), efficiency_gap to auto-scan path. (3) NHL goalie kill switch wired at BOTH call sites: _poll_nhl_goalies() reordered before auto-scan; get_cached_goalie_status() in both scheduler+live_lines. (4) scripts/kill_switch_audit.py: AST-based static analyzer — 0 CRITICAL, 0 IMPORTANT, 0 PARITY gaps. (5) docs/KILL_SWITCH_LESSONS.md created. 3 regression tests. Tests: 1346→1349. Commits 364e4e4, e9e00bf — PUSHED ✅.
+# Priority S46: #1 Paper bets 4→10/10 (analytics gate) — auto-scan active. #2 Multi-sport RLM audit via historical_backtest.py. #3 Kill switch audit --strict in CI (pre-commit hook). #4 Activate MARKET_TOKEN_PROPS (user sets token). #5 V37 audit S42cont+S43+S44+S45cont all PENDING.
+# Previous: S45: all S43/S44 commits pushed; season gate validated; +9 tests. S44: paper parity, NCAAB tournament audit. Tests: 1297→1349 cumulative.
 # Maintained by: sandbox builder chat
 
 ---
@@ -214,15 +214,15 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1346 / 1346 passing ✅
+Tests:    1349 / 1349 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commits (all PUSHED ✅):
+  - e9e00bf — Session 45 cont.: wire NHL goalie kill switch at both call sites
+  - 364e4e4 — Session 45 cont.: kill switch audit + paper/live parity overhaul
   - ebca0cc — Session 45: season gate + MLB prep — 9 new tests, comment fix
   - d21e134 — Session 45: add March season coverage tests (+6)
-  - caad7cf — Session 44 wrap: V37_INBOX S44 entry
   - 441b400 — Session 44: NCAAB tournament model audit — 8% floor + neutral venue fixes
-  - f175b8f — Session 43 cont. 2: paper/live parity — is_paper + stake_usd + dollar sizing
-All sessions through S45 fully pushed ✅
+All sessions through S45 cont. fully pushed ✅
 
 ✅ SESSION 42 COMPLETE (2026-02-28) — CLV close-price capture:
   - **Test fix:** TestDailyHardStop date-sensitive (billing-day eve daily_allowance=10000 > used_today=9999). Fixed with `_today` injection.
@@ -349,6 +349,8 @@ Odds API: Daily cap 300/day. Current key: MARKET_TOKEN in secrets.toml.
 - `scripts/export_bets.py` — exports bet_log to data/bet_tracker_log.csv (25 columns, edge tier, CLV, all metadata)
 - `scripts/grade_bet.py` — grades a bet with result + close price + auto-updates CSV
 - `scripts/backup.sh` — timestamped tarballs (was already present from Session 24)
+- `scripts/kill_switch_audit.py` — AST-based static analyzer for parse_game_markets() call sites. Detects Pattern A (silent bypass), Pattern B (not wired), parity gaps. Use `--strict` for CI exit code.
+- `docs/KILL_SWITCH_LESSONS.md` — permanent lessons catalog for kill switch wiring failures. 3 patterns. Run audit before any parse_game_markets() signature change.
 
 ### Access architecture (final — permanent)
 - Sandbox writes: ~/ClaudeCode/agentic-rd-sandbox/ ONLY — single write domain

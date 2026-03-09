@@ -2,6 +2,26 @@
 
 ---
 
+## Session 45 (cont.) — Kill switch audit + full parity overhaul — 2026-03-08
+
+**What shipped:**
+- Tennis surface kill switch SILENT BYPASS fixed: _auto_paper_bet_scan() was calling
+  parse_game_markets() without tennis_sport_key → kill switch evaluated `sport.startswith("TENNIS") AND ""`
+  = False. Fixed: detect tennis keys, pass tennis_sport_key=sport. 3 regression tests.
+- Paper/live parity: 4 missing context params added to auto-scan path:
+  rest_days (B2B kill), wind_mph (NFL totals kill), nba_pdo (PDO regression kill),
+  efficiency_gap (sharp score). PDO has 1-hour module-level cache guard.
+- NHL goalie kill switch wired: _poll_nhl_goalies() reordered BEFORE _auto_paper_bet_scan()
+  in main poll loop. get_cached_goalie_status() wired in both scheduler and live_lines.py.
+- scripts/kill_switch_audit.py: AST-based static analyzer for parse_game_markets() call sites.
+  Detects SILENT BYPASS (Pattern A), NOT WIRED (Pattern B), PARITY gaps. --strict for CI.
+- docs/KILL_SWITCH_LESSONS.md: lessons catalog with 3 failure patterns, examples, session history.
+- Both call sites: ✅ OK — 0 CRITICAL, 0 IMPORTANT, 0 PARITY gaps in audit.
+
+**Tests:** 1346 → 1349 (+3) | Commits: 364e4e4, e9e00bf — PUSHED ✅
+
+---
+
 ## Session 45 — Season gate validation + multi-sport audit — 2026-03-08
 
 **What shipped:**
