@@ -214,14 +214,14 @@ These are REQUIRED at the listed trigger points. Never rationalize skipping them
 ```
 Sandbox:  ~/ClaudeCode/agentic-rd-sandbox/
 App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch)
-Tests:    1349 / 1349 passing ✅
+Tests:    1356 / 1356 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commits (all PUSHED ✅):
+  - a703365 — Session 45 cont.: kill switch enforcement — 7 pytest tests + pre-commit + CLAUDE.md
   - e9e00bf — Session 45 cont.: wire NHL goalie kill switch at both call sites
   - 364e4e4 — Session 45 cont.: kill switch audit + paper/live parity overhaul
   - ebca0cc — Session 45: season gate + MLB prep — 9 new tests, comment fix
   - d21e134 — Session 45: add March season coverage tests (+6)
-  - 441b400 — Session 44: NCAAB tournament model audit — 8% floor + neutral venue fixes
 All sessions through S45 cont. fully pushed ✅
 
 ✅ SESSION 42 COMPLETE (2026-02-28) — CLV close-price capture:
