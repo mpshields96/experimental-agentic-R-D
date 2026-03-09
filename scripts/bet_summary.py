@@ -99,8 +99,17 @@ def main():
         ).fetchall()
     }
 
+    # CLV: only count bets that have event_id (post-Session 41 schema).
+    # Pre-schema bets (event_id='') have no commence_time and can never capture CLV.
+    clv_eligible = conn.execute(
+        "SELECT COUNT(*) FROM bet_log WHERE event_id != '' AND event_id IS NOT NULL"
+    ).fetchone()[0]
     clv_captured = conn.execute(
         "SELECT COUNT(*) FROM bet_log WHERE close_price != 0 AND close_price IS NOT NULL"
+        " AND event_id != '' AND event_id IS NOT NULL"
+    ).fetchone()[0]
+    pre_schema = conn.execute(
+        "SELECT COUNT(*) FROM bet_log WHERE (event_id = '' OR event_id IS NULL)"
     ).fetchone()[0]
 
     # ── Header ───────────────────────────────────────────────────────────────
@@ -124,7 +133,10 @@ def main():
     print(f"  RECORD          {wins}W – {losses}L  ({win_rate:.0f}% win rate)")
     print(f"  ROI             {roi:+.1f}%  (${total_profit:+.2f} on ${total_staked:.0f} staked)")
     print(f"  AVG EDGE        {avg_edge * 100:.1f}%")
-    print(f"  CLV CAPTURED    {clv_captured}/{total} bets")
+    clv_label = f"{clv_captured}/{clv_eligible} eligible bets"
+    if pre_schema:
+        clv_label += f"  ({pre_schema} pre-schema, no event_id)"
+    print(f"  CLV CAPTURED    {clv_label}")
     print()
 
     # ── Grade breakdown ───────────────────────────────────────────────────────

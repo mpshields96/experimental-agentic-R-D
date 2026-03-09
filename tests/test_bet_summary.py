@@ -33,7 +33,10 @@ def _create_test_db(path: str) -> None:
             profit REAL DEFAULT 0.0,
             stake REAL DEFAULT 0.0,
             close_price INTEGER DEFAULT 0,
-            notes TEXT DEFAULT ''
+            notes TEXT DEFAULT '',
+            event_id TEXT DEFAULT '',
+            is_paper INTEGER DEFAULT 1,
+            stake_usd REAL DEFAULT 0.0
         )
     """)
     bets = [
@@ -140,7 +143,9 @@ class TestBetSummarySmoke:
                 price INTEGER DEFAULT 0, edge_pct REAL DEFAULT 0.0,
                 grade TEXT DEFAULT '', result TEXT DEFAULT 'pending',
                 profit REAL DEFAULT 0.0, stake REAL DEFAULT 0.0,
-                close_price INTEGER DEFAULT 0, notes TEXT DEFAULT ''
+                close_price INTEGER DEFAULT 0, notes TEXT DEFAULT '',
+                event_id TEXT DEFAULT '', is_paper INTEGER DEFAULT 1,
+                stake_usd REAL DEFAULT 0.0
             )
         """)
         conn.commit()
