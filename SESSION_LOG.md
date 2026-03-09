@@ -2,6 +2,27 @@
 
 ---
 
+## Session 45 (cont. 2) — Multi-sport RLM validator + CLV display fix — 2026-03-08
+
+**What shipped:**
+- historical_backtest.py: extended to NHL (NHL Stats API), NCAAB/NFL/MLB (ESPN unofficial API).
+  Added --all-sports flag and cross-sport summary table. Generic fetch_result() routing.
+- bet_summary.py: CLV line now shows "X/Y eligible bets (N pre-schema, no event_id)".
+  Pre-schema bets (logged before S41 added event_id) no longer shown as CLV misses.
+- tests/test_bet_summary.py: fixture schemas updated to include event_id, is_paper, stake_usd
+  (match production schema). 9 previously failing tests all pass.
+- 1356/1356 tests pass | Commit: 3f94e3c
+
+**RLM signal validation (from DB):**
+- NCAAB: 370 moved lines, 12/24 rated = 50.0% cover rate (insufficient sample — need ≥10 rated, borderline)
+- NBA: 62 moved lines, 3/7 rated = 42.9% (insufficient sample)
+- NHL/NFL: no spread movement data yet (tracking < 24h)
+- ESPN API + NHL Stats API both working
+
+**V37 flags:** None new. CLV fix is cosmetic/reporting only.
+
+---
+
 ## Session 45 (cont.) — Kill switch audit + full parity overhaul — 2026-03-08
 
 **What shipped:**

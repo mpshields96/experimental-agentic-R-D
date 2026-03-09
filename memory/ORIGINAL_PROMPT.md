@@ -217,12 +217,12 @@ App:      LIVE at titaniumv37agentic.streamlit.app (Streamlit Cloud, main branch
 Tests:    1356 / 1356 passing ✅
 GitHub:   mpshields96/experimental-agentic-R-D (main)
 Latest commits (all PUSHED ✅):
+  - 3f94e3c — Session 45 cont.2: multi-sport RLM validator + CLV display fix (1356 tests)
   - a703365 — Session 45 cont.: kill switch enforcement — 7 pytest tests + pre-commit + CLAUDE.md
   - e9e00bf — Session 45 cont.: wire NHL goalie kill switch at both call sites
   - 364e4e4 — Session 45 cont.: kill switch audit + paper/live parity overhaul
   - ebca0cc — Session 45: season gate + MLB prep — 9 new tests, comment fix
-  - d21e134 — Session 45: add March season coverage tests (+6)
-All sessions through S45 cont. fully pushed ✅
+All sessions through S45 cont.2 fully pushed ✅
 
 ✅ SESSION 42 COMPLETE (2026-02-28) — CLV close-price capture:
   - **Test fix:** TestDailyHardStop date-sensitive (billing-day eve daily_allowance=10000 > used_today=9999). Fixed with `_today` injection.
@@ -303,11 +303,11 @@ All sessions through S45 cont. fully pushed ✅
 
 📋 PRIORITY ORDER (Session 46 — next):
   #0 — MANDATORY SESSION START: titanium-session-wrap START (GSD commands not applicable — no .planning/)
-  #1 — PAPER BETS: run bet_summary.py — check gate (4/10). Conference tournament bets prime targets.
+  #1 — PAPER BETS: run bet_summary.py — check gate (4/10). Conference tournament starts March 11.
   #2 — TENNIS: validate parse_game_markets tennis path, surface_from_sport_key, ATP/WTA keys
-  #3 — RLM AUDIT: extend historical_backtest.py to NHL+NCAAB (zero API credits)
+  #3 — MULTI-SPORT RLM: ✅ DONE (S45 cont.2). Run --all-sports as more games resolve to validate signal.
   #4 — MARKET_TOKEN_PROPS: user sets second account token to activate props (page 08)
-  #5 — V37 audit: S42 cont. + S43 + S44 PENDING in V37_INBOX
+  #5 — V37 audit: S42 cont. + S43 + S44 + S45 cont. all PENDING in V37_INBOX
 
 Active sports (March 2026): NBA ✅ | NCAAB (March Madness imminent) ✅ | NHL ✅ | Soccer ✅ | College Baseball ✅ | MLB starts April 1
 
