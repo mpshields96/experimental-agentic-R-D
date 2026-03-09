@@ -22,7 +22,7 @@ from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
-from core.odds_fetcher import fetch_batch_odds, quota, probe_bookmakers
+from core.odds_fetcher import fetch_batch_odds, quota, probe_bookmakers, compute_rest_days_from_schedule
 from core.line_logger import (
     init_db, log_snapshot, is_bet_already_logged, log_bet,
     get_bets, capture_close_price,
@@ -40,6 +40,9 @@ from core.price_history_store import (
 from core.probe_logger import log_probe_result
 from core.nhl_data import get_starters_for_odds_game, cache_goalie_status
 from core.injury_data import evaluate_injury_impact
+from core.weather_feed import get_stadium_wind
+from core.nba_pdo import get_all_pdo_data
+from core.efficiency_feed import get_efficiency_gap
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +108,12 @@ _poll_errors: list = []        # last N error strings (capped at 10)
 _db_path: Optional[str] = None
 _last_idle_hours: float = 0.0  # Most recent inactivity check result (for UI display)
 
+# PDO cache for auto-scan — refreshed at most once per hour to match nba_api rate limits.
+# get_all_pdo_data() makes 2 real nba_api calls; calling every 5-min poll would be excessive.
+_PDO_CACHE_TTL_SECONDS: int = 3600  # 1 hour
+_pdo_scan_cache: dict = {}          # {canonical_name: PdoResult}
+_pdo_scan_cache_ts: float = 0.0     # time.time() of last successful fetch
+
 
 # ---------------------------------------------------------------------------
 # Auto paper-bet scan — runs after each successful odds fetch
@@ -132,15 +141,73 @@ def _auto_paper_bet_scan(
     Returns:
         Number of new paper bets logged this cycle.
     """
+    global _pdo_scan_cache, _pdo_scan_cache_ts
+
     _now = datetime.now(timezone.utc)
     _conf_tourney = (sport == "NCAAB") and is_ncaab_tournament_period(_now.month, _now.day)
+    _sport_upper = sport.upper()
     logged = 0
+
+    # --- PAPER/LIVE PARITY: compute context params that drive binary kill switches ---
+    # Missing these causes paper bets to log when live UI would have killed them.
+
+    # Tennis: sport is raw API key (e.g. "tennis_atp_miami_open").
+    # tennis_sport_key must be non-empty for surface kill switch to fire.
+    _sport_lower = sport.lower()
+    _is_tennis = _sport_lower.startswith("tennis_atp") or _sport_lower.startswith("tennis_wta")
+    _tennis_key = sport if _is_tennis else ""
+
+    # rest_days: B2B kill switch. Free — computed from existing games list.
+    _rest_days_map = compute_rest_days_from_schedule(games)
+
+    # NBA PDO: pdo_kill_switch fires if regression signal present.
+    # Refreshed at most once per hour; empty dict on failure (conservative fallback).
+    _nba_pdo_data: dict = {}
+    if _sport_upper == "NBA":
+        import time as _time
+        if _time.time() - _pdo_scan_cache_ts > _PDO_CACHE_TTL_SECONDS:
+            try:
+                _pdo_scan_cache = get_all_pdo_data()
+                _pdo_scan_cache_ts = _time.time()
+                logger.debug("PDO cache refreshed: %d teams", len(_pdo_scan_cache))
+            except Exception as _exc:
+                logger.warning("PDO fetch failed in auto-scan: %s", _exc)
+                _pdo_scan_cache = {}
+        _nba_pdo_data = _pdo_scan_cache
+
+    # NFL wind: binary kill switch (>20mph kills totals, >15 with high total).
+    # get_stadium_wind() has 1-hour in-process cache so repeated game-level calls are cheap.
+    _is_nfl = _sport_upper in ("NFL", "NCAAF")
+
     for game in games:
         try:
+            home = game.get("home_team", "")
             injury_lev = compute_injury_leverage_from_event(game, sport)
+
+            # Per-game parity params (mirror live_lines.py — same kill switches must fire)
+            away = game.get("away_team", "")
+            eff_gap = get_efficiency_gap(home, away) if home else 0.0
+
+            wind = 0.0
+            if _is_nfl and home:
+                try:
+                    wind = get_stadium_wind(home, game.get("commence_time", ""))
+                except Exception:
+                    wind = 0.0
+
+            game_pdo: dict | None = None
+            if _nba_pdo_data and home:
+                game_pdo = {k: v for k, v in _nba_pdo_data.items()
+                            if k in (home, away)} or None
+
             bets = parse_game_markets(game, sport, injury_leverage=injury_lev,
                                       min_edge=GRADE_B_MIN_EDGE,
-                                      conference_tournament=_conf_tourney)
+                                      conference_tournament=_conf_tourney,
+                                      tennis_sport_key=_tennis_key,
+                                      rest_days=_rest_days_map,
+                                      wind_mph=wind,
+                                      nba_pdo=game_pdo,
+                                      efficiency_gap=eff_gap)
             for bet in bets:
                 if bet.kill_reason.startswith("KILL"):
                     continue

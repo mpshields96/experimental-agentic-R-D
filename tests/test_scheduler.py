@@ -765,6 +765,85 @@ class TestAutoPaperBetScan:
         init_db(db_path)
         assert _auto_paper_bet_scan([], "NBA", db_path) == 0
 
+    def test_tennis_atp_key_passed_to_parse(self, tmp_path):
+        """When sport is tennis_atp_*, parse_game_markets must receive tennis_sport_key=sport.
+
+        Regression test for Session 45 gap: auto_paper_bet_scan was calling
+        parse_game_markets without tennis_sport_key, silently bypassing the
+        surface kill switch for all scheduler-polled tennis games.
+        """
+        from core.scheduler import _auto_paper_bet_scan
+        from core.line_logger import init_db
+        from unittest.mock import patch, MagicMock
+
+        db_path = str(tmp_path / "tennis_atp.db")
+        init_db(db_path)
+        game = self._make_edge_game()
+        sport_key = "tennis_atp_miami_open"
+
+        captured_calls = []
+
+        def spy_parse(game, sport, **kwargs):
+            captured_calls.append(kwargs.get("tennis_sport_key", "__NOT_PASSED__"))
+            return []  # return no bets — we just want to inspect the call
+
+        with patch("core.scheduler.parse_game_markets", side_effect=spy_parse), \
+             patch("core.scheduler.compute_injury_leverage_from_event", return_value=0.0):
+            _auto_paper_bet_scan([game], sport_key, db_path)
+
+        assert captured_calls, "parse_game_markets was never called"
+        assert captured_calls[0] == sport_key, (
+            f"tennis_sport_key should be '{sport_key}', got '{captured_calls[0]}'. "
+            "Surface kill switch would be silently bypassed in auto-scan."
+        )
+
+    def test_tennis_wta_key_passed_to_parse(self, tmp_path):
+        """WTA variant: tennis_wta_* sport keys must also pass tennis_sport_key."""
+        from core.scheduler import _auto_paper_bet_scan
+        from core.line_logger import init_db
+        from unittest.mock import patch
+
+        db_path = str(tmp_path / "tennis_wta.db")
+        init_db(db_path)
+        game = self._make_edge_game()
+        sport_key = "tennis_wta_miami_open"
+
+        captured_calls = []
+
+        def spy_parse(game, sport, **kwargs):
+            captured_calls.append(kwargs.get("tennis_sport_key", "__NOT_PASSED__"))
+            return []
+
+        with patch("core.scheduler.parse_game_markets", side_effect=spy_parse), \
+             patch("core.scheduler.compute_injury_leverage_from_event", return_value=0.0):
+            _auto_paper_bet_scan([game], sport_key, db_path)
+
+        assert captured_calls and captured_calls[0] == sport_key
+
+    def test_non_tennis_sport_passes_empty_tennis_key(self, tmp_path):
+        """Non-tennis sports must pass tennis_sport_key='' (not the sport name)."""
+        from core.scheduler import _auto_paper_bet_scan
+        from core.line_logger import init_db
+        from unittest.mock import patch
+
+        db_path = str(tmp_path / "nba_tennis_key.db")
+        init_db(db_path)
+        game = self._make_edge_game()
+
+        captured_calls = []
+
+        def spy_parse(game, sport, **kwargs):
+            captured_calls.append(kwargs.get("tennis_sport_key", "__NOT_PASSED__"))
+            return []
+
+        with patch("core.scheduler.parse_game_markets", side_effect=spy_parse), \
+             patch("core.scheduler.compute_injury_leverage_from_event", return_value=0.0):
+            _auto_paper_bet_scan([game], "NBA", db_path)
+
+        assert captured_calls and captured_calls[0] == "", (
+            f"NBA should pass tennis_sport_key='', got '{captured_calls[0]}'"
+        )
+
 
 # ---------------------------------------------------------------------------
 # TestExtractBestPrice
