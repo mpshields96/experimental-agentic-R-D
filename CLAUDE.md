@@ -559,6 +559,15 @@ Rules:
 61. **`calculate_sharp_score()` signature** (Session 40): Takes `rest_edge: float` (pre-computed value), NOT `rest_days: dict`. Returns `(score, breakdown_dict)` tuple — must unpack both. In tests: `score, _ = calculate_sharp_score(edge_pct=0.05, rlm_confirmed=False, efficiency_gap=0.0, injury_leverage=4.0)`. The `rest_days` dict is processed UPSTREAM (e.g., in `parse_game_markets`) before reaching `calculate_sharp_score`.
 62. **Backup 200MB guard recovery** (Session 40): When `.backups/` exceeds 200MB, `backup.sh` skips and prints the exact `rm` command to run. Recovery pattern: `ls -lh .backups/` → `rm` two oldest tarballs → re-run `backup.sh`. At current project size (~166-193MB/tarball), only 1-2 tarballs fit within the 200MB limit.
 63. **Daily credit cap consumed by scheduler** (Session 40): 12 sports × 30-min polling × ~1.5 cr/sport ≈ 36 cr/poll × 2/hr. The 300 daily cap is typically exhausted by early afternoon. Standalone scripts calling `fetch_batch_odds()` may succeed on FIRST call when `quota.remaining=None` (uninitialized — first call bypasses DailyCreditLog), but all subsequent calls in the same process are blocked. Plan manual scans for early morning UTC when the daily budget resets at midnight UTC.
+64. **Kill switch wiring protocol — PERMANENT (Session 45)**: Every `parse_game_markets()` call site MUST pass ALL kill-switch-critical context params. There are two CALL SITES: `core/scheduler.py:_auto_paper_bet_scan()` and `pages/01_live_lines.py`. Three failure patterns documented in `docs/KILL_SWITCH_LESSONS.md`:
+    - **Pattern A — SILENT BYPASS** (most dangerous): compound guard `if A and B` where B is a context param. If B is empty/falsy (default), kill switch evaluates SAFE even when condition fires. Real bug: `tennis_sport_key=""` bypassed surface kill switch for all scheduler-polled tennis games (S45).
+    - **Pattern B — NOT WIRED**: `if param is not None` guard, param always defaults to None. Kill switch block skipped entirely. Real bug: `nhl_goalie_status` not passed at either call site (S45).
+    - **Pattern C — PARITY GAP**: param present in live UI but missing from scheduler auto-scan. Paper bets scored/killed differently. Real bugs: `rest_days`, `wind_mph`, `nba_pdo`, `efficiency_gap` missing from auto-scan (S45).
+    **Enforcement mechanism (three layers)**:
+    1. `python3 scripts/kill_switch_audit.py --strict` — AST-based analyzer, exit 1 on gaps.
+    2. `tests/test_kill_switch_audit.py` — 7 pytest tests, runs on every `pytest` invocation. A failure here means a kill switch is actively bypassed in production.
+    3. `.git/hooks/pre-commit` — blocks commits touching `math_engine.py`, `scheduler.py`, or `live_lines.py` if audit fails.
+    **Rule**: When adding a new context param to `parse_game_markets()`, ALSO update: SILENT_BYPASS_PARAMS or NOT_WIRED_PARAMS in `scripts/kill_switch_audit.py`; both call sites with the new param; `docs/KILL_SWITCH_LESSONS.md` SESSION HISTORY table.
 
 ---
 

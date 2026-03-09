@@ -823,3 +823,4 @@ def reset_state() -> None:
     _poll_error_count = 0
     _poll_errors = []
     _db_path = None
+# test
