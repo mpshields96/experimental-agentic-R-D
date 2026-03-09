@@ -44,17 +44,19 @@ SILENT_BYPASS_PARAMS = [
 
 # IMPORTANT = kill switch gated behind `if param is not None`, so it's not
 # fired but is also not silently wrong. Still a gap vs live UI.
-NOT_WIRED_PARAMS = [
-    "nhl_goalie_status",  # None → NHL goalie kill switch skipped entirely
+NOT_WIRED_PARAMS: list[str] = [
+    # nhl_goalie_status was NOT_WIRED until Session 45 — now wired at both call sites.
+    # Add future params here when a new `if param is not None` guard is added.
 ]
 
 # PARITY = params that affect scoring but don't have binary kill-switch gates.
 # Missing = auto-scan bets scored differently than live UI bets (paper/live gap).
 PARITY_PARAMS = [
-    "efficiency_gap",     # NBA/NCAAB net rating gap — affects sharp score
-    "rest_days",          # B2B / rest fatigue — affects kill switch
-    "wind_mph",           # NFL weather — affects kill switch
-    "nba_pdo",            # NBA PDO regression — affects kill switch
+    "efficiency_gap",      # NBA/NCAAB net rating gap — affects sharp score
+    "rest_days",           # B2B / rest fatigue — affects kill switch
+    "wind_mph",            # NFL weather — affects kill switch
+    "nba_pdo",             # NBA PDO regression — affects kill switch
+    "nhl_goalie_status",   # NHL goalie kill switch — wired S45; flag if missing again
 ]
 
 # Source files to audit (relative to ROOT)

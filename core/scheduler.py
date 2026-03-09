@@ -38,7 +38,7 @@ from core.price_history_store import (
     purge_old_events,
 )
 from core.probe_logger import log_probe_result
-from core.nhl_data import get_starters_for_odds_game, cache_goalie_status
+from core.nhl_data import get_starters_for_odds_game, cache_goalie_status, get_cached_goalie_status
 from core.injury_data import evaluate_injury_impact
 from core.weather_feed import get_stadium_wind
 from core.nba_pdo import get_all_pdo_data
@@ -200,6 +200,14 @@ def _auto_paper_bet_scan(
                 game_pdo = {k: v for k, v in _nba_pdo_data.items()
                             if k in (home, away)} or None
 
+            # NHL goalie kill switch: read from cache populated by _poll_nhl_goalies()
+            # which runs just BEFORE _auto_paper_bet_scan() for NHL sport in the main loop.
+            goalie_status: dict | None = None
+            if _sport_upper == "NHL":
+                event_id = game.get("id", "")
+                if event_id:
+                    goalie_status = get_cached_goalie_status(event_id)
+
             bets = parse_game_markets(game, sport, injury_leverage=injury_lev,
                                       min_edge=GRADE_B_MIN_EDGE,
                                       conference_tournament=_conf_tourney,
@@ -207,7 +215,8 @@ def _auto_paper_bet_scan(
                                       rest_days=_rest_days_map,
                                       wind_mph=wind,
                                       nba_pdo=game_pdo,
-                                      efficiency_gap=eff_gap)
+                                      efficiency_gap=eff_gap,
+                                      nhl_goalie_status=goalie_status)
             for bet in bets:
                 if bet.kill_reason.startswith("KILL"):
                     continue
@@ -518,6 +527,10 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
                 inject_historical_prices_into_cache(games, effective_db)
                 snapshots = log_snapshot(games, sport, effective_db)
                 results_summary[sport] = len(snapshots)
+                # NHL: poll goalies BEFORE auto-scan so cache is warm when
+                # _auto_paper_bet_scan() reads it via get_cached_goalie_status().
+                if sport == "NHL":
+                    _poll_nhl_goalies(games)
                 # Auto paper-bet scan: log Grade A/B bets that haven't been seen yet
                 new_bets = _auto_paper_bet_scan(games, sport, effective_db)
                 if new_bets:
@@ -529,9 +542,6 @@ def _poll_all_sports(db_path: Optional[str] = None) -> None:
                 # Probe: log bookmaker coverage for this sport's fetch
                 probe_result = probe_bookmakers(games)
                 log_probe_result(probe_result, sport=sport)
-                # NHL: poll boxscore for goalie starters within 90min window
-                if sport == "NHL":
-                    _poll_nhl_goalies(games)
             else:
                 results_summary[sport] = 0
 

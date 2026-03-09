@@ -79,6 +79,7 @@ from core.parlay_builder import (
     PARLAY_MAX_UNITS,
 )
 from core.scheduler import compute_injury_leverage_from_event
+from core.nhl_data import get_cached_goalie_status
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -169,6 +170,7 @@ def _run_pipeline(raw: dict, min_edge: float = NEAR_MISS_MIN_EDGE) -> list[BetCa
                 nba_pdo_data = None
 
         is_nfl_sport = sport_key == "NFL"
+        is_nhl_sport = sport_key == "NHL"
 
         for game in games:
             try:
@@ -193,6 +195,13 @@ def _run_pipeline(raw: dict, min_edge: float = NEAR_MISS_MIN_EDGE) -> list[BetCa
                     sport_label.upper() == "NCAAB"
                     and is_ncaab_tournament_period(_now_ui.month, _now_ui.day)
                 )
+                # NHL goalie kill switch: read from in-process cache populated by
+                # scheduler._poll_nhl_goalies() — both run in the same Streamlit process.
+                goalie_status_ui: dict | None = None
+                if is_nhl_sport:
+                    event_id_ui = game.get("id", "")
+                    if event_id_ui:
+                        goalie_status_ui = get_cached_goalie_status(event_id_ui)
                 bets = parse_game_markets(
                     game,
                     sport_label,
@@ -204,6 +213,7 @@ def _run_pipeline(raw: dict, min_edge: float = NEAR_MISS_MIN_EDGE) -> list[BetCa
                     min_edge=min_edge,
                     injury_leverage=injury_lev,
                     conference_tournament=_conf_tourney_ui,
+                    nhl_goalie_status=goalie_status_ui,
                 )
                 sport_upper = sport_label.upper().replace("TENNIS_ATP", "NBA").replace("TENNIS_WTA", "NBA")
                 proj_margin = efficiency_gap_to_margin(eff_gap)

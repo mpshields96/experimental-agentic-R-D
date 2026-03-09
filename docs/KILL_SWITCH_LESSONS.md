@@ -65,8 +65,10 @@ if nhl_goalie_status is not None:
 Both `scheduler.py` and `live_lines.py` don't pass `nhl_goalie_status` → defaults to `None`.
 The goalie kill switch never fires.
 
-**Status:** Known gap. `_poll_nhl_goalies()` runs in scheduler but data isn't plumbed
-through to `parse_game_markets`. Fix: retrieve cached goalie data per-game before calling.
+**Fix applied (Session 45):**
+- `_poll_nhl_goalies(games)` reordered to run BEFORE `_auto_paper_bet_scan()` in main poll loop.
+- `get_cached_goalie_status(event_id)` called per-game in both `_auto_paper_bet_scan()` and
+  `live_lines.py` — reads from shared in-process `_goalie_cache` populated by the scheduler.
 
 ---
 
@@ -126,4 +128,5 @@ whenever a new kill switch is added to `parse_game_markets()`.
 |---------|-----|---------|-----|
 | S45 | Tennis kill switch never fired in auto-scan | A (silent bypass) | Detect tennis key; pass `tennis_sport_key=sport` |
 | S45 | Paper bets not subject to B2B/wind/PDO kills | C (parity) | Add `rest_days`, `wind_mph`, `nba_pdo`, `efficiency_gap` to auto-scan |
+| S45 | NHL goalie kill switch not wired in either path | B (not wired) | Reorder _poll_nhl_goalies before auto-scan; read _goalie_cache in both paths |
 | S40 | `injury_leverage` hardcoded 0.0 in live UI | C (parity) | Compute from `compute_injury_leverage_from_event()` dynamically |
